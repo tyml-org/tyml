@@ -11,8 +11,12 @@ mod test {
         let source = 
 "
 settings: {
-    number: int = 100
+    number: int = -3.65e-10
+    binary: int = 0xFF
 }
+
+type Type {}
+enum Enum {}
 ";
         let lexer = Lexer::new(source);
 
