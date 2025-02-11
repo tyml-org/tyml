@@ -13,14 +13,14 @@ mod tests {
         defines         ::= [ define ] { ( lf | "," [ lf ] ) define }
         define          ::= element_define | type_define
 
-        element_define  ::= node_name { "." node_name } element_type [ default_value ]
+        element_define  ::= node_name { "." node_name } [ element_type ] [ default_value ]
         node_name       ::= literal | "*"
 
         element_type    ::= ":" [ lf ] literal [ "?" ]
 
         default_value   ::= "=" [ lf ] ( string_literal | numeric_literal | "null" )
 
-        string_literal  ::= r#"".*""# | r"'.*'" | r#"""".*""""# | r"'''.*'''"
+        string_literal  ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
 
         numeric_literal ::= float_numeric | binary_numeric
 

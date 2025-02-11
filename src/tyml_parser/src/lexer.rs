@@ -18,10 +18,6 @@ pub enum TokenKind {
     Equal,
     /// null
     Null,
-    /// +
-    Plus,
-    /// -
-    Minus,
     /// inf
     Inf,
     /// nan
@@ -58,8 +54,6 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::QuestionMark, "?"),
     Tokenizer::Keyword(TokenKind::Equal, "="),
     Tokenizer::Keyword(TokenKind::Null, "null"),
-    Tokenizer::Keyword(TokenKind::Plus, "+"),
-    Tokenizer::Keyword(TokenKind::Minus, "-"),
     Tokenizer::Keyword(TokenKind::Inf, "inf"),
     Tokenizer::Keyword(TokenKind::Nan, "nan"),
     Tokenizer::Keyword(TokenKind::Type, "type"),
@@ -74,15 +68,15 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::BinaryNumeric, r"0o[0-7|_]+"),
     Tokenizer::Regex(TokenKind::BinaryNumeric, r"0b[01_]+"),
     Tokenizer::Regex(TokenKind::Literal, r"\w+"),
-    Tokenizer::Functional(TokenKind::StringLiteral, string_literal_tokenizer),
+    Tokenizer::Regex(TokenKind::StringLiteral, r#""([^"\\]|\\.)*""#),
+    Tokenizer::Regex(TokenKind::StringLiteral, r"'([^'\\]|\\.)*'"),
     Tokenizer::Regex(TokenKind::LineFeed, r"\n|\r"),
-    Tokenizer::Keyword(TokenKind::Whitespace, r" "),
+    Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
 ];
 
 enum Tokenizer {
     Keyword(TokenKind, &'static str),
     Regex(TokenKind, &'static str),
-    Functional(TokenKind, fn(current_input: &str) -> usize),
 }
 
 impl Tokenizer {
@@ -125,13 +119,8 @@ impl Tokenizer {
 
                 (kind.clone(), length)
             }
-            Tokenizer::Functional(kind, tokenizer) => (kind.clone(), tokenizer(current_input)),
         };
     }
-}
-
-fn string_literal_tokenizer(_: &str) -> usize {
-    0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
