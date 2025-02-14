@@ -1,15 +1,21 @@
+use ast::Defines;
 
+pub mod ast;
 pub mod lexer;
+pub mod parser;
+
+pub struct TYML<'input, 'allocator> {
+    pub ast: &'allocator Defines<'input, 'allocator>,
+}
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::Lexer;
 
+    use crate::lexer::Lexer;
 
     #[test]
     fn test() {
-        let source = 
-"
+        let source = "
 settings: {
     number = -3.65e-10
     binary = 0xFF
@@ -25,5 +31,4 @@ enum Enum {}
             dbg!(token);
         }
     }
-
 }

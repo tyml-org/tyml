@@ -13,8 +13,8 @@ mod tests {
         defines         ::= [ define ] { ( lf | "," [ lf ] ) define }
         define          ::= element_define | type_define
 
-        element_define  ::= node_name { "." node_name } [ element_type ] [ default_value ]
-        node_name       ::= literal | "*"
+        element_define  ::= node_literal { "." node_literal } [ element_type ] [ default_value ]
+        node_literal    ::= literal | "*"
 
         element_type    ::= ":" [ lf ] literal [ "?" ]
 
