@@ -1,11 +1,28 @@
 use ast::Defines;
+use bumpalo::Bump;
+use parser::parse_tyml;
 
 pub mod ast;
 pub mod lexer;
 pub mod parser;
+pub mod error;
 
-pub struct TYML<'input, 'allocator> {
-    pub ast: &'allocator Defines<'input, 'allocator>,
+pub struct Tyml<'input, 'allocator> {
+    source_code: &'input str,
+    ast: Option<&'allocator Defines<'input, 'allocator>>,
+    allocator: Bump,
+}
+
+pub struct IncompleteTyml<'input, 'allocator> {
+    tyml: Tyml<'input, 'allocator>,
+}
+
+impl<'input, 'allocator> Tyml<'input, 'allocator> {
+    pub fn parse(
+        source_code: &'input str,
+    ) -> Result<Tyml<'input, 'allocator>, IncompleteTyml<'input, 'allocator>> {
+        parse_tyml(source_code)
+    }
 }
 
 #[cfg(test)]

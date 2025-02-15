@@ -10,15 +10,15 @@ mod tests {
 
         source          ::= [ "!tyml" ] defines
 
-        defines         ::= [ define ] { ( lf | "," [ lf ] ) define }
+        defines         ::= [ lf ] { define ( lf | "," [ lf ] ) }
         define          ::= element_define | type_define
 
-        element_define  ::= node_literal { "." node_literal } [ element_type ] [ default_value ]
+        element_define  ::= node_literal { "." node_literal } [ lf ] ( element_type [ default_value ] | default_value )
         node_literal    ::= literal | "*"
 
-        element_type    ::= ":" [ lf ] literal [ "?" ]
+        element_type    ::= ":" literal [ "?" ]
 
-        default_value   ::= "=" [ lf ] ( string_literal | numeric_literal | "null" )
+        default_value   ::= "=" ( string_literal | numeric_literal | "null" )
 
         string_literal  ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
 
@@ -33,7 +33,7 @@ mod tests {
         struct_define   ::= "type" literal [ lf ] "{" defines "}"
 
         enum_define     ::= "enum" literal [ lf ] "{" enum_elements "}"
-        enum_elements   ::= [ literal ] { ( lf | "," [ lf ] ) literal }
+        enum_elements   ::= [ lf ] { literal ( lf | "," [ lf ] ) }
 
         literal         ::= r"\w+"
 

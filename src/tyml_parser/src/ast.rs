@@ -27,6 +27,7 @@ pub struct Defines<'input, 'allocator> {
 
 pub enum Define<'input, 'allocator> {
     Element(ElementDefine<'input, 'allocator>),
+    Type(TypeDefine<'input, 'allocator>),
 }
 
 pub struct ElementDefine<'input, 'allocator> {

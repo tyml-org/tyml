@@ -130,10 +130,23 @@ pub struct Token<'input> {
     pub span: Range<usize>,
 }
 
+pub(crate) trait GetTokenKind {
+    fn get_kind(&self) -> TokenKind;
+}
+
+impl<'input> GetTokenKind for Option<Token<'input>> {
+    fn get_kind(&self) -> TokenKind {
+        self.as_ref()
+            .map(|token| token.kind)
+            .unwrap_or(TokenKind::None)
+    }
+}
+
 pub struct Lexer<'input> {
     source: &'input str,
     current_byte_position: usize,
     regex_cache: Box<[Option<Regex>]>,
+    current_token_cache: Option<Token<'input>>,
 }
 
 impl<'input> Lexer<'input> {
@@ -142,6 +155,36 @@ impl<'input> Lexer<'input> {
             source,
             current_byte_position: 0,
             regex_cache: vec![None; TOKENIZERS.len()].into_boxed_slice(),
+            current_token_cache: None,
+        }
+    }
+
+    pub fn current(&mut self) -> Option<Token<'input>> {
+        let anchor = self.cast_anchor();
+
+        // move to next temporarily
+        self.current_token_cache = self.next();
+
+        // back to anchor position
+        self.current_byte_position = anchor.byte_position;
+
+        self.current_token_cache.clone()
+    }
+
+    pub fn cast_anchor(&self) -> Anchor {
+        Anchor {
+            byte_position: self.current_byte_position,
+        }
+    }
+
+    pub fn skip_line_feed(&mut self) {
+        loop {
+            if let TokenKind::LineFeed = self.current().get_kind() {
+                self.next();
+                continue;
+            } else {
+                return;
+            }
         }
     }
 }
@@ -150,6 +193,11 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Token<'input>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // take cache
+        if let Some(token) = self.current_token_cache.take() {
+            return Some(token);
+        }
+
         loop {
             if self.current_byte_position == self.source.len() {
                 return None;
@@ -200,5 +248,18 @@ impl<'input> Iterator for Lexer<'input> {
 
             return Some(token);
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Anchor {
+    byte_position: usize,
+}
+
+impl Anchor {
+    pub fn elapsed(&self, lexer: &Lexer) -> Range<usize> {
+        assert!(self.byte_position <= lexer.current_byte_position);
+
+        self.byte_position..lexer.current_byte_position
     }
 }
