@@ -2,6 +2,9 @@ use std::ops::Range;
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
+use extension_fn::extension_fn;
+
+use crate::lexer::Token;
 
 pub trait AST {
     fn span(&self) -> Range<usize>;
@@ -20,6 +23,11 @@ impl<T> Spanned<T> {
 
 pub type Literal<'input> = Spanned<&'input str>;
 
+#[extension_fn(<'input> Token<'input>)]
+pub fn into_literal(self) -> Literal<'input> {
+    Literal::new(self.text, self.span)
+}
+
 pub struct Defines<'input, 'allocator> {
     pub defines: Vec<Define<'input, 'allocator>, &'allocator Bump>,
     pub span: Range<usize>,
@@ -33,6 +41,7 @@ pub enum Define<'input, 'allocator> {
 pub struct ElementDefine<'input, 'allocator> {
     pub node: Vec<NodeLiteral<'input>, &'allocator Bump>,
     pub ty: Option<ElementType<'input>>,
+    pub inline_type: Option<ElementInlineType<'input, 'allocator>>,
     pub default: Option<DefaultValue<'input>>,
     pub span: Range<usize>,
 }
@@ -48,6 +57,11 @@ pub struct ElementType<'input> {
     pub span: Range<usize>,
 }
 
+pub struct ElementInlineType<'input, 'allocator> {
+    pub defines: &'allocator Defines<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
 pub struct DefaultValue<'input> {
     pub value: ValueLiteral<'input>,
     pub span: Range<usize>,
@@ -55,13 +69,9 @@ pub struct DefaultValue<'input> {
 
 pub enum ValueLiteral<'input> {
     String(Literal<'input>),
-    Numeric(NumericLiteral<'input>),
-    Null(Literal<'input>),
-}
-
-pub enum NumericLiteral<'input> {
     Float(FloatLiteral<'input>),
     Binary(BinaryLiteral<'input>),
+    Null(Literal<'input>),
 }
 
 pub enum FloatLiteral<'input> {

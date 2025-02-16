@@ -12,13 +12,26 @@ pub struct ParseError<'input, 'allocator> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     Defines,
-    TypeDefine,
+    ElementDefine,
+    StructDefine,
     EnumDefine,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Expected {
     Define,
+    DefineSeparator,
+    NodeLiteral,
+    TypeOrValue,
+    Type,
+    Value,
+    StructName,
+    StructElementBlock,
+    EnumName,
+    EnumElementBlock,
+    EnumElement,
+    EnumElementSeparator,
+    BraceRight,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

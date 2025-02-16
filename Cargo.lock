@@ -36,7 +36,7 @@ checksum = "9c7c444e2730a62559d21b4cae698475974353b4972985a8d780ab6189295a34"
 dependencies = [
  "bnf_rules_parser",
  "quote",
- "syn",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -51,7 +51,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "syn",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -64,6 +64,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "case"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd6c0e7b807d60291f42f33f58480c0bfafe28ed08286446f45e463728cf9c1c"
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -71,7 +77,7 @@ checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -79,6 +85,19 @@ name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
+
+[[package]]
+name = "extension-fn"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33abbc9788f4dba6cfd22f6c922f1a20d63d42adffafd0a8bbbd6ab25be294a0"
+dependencies = [
+ "case",
+ "proc-macro2",
+ "public",
+ "quote",
+ "syn 2.0.98",
+]
 
 [[package]]
 name = "litrs"
@@ -103,6 +122,12 @@ checksum = "60946a68e5f9d28b0dc1c21bb8a97ee7d018a8b322fa57838ba31cc878e22d99"
 dependencies = [
  "unicode-ident",
 ]
+
+[[package]]
+name = "public"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "667546e771dadcc524095906f6b8e6182548519be5f27fd9cb09676b1a3e5cef"
 
 [[package]]
 name = "quote"
@@ -154,6 +179,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "2.0.98"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36147f1a48ae0ec2b5b3bc5b537d267457555a10dc06f3dbc8cb11ba3006d3b1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "tyml"
 version = "0.1.0"
 dependencies = [
@@ -173,6 +209,7 @@ version = "0.1.0"
 dependencies = [
  "allocator-api2",
  "bumpalo",
+ "extension-fn",
  "regex",
 ]
 

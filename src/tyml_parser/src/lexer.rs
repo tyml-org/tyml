@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use extension_fn::extension_fn;
 use regex::Regex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -130,16 +131,11 @@ pub struct Token<'input> {
     pub span: Range<usize>,
 }
 
-pub(crate) trait GetTokenKind {
-    fn get_kind(&self) -> TokenKind;
-}
-
-impl<'input> GetTokenKind for Option<Token<'input>> {
-    fn get_kind(&self) -> TokenKind {
-        self.as_ref()
-            .map(|token| token.kind)
-            .unwrap_or(TokenKind::None)
-    }
+#[extension_fn(Option<Token<'_>>)]
+pub fn get_kind(&self) -> TokenKind {
+    self.as_ref()
+        .map(|token| token.kind)
+        .unwrap_or(TokenKind::None)
 }
 
 pub struct Lexer<'input> {
@@ -186,6 +182,11 @@ impl<'input> Lexer<'input> {
                 return;
             }
         }
+    }
+
+    pub fn back_to_anchor(&mut self, anchor: Anchor) {
+        self.current_byte_position = anchor.byte_position;
+        self.current_token_cache = None;
     }
 }
 

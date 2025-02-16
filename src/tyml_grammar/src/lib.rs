@@ -8,36 +8,39 @@ mod tests {
     bnf_rules! {
         #[generate_code = false]
 
-        source          ::= [ "!tyml" ] defines
+        source             ::= [ "!tyml" ] defines
 
-        defines         ::= [ lf ] { define ( lf | "," [ lf ] ) }
-        define          ::= element_define | type_define
+        defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
+        define             ::= element_define | type_define
 
-        element_define  ::= node_literal { "." node_literal } [ lf ] ( element_type [ default_value ] | default_value )
-        node_literal    ::= literal | "*"
+        element_define     ::= node_literal { "." node_literal } [ lf ] type_or_value
+        node_literal       ::= literal | "*"
+        type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
 
-        element_type    ::= ":" literal [ "?" ]
+        element_type       ::= ":" literal [ "?" ]
 
-        default_value   ::= "=" ( string_literal | numeric_literal | "null" )
+        inline_type_define ::= ":" "{" defines "}"
 
-        string_literal  ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
+        default_value      ::= "=" ( string_literal | numeric_literal | "null" )
 
-        numeric_literal ::= float_numeric | binary_numeric
+        string_literal     ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
 
-        float_numeric   ::= r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?" | "inf" | "nan"
+        numeric_literal    ::= float_numeric | binary_numeric
 
-        binary_numeric  ::= r"0x[a-f|A-F|0-9|_]+" | r"0o[0-7|_]+" | r"0b[01_]+"
+        float_numeric      ::= r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?" | "inf" | "nan"
 
-        type_define     ::= struct_define | enum_define
+        binary_numeric     ::= r"0x[a-f|A-F|0-9|_]+" | r"0o[0-7|_]+" | r"0b[01_]+"
 
-        struct_define   ::= "type" literal [ lf ] "{" defines "}"
+        type_define        ::= struct_define | enum_define
 
-        enum_define     ::= "enum" literal [ lf ] "{" enum_elements "}"
-        enum_elements   ::= [ lf ] { literal ( lf | "," [ lf ] ) }
+        struct_define      ::= "type" literal [ lf ] "{" defines "}"
 
-        literal         ::= r"\w+"
+        enum_define        ::= "enum" literal [ lf ] "{" enum_elements "}"
+        enum_elements      ::= [ lf ] { literal ( lf | "," [ lf ] ) }
 
-        lf              ::= lf_code { lf_code }
-        lf_code         ::= "\n" | "\r"
+        literal            ::= r"\w+"
+
+        lf                 ::= lf_code { lf_code }
+        lf_code            ::= "\n" | "\r"
     }
 }
