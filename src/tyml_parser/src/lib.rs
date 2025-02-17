@@ -113,7 +113,7 @@ enum Enum {
                     println!("current() : {}", token_0.text);
                     println!("next()    : {}", token_1.text);
                 }
-                _ => break
+                _ => break,
             }
         }
 

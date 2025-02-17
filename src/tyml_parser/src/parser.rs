@@ -7,7 +7,7 @@ use crate::{
         ElementType, EnumDefine, FloatLiteral, IntoLiteral, NodeLiteral, StructDefine, TypeDefine,
         ValueLiteral,
     },
-    error::{Expected, ParseError, Scope, recover_until},
+    error::{Expected, ParseError, ParseErrorKind, Scope, recover_until},
     lexer::{GetKind, Lexer, TokenKind},
 };
 
@@ -31,6 +31,7 @@ pub(crate) fn parse_defines<'input, 'allocator>(
             Some(define) => define,
             None => {
                 let error = recover_until(
+                    ParseErrorKind::InvalidDefineElement,
                     lexer,
                     &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
                     Expected::Define,
@@ -57,6 +58,7 @@ pub(crate) fn parse_defines<'input, 'allocator>(
             }
             _ => {
                 let error = recover_until(
+                    ParseErrorKind::InvalidDefineSeparator,
                     lexer,
                     &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
                     Expected::DefineSeparator,
@@ -115,6 +117,7 @@ fn parse_element_define<'input, 'allocator>(
             Some(literal) => literal,
             None => {
                 let error = recover_until(
+                    ParseErrorKind::NotFoundNodeLiteralAfterPeriod,
                     lexer,
                     &[
                         TokenKind::LineFeed,
@@ -141,6 +144,7 @@ fn parse_element_define<'input, 'allocator>(
     let current_token_kind = lexer.current().get_kind();
     if current_token_kind != TokenKind::Colon && current_token_kind != TokenKind::Equal {
         let error = recover_until(
+            ParseErrorKind::NotFoundElementTypeAndDefaultValue,
             lexer,
             &[TokenKind::LineFeed, TokenKind::Comma],
             Expected::TypeOrValue,
@@ -204,9 +208,10 @@ fn parse_element_inline_type<'input, 'allocator>(
         }
 
         let error = recover_until(
+            ParseErrorKind::InvalidElementTypeFormat,
             lexer,
             &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceLeft],
-            Expected::StructElementBlock,
+            Expected::StructElementBlockOrTypeName,
             Scope::ElementDefine,
             allocator,
         );
@@ -223,6 +228,7 @@ fn parse_element_inline_type<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(
+            ParseErrorKind::NonClosedBrace,
             lexer,
             &[],
             Expected::BraceRight,
@@ -253,6 +259,7 @@ fn parse_element_type<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::Literal {
         let error = recover_until(
+            ParseErrorKind::InvalidElementTypeFormat,
             lexer,
             &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::Equal],
             Expected::Type,
@@ -313,6 +320,7 @@ fn parse_default_value<'input, 'allocator>(
         TokenKind::Null => ValueLiteral::Null(lexer.next().unwrap().into_literal()),
         _ => {
             let error = recover_until(
+                ParseErrorKind::UnknownDefaultValueFormat,
                 lexer,
                 &[TokenKind::LineFeed, TokenKind::Comma],
                 Expected::Value,
@@ -361,6 +369,7 @@ fn parse_struct_define<'input, 'allocator>(
         TokenKind::Literal => lexer.next().unwrap().into_literal(),
         _ => {
             let error = recover_until(
+                ParseErrorKind::NotFoundStructName,
                 lexer,
                 &[TokenKind::LineFeed, TokenKind::Comma],
                 Expected::StructName,
@@ -377,9 +386,10 @@ fn parse_struct_define<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         let error = recover_until(
+            ParseErrorKind::NotFoundStructBlock,
             lexer,
             &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceLeft],
-            Expected::StructElementBlock,
+            Expected::StructElementBlockOrTypeName,
             Scope::StructDefine,
             allocator,
         );
@@ -396,6 +406,7 @@ fn parse_struct_define<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(
+            ParseErrorKind::NonClosedBrace,
             lexer,
             &[],
             Expected::BraceRight,
@@ -429,6 +440,7 @@ fn parse_enum_define<'input, 'allocator>(
         TokenKind::Literal => lexer.next().unwrap().into_literal(),
         _ => {
             let error = recover_until(
+                ParseErrorKind::NotFoundEnumName,
                 lexer,
                 &[TokenKind::LineFeed, TokenKind::Comma],
                 Expected::EnumName,
@@ -445,6 +457,7 @@ fn parse_enum_define<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         let error = recover_until(
+            ParseErrorKind::NotFoundEnumBlock,
             lexer,
             &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceLeft],
             Expected::EnumElementBlock,
@@ -473,6 +486,7 @@ fn parse_enum_define<'input, 'allocator>(
             TokenKind::Literal => lexer.next().unwrap().into_literal(),
             _ => {
                 let error = recover_until(
+                    ParseErrorKind::NotFoundEnumElement,
                     lexer,
                     &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
                     Expected::EnumElement,
@@ -497,6 +511,7 @@ fn parse_enum_define<'input, 'allocator>(
             }
             _ => {
                 let error = recover_until(
+                    ParseErrorKind::InvalidEnumElementSeparator,
                     lexer,
                     &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
                     Expected::EnumElementSeparator,
@@ -512,6 +527,7 @@ fn parse_enum_define<'input, 'allocator>(
 
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(
+            ParseErrorKind::NonClosedBrace,
             lexer,
             &[],
             Expected::BraceRight,

@@ -5,6 +5,7 @@ use crate::lexer::{Lexer, Token, TokenKind};
 
 #[derive(Debug)]
 pub struct ParseError<'input, 'allocator> {
+    pub kind: ParseErrorKind,
     pub scope: Scope,
     pub expected: Expected,
     pub error_tokens: Vec<Token<'input>, &'allocator Bump>,
@@ -27,7 +28,7 @@ pub enum Expected {
     Type,
     Value,
     StructName,
-    StructElementBlock,
+    StructElementBlockOrTypeName,
     EnumName,
     EnumElementBlock,
     EnumElement,
@@ -35,7 +36,25 @@ pub enum Expected {
     BraceRight,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseErrorKind {
+    InvalidDefineElement,
+    InvalidDefineSeparator,
+    NotFoundNodeLiteralAfterPeriod,
+    NotFoundElementTypeAndDefaultValue,
+    InvalidElementTypeFormat,
+    NonClosedBrace,
+    UnknownDefaultValueFormat,
+    NotFoundStructName,
+    NotFoundStructBlock,
+    NotFoundEnumName,
+    NotFoundEnumBlock,
+    NotFoundEnumElement,
+    InvalidEnumElementSeparator,
+}
+
 pub(crate) fn recover_until<'input, 'allocator>(
+    kind: ParseErrorKind,
     lexer: &mut Lexer<'input>,
     until: &[TokenKind],
     expected: Expected,
@@ -60,6 +79,7 @@ pub(crate) fn recover_until<'input, 'allocator>(
     }
 
     ParseError {
+        kind,
         scope,
         expected,
         error_tokens,
