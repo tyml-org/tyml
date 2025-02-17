@@ -196,6 +196,7 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         // take cache
         if let Some(token) = self.current_token_cache.take() {
+            self.current_byte_position = token.span.end;
             return Some(token);
         }
 
@@ -223,6 +224,7 @@ impl<'input> Iterator for Lexer<'input> {
             let start_position = self.current_byte_position;
 
             let token = if current_max_length == 0 {
+                // TODO : get char's utf-8 length
                 self.current_byte_position += 1;
                 let end_position = start_position + 1;
 

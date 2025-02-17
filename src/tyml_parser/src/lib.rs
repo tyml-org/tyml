@@ -12,7 +12,7 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Tyml {
     inner: Arc<TymlInner>,
 }
@@ -32,8 +32,8 @@ impl Tyml {
 }
 
 impl Tyml {
-    pub fn parse(source_code: String) -> Result<Tyml, Tyml> {
-        let source_code = Arc::new(source_code);
+    pub fn parse<T: Into<Arc<String>>>(source_code: T) -> Result<Tyml, Tyml> {
+        let source_code = source_code.into();
         let allocator = Box::new(Bump::new());
 
         let mut lexer = Lexer::new(source_code.as_ref().as_str());
@@ -62,6 +62,7 @@ impl Tyml {
 }
 
 /// READ ONLY!!
+#[derive(Debug)]
 struct TymlInner {
     source_code: Arc<String>,
     /// fake static
@@ -78,7 +79,9 @@ unsafe impl Sync for TymlInner {}
 #[cfg(test)]
 mod test {
 
-    use crate::lexer::Lexer;
+    use std::convert::identity;
+
+    use crate::{Tyml, lexer::Lexer};
 
     #[test]
     fn test() {
@@ -89,13 +92,32 @@ settings: {
     string = \"aaaa\"
 }
 
-type Type {}
-enum Enum {}
+type Server {
+    name: string?
+    ip: string
+    port: int
+}
+enum Enum {
+    Element0
+    Element1
+}
 ";
-        let lexer = Lexer::new(source);
+        let mut lexer = Lexer::new(source);
 
-        for token in lexer {
-            dbg!(token);
+        loop {
+            let token_0 = lexer.current();
+            let token_1 = lexer.next();
+
+            match (token_0, token_1) {
+                (Some(token_0), Some(token_1)) => {
+                    println!("current() : {}", token_0.text);
+                    println!("next()    : {}", token_1.text);
+                }
+                _ => break
+            }
         }
+
+        let tyml = Tyml::parse(source.to_string()).unwrap_or_else(identity);
+        dbg!(tyml);
     }
 }

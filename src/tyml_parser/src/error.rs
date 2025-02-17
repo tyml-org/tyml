@@ -3,6 +3,7 @@ use bumpalo::Bump;
 
 use crate::lexer::{Lexer, Token, TokenKind};
 
+#[derive(Debug)]
 pub struct ParseError<'input, 'allocator> {
     pub scope: Scope,
     pub expected: Expected,

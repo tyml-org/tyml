@@ -52,6 +52,9 @@ pub(crate) fn parse_defines<'input, 'allocator>(
                 lexer.next();
                 lexer.skip_line_feed();
             }
+            TokenKind::BraceRight | TokenKind::None => {
+                continue;
+            }
             _ => {
                 let error = recover_until(
                     lexer,
@@ -221,13 +224,14 @@ fn parse_element_inline_type<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(
             lexer,
-            &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
+            &[],
             Expected::BraceRight,
             Scope::ElementDefine,
             allocator,
         );
         errors.push(error);
     }
+    lexer.next();
 
     Some(ElementInlineType {
         defines,
@@ -393,7 +397,7 @@ fn parse_struct_define<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(
             lexer,
-            &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
+            &[],
             Expected::BraceRight,
             Scope::StructDefine,
             allocator,
@@ -488,6 +492,9 @@ fn parse_enum_define<'input, 'allocator>(
                 lexer.next();
                 lexer.skip_line_feed();
             }
+            TokenKind::BraceRight | TokenKind::None => {
+                continue;
+            }
             _ => {
                 let error = recover_until(
                     lexer,
@@ -502,6 +509,18 @@ fn parse_enum_define<'input, 'allocator>(
             }
         }
     }
+
+    if lexer.current().get_kind() != TokenKind::BraceRight {
+        let error = recover_until(
+            lexer,
+            &[],
+            Expected::BraceRight,
+            Scope::EnumDefine,
+            allocator,
+        );
+        errors.push(error);
+    }
+    lexer.next();
 
     Some(EnumDefine {
         name,
