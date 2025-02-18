@@ -93,7 +93,7 @@ settings: {
 }
 
 type Server {
-    name: string? | [ int ]
+    name: [ string? | [ int | int? ] ]
     ip: string
     port: int
 }

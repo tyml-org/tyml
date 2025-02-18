@@ -202,8 +202,8 @@ fn parse_element_inline_type<'input, 'allocator>(
     lexer.skip_line_feed();
 
     if lexer.current().get_kind() != TokenKind::BraceLeft {
-        if lexer.current().get_kind() == TokenKind::Literal {
-            // This should be a type name, so return to parent layer and try to parse as ElementType.
+        if let TokenKind::Literal | TokenKind::BracketLeft = lexer.current().get_kind() {
+            // This should be a ElementType, so return to parent layer and try to parse as ElementType.
             lexer.back_to_anchor(anchor);
             return None;
         }
@@ -351,7 +351,7 @@ fn parse_array_type<'input, 'allocator>(
 ) -> Option<ArrayType<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
-    if lexer.current().get_kind() != TokenKind::BracketRight {
+    if lexer.current().get_kind() != TokenKind::BracketLeft {
         return None;
     }
     lexer.next();
