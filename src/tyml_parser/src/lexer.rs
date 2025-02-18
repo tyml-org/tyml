@@ -31,6 +31,12 @@ pub enum TokenKind {
     BraceLeft,
     /// }
     BraceRight,
+    /// [
+    BracketLeft,
+    /// ]
+    BracketRight,
+    /// |
+    VerticalLine,
     /// e.g. -6.3, +5E+2
     FloatNumeric,
     /// e.g. 0xFF, 0b0101, 0o1234567
@@ -61,6 +67,9 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Enum, "enum"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
+    Tokenizer::Keyword(TokenKind::BracketLeft, "["),
+    Tokenizer::Keyword(TokenKind::BracketRight, "]"),
+    Tokenizer::Keyword(TokenKind::VerticalLine, "|"),
     Tokenizer::Regex(
         TokenKind::FloatNumeric,
         r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?",

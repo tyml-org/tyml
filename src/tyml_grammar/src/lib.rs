@@ -17,7 +17,10 @@ mod tests {
         node_literal       ::= literal | "*"
         type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
 
-        element_type       ::= ":" literal [ "?" ]
+        element_type       ::= ":" or_type
+        or_type            ::= base_type | array_type { "|" [ lf ] ( base_type | array_type ) }
+        array_type         ::= "[" [ lf ] or_type [ lf ] "]"
+        base_type          ::= literal [ "?" ]
 
         inline_type_define ::= ":" "{" defines "}"
 

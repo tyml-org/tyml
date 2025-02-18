@@ -1,11 +1,12 @@
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
+use either::Either;
 
 use crate::{
     ast::{
-        BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, ElementInlineType,
-        ElementType, EnumDefine, FloatLiteral, IntoLiteral, NodeLiteral, StructDefine, TypeDefine,
-        ValueLiteral,
+        ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine,
+        ElementInlineType, ElementType, EnumDefine, FloatLiteral, IntoLiteral, NodeLiteral, OrType,
+        StructDefine, TypeDefine, ValueLiteral,
     },
     error::{Expected, ParseError, ParseErrorKind, Scope, recover_until},
     lexer::{GetKind, Lexer, TokenKind},
@@ -249,7 +250,7 @@ fn parse_element_type<'input, 'allocator>(
     lexer: &mut Lexer<'input>,
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
     allocator: &'allocator Bump,
-) -> Option<ElementType<'input>> {
+) -> Option<ElementType<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
     if lexer.current().get_kind() != TokenKind::Colon {
@@ -257,11 +258,11 @@ fn parse_element_type<'input, 'allocator>(
     }
     lexer.next();
 
-    if lexer.current().get_kind() != TokenKind::Literal {
+    let Some(type_info) = parse_or_type(lexer, errors, allocator) else {
         let error = recover_until(
             ParseErrorKind::InvalidElementTypeFormat,
             lexer,
-            &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::Equal],
+            &[TokenKind::LineFeed, TokenKind::Comma],
             Expected::Type,
             Scope::ElementDefine,
             allocator,
@@ -269,7 +270,155 @@ fn parse_element_type<'input, 'allocator>(
         errors.push(error);
 
         return None;
+    };
+
+    Some(ElementType {
+        type_info,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_or_type<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<OrType<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let first_type = parse_base_type(lexer)
+        .map(|base_type| Either::Left(base_type))
+        .or_else(|| {
+            parse_array_type(lexer, errors, allocator).map(|array_type| Either::Right(array_type))
+        });
+
+    let Some(first_type) = first_type else {
+        return None;
+    };
+
+    let mut or_types = Vec::with_capacity_in(1, allocator);
+    or_types.push(first_type);
+
+    loop {
+        if lexer.current().get_kind() != TokenKind::VerticalLine {
+            break;
+        }
+        lexer.next();
+
+        lexer.skip_line_feed();
+
+        let ty = parse_base_type(lexer)
+            .map(|base_type| Either::Left(base_type))
+            .or_else(|| {
+                parse_array_type(lexer, errors, allocator)
+                    .map(|array_type| Either::Right(array_type))
+            });
+
+        let Some(ty) = ty else {
+            let error = recover_until(
+                ParseErrorKind::InvalidOrTypeFormat,
+                lexer,
+                &[
+                    TokenKind::LineFeed,
+                    TokenKind::Comma,
+                    TokenKind::VerticalLine,
+                ],
+                Expected::Type,
+                Scope::ElementDefine,
+                allocator,
+            );
+            errors.push(error);
+
+            if lexer.current().get_kind() == TokenKind::VerticalLine {
+                continue;
+            } else {
+                break;
+            }
+        };
+
+        or_types.push(ty);
     }
+
+    Some(OrType {
+        or_types,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_array_type<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<ArrayType<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::BracketRight {
+        return None;
+    }
+    lexer.next();
+
+    lexer.skip_line_feed();
+
+    let base = match parse_or_type(lexer, errors, allocator) {
+        Some(ty) => ty,
+        None => {
+            let error = recover_until(
+                ParseErrorKind::NotFoundArrayBaseType,
+                lexer,
+                &[
+                    TokenKind::LineFeed,
+                    TokenKind::Comma,
+                    TokenKind::BracketRight,
+                ],
+                Expected::Type,
+                Scope::ElementDefine,
+                allocator,
+            );
+            errors.push(error);
+
+            if lexer.current().get_kind() == TokenKind::BracketRight {
+                lexer.next();
+            }
+
+            return None;
+        }
+    };
+
+    lexer.skip_line_feed();
+
+    if lexer.current().get_kind() != TokenKind::BracketRight {
+        let error = recover_until(
+            ParseErrorKind::NonClosedBracket,
+            lexer,
+            &[
+                TokenKind::LineFeed,
+                TokenKind::Comma,
+                TokenKind::BracketRight,
+            ],
+            Expected::BracketRight,
+            Scope::ElementDefine,
+            allocator,
+        );
+        errors.push(error);
+
+        if lexer.current().get_kind() != TokenKind::BracketRight {
+            return None;
+        }
+    }
+    lexer.next();
+
+    Some(ArrayType {
+        base,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_base_type<'input, 'allocator>(lexer: &mut Lexer<'input>) -> Option<BaseType<'input>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::Literal {
+        return None;
+    }
+
     let name = lexer.next().unwrap().into_literal();
 
     let optional = match lexer.current().get_kind() {
@@ -277,7 +426,7 @@ fn parse_element_type<'input, 'allocator>(
         _ => None,
     };
 
-    Some(ElementType {
+    Some(BaseType {
         name,
         optional,
         span: anchor.elapsed(lexer),

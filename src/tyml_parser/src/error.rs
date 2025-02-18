@@ -34,6 +34,7 @@ pub enum Expected {
     EnumElement,
     EnumElementSeparator,
     BraceRight,
+    BracketRight,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +52,9 @@ pub enum ParseErrorKind {
     NotFoundEnumBlock,
     NotFoundEnumElement,
     InvalidEnumElementSeparator,
+    InvalidOrTypeFormat,
+    NotFoundArrayBaseType,
+    NonClosedBracket,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

@@ -2,6 +2,7 @@ use std::{fmt::Debug, ops::Range};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
+use either::Either;
 use extension_fn::extension_fn;
 
 use crate::lexer::Token;
@@ -34,7 +35,10 @@ impl_ast!(Defines<'_, '_>, span = self.span);
 impl_ast!(Define<'_, '_>, enum: Element, Type);
 impl_ast!(ElementDefine<'_, '_>, span = self.span);
 impl_ast!(NodeLiteral<'_>, enum: Literal, Asterisk);
-impl_ast!(ElementType<'_>, span = self.span);
+impl_ast!(ElementType<'_, '_>, span = self.span);
+impl_ast!(OrType<'_, '_>, span = self.span);
+impl_ast!(ArrayType<'_, '_>, span = self.span);
+impl_ast!(BaseType<'_>, span = self.span);
 impl_ast!(ElementInlineType<'_, '_>, span = self.span);
 impl_ast!(DefaultValue<'_>, span = self.span);
 impl_ast!(ValueLiteral<'_>, enum: String, Float, Binary, Null);
@@ -78,7 +82,7 @@ pub enum Define<'input, 'allocator> {
 #[derive(Debug)]
 pub struct ElementDefine<'input, 'allocator> {
     pub node: Vec<NodeLiteral<'input>, &'allocator Bump>,
-    pub ty: Option<ElementType<'input>>,
+    pub ty: Option<ElementType<'input, 'allocator>>,
     pub inline_type: Option<ElementInlineType<'input, 'allocator>>,
     pub default: Option<DefaultValue<'input>>,
     pub span: Range<usize>,
@@ -91,7 +95,25 @@ pub enum NodeLiteral<'input> {
 }
 
 #[derive(Debug)]
-pub struct ElementType<'input> {
+pub struct ElementType<'input, 'allocator> {
+    pub type_info: OrType<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct OrType<'input, 'allocator> {
+    pub or_types: Vec<Either<BaseType<'input>, ArrayType<'input, 'allocator>>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct ArrayType<'input, 'allocator> {
+    pub base: OrType<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct BaseType<'input> {
     pub name: Literal<'input>,
     pub optional: Option<Range<usize>>,
     pub span: Range<usize>,
