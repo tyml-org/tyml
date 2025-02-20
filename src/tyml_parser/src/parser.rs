@@ -8,7 +8,7 @@ use crate::{
         ElementInlineType, ElementType, EnumDefine, FloatLiteral, IntoLiteral, NodeLiteral, OrType,
         StructDefine, TypeDefine, ValueLiteral,
     },
-    error::{Expected, ParseError, ParseErrorKind, Scope, recover_until},
+    error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
 };
 
