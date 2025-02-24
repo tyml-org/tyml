@@ -81,7 +81,7 @@ pub enum Define<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct ElementDefine<'input, 'allocator> {
-    pub node: Vec<NodeLiteral<'input>, &'allocator Bump>,
+    pub node: NodeLiteral<'input>,
     pub ty: Option<ElementType<'input, 'allocator>>,
     pub inline_type: Option<ElementInlineType<'input, 'allocator>>,
     pub default: Option<DefaultValue<'input>>,
@@ -103,6 +103,7 @@ pub struct ElementType<'input, 'allocator> {
 #[derive(Debug)]
 pub struct OrType<'input, 'allocator> {
     pub or_types: Vec<Either<BaseType<'input>, ArrayType<'input, 'allocator>>, &'allocator Bump>,
+    pub optional: Option<Range<usize>>,
     pub span: Range<usize>,
 }
 
@@ -115,7 +116,6 @@ pub struct ArrayType<'input, 'allocator> {
 #[derive(Debug)]
 pub struct BaseType<'input> {
     pub name: Literal<'input>,
-    pub optional: Option<Range<usize>>,
     pub span: Range<usize>,
 }
 

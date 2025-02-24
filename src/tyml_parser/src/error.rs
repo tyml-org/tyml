@@ -41,7 +41,6 @@ pub enum Expected {
 pub enum ParseErrorKind {
     InvalidDefineElement,
     InvalidDefineSeparator,
-    NotFoundNodeLiteralAfterPeriod,
     NotFoundElementTypeAndDefaultValue,
     InvalidElementTypeFormat,
     NonClosedBrace,

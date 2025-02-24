@@ -93,9 +93,9 @@ settings: {
 }
 
 type Server {
-    name: [ string? | [ int | int? ] ]
+    name: [ string | [ int | int ] ]
     ip: string
-    port: int
+    port: int?
 }
 enum Enum {
     Element0

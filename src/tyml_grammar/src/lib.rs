@@ -13,14 +13,13 @@ mod tests {
         defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
         define             ::= element_define | type_define
 
-        element_define     ::= node_literal { "." node_literal } [ lf ] type_or_value
-        node_literal       ::= literal | "*"
+        element_define     ::= ( literal | "*" ) [ lf ] type_or_value
         type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
 
-        element_type       ::= ":" or_type
+        element_type       ::= ":" or_type [ "?" ]
         or_type            ::= base_type | array_type { "|" [ lf ] ( base_type | array_type ) }
         array_type         ::= "[" [ lf ] or_type [ lf ] "]"
-        base_type          ::= literal [ "?" ]
+        base_type          ::= literal
 
         inline_type_define ::= ":" "{" defines "}"
 

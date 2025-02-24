@@ -4,10 +4,11 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub enum Type {
+pub enum ProtoType {
     Int(IntAttribute),
     UnsignedInt(UnsignedIntAttribute),
     String(StringAttribute),
+    UserType(UserTypeID),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -36,6 +37,8 @@ pub struct StringAttribute {
     pub tags: Arc<Vec<String>>,
 }
 
-pub struct ElementTypeTree {
-    
-}
+pub struct UserType {}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct UserTypeID(usize);

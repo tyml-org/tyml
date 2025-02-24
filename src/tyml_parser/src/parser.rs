@@ -100,47 +100,10 @@ fn parse_element_define<'input, 'allocator>(
 ) -> Option<ElementDefine<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
-    let first_node_literal = match parse_node_literal(lexer) {
+    let node = match parse_node_literal(lexer) {
         Some(literal) => literal,
         None => return None,
     };
-
-    let mut node = Vec::new_in(allocator);
-    node.push(first_node_literal);
-
-    loop {
-        if lexer.current().get_kind() != TokenKind::Period {
-            break;
-        }
-        lexer.next();
-
-        let node_literal = match parse_node_literal(lexer) {
-            Some(literal) => literal,
-            None => {
-                let error = recover_until(
-                    ParseErrorKind::NotFoundNodeLiteralAfterPeriod,
-                    lexer,
-                    &[
-                        TokenKind::LineFeed,
-                        TokenKind::Comma,
-                        TokenKind::Colon,
-                        TokenKind::Equal,
-                    ],
-                    Expected::NodeLiteral,
-                    Scope::ElementDefine,
-                    allocator,
-                );
-                errors.push(error);
-
-                if let TokenKind::Colon | TokenKind::Equal = lexer.current().get_kind() {
-                    break;
-                } else {
-                    return None;
-                }
-            }
-        };
-        node.push(node_literal);
-    }
 
     let current_token_kind = lexer.current().get_kind();
     if current_token_kind != TokenKind::Colon && current_token_kind != TokenKind::Equal {
@@ -338,8 +301,14 @@ fn parse_or_type<'input, 'allocator>(
         or_types.push(ty);
     }
 
+    let optional = match lexer.current().get_kind() {
+        TokenKind::QuestionMark => Some(lexer.next().unwrap().span),
+        _ => None,
+    };
+
     Some(OrType {
         or_types,
+        optional,
         span: anchor.elapsed(lexer),
     })
 }
@@ -421,14 +390,8 @@ fn parse_base_type<'input, 'allocator>(lexer: &mut Lexer<'input>) -> Option<Base
 
     let name = lexer.next().unwrap().into_literal();
 
-    let optional = match lexer.current().get_kind() {
-        TokenKind::QuestionMark => Some(lexer.next().unwrap().span),
-        _ => None,
-    };
-
     Some(BaseType {
         name,
-        optional,
         span: anchor.elapsed(lexer),
     })
 }
