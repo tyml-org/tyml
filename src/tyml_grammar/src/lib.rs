@@ -16,10 +16,11 @@ mod tests {
         element_define     ::= ( literal | "*" ) [ lf ] type_or_value
         type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
 
-        element_type       ::= ":" or_type [ "?" ]
-        or_type            ::= base_type | array_type { "|" [ lf ] ( base_type | array_type ) }
+        element_type       ::= ":" or_type
+        or_type            ::= base_type { "|" [ lf ] base_type }
+        base_type          ::= ( named_type | array_type ) [ "?" ]
         array_type         ::= "[" [ lf ] or_type [ lf ] "]"
-        base_type          ::= literal
+        named_type         ::= literal
 
         inline_type_define ::= ":" "{" defines "}"
 
@@ -31,7 +32,7 @@ mod tests {
 
         float_numeric      ::= r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?" | "inf" | "nan"
 
-        binary_numeric     ::= r"0x[a-f|A-F|0-9|_]+" | r"0o[0-7|_]+" | r"0b[01_]+"
+        binary_numeric     ::= r"[+-]?0x[a-f|A-F|0-9|_]+" | r"[+-]?0o[0-7|_]+" | r"[+-]?0b[01_]+"
 
         type_define        ::= struct_define | enum_define
 

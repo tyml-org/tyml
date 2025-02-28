@@ -48,7 +48,7 @@ impl_ast!(TypeDefine<'_, '_>, enum: Struct, Enum);
 impl_ast!(StructDefine<'_, '_>, span = self.span);
 impl_ast!(EnumDefine<'_, '_>, span = self.span);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Spanned<T> {
     pub value: T,
     pub span: Range<usize>,

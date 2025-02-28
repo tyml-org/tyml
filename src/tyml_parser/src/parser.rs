@@ -12,7 +12,7 @@ use crate::{
     lexer::{GetKind, Lexer, TokenKind},
 };
 
-pub(crate) fn parse_defines<'input, 'allocator>(
+pub fn parse_defines<'input, 'allocator>(
     lexer: &mut Lexer<'input>,
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
     allocator: &'allocator Bump,
@@ -419,7 +419,14 @@ fn parse_default_value<'input, 'allocator>(
             ValueLiteral::Float(FloatLiteral::Nan(lexer.next().unwrap().into_literal()))
         }
         TokenKind::BinaryNumeric => {
-            let binary_literal = match &lexer.current().unwrap().text[0..2] {
+            let current_text = lexer.current().unwrap().text;
+
+            let prefix = match current_text.chars().next().unwrap() {
+                '+' | '-' => &current_text[1..3],
+                _ => &current_text[0..2],
+            };
+
+            let binary_literal = match prefix {
                 "0x" => BinaryLiteral::Hex(lexer.next().unwrap().into_literal()),
                 "0o" => BinaryLiteral::Oct(lexer.next().unwrap().into_literal()),
                 "0b" => BinaryLiteral::Bin(lexer.next().unwrap().into_literal()),

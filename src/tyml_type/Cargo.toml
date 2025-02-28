@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tyml_parser = { path = "../tyml_parser/" }
 hashbrown = "0.15.2"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
+proc-macro-regex = "1.1.0"
+either = "1.13.0"
