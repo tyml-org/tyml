@@ -4,15 +4,15 @@ use either::Either;
 use hashbrown::HashMap;
 use proc_macro_regex::regex;
 use tyml_parser::ast::{
-    ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, FloatLiteral,
-    Literal, NodeLiteral, OrType, TypeDefine, ValueLiteral,
+    BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, FloatLiteral, Literal,
+    NodeLiteral, OrType, TypeDefine, ValueLiteral,
 };
 
 use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        FloatAttribute, IntAttribute, NamedType, NamedTypeMap, StringAttribute, Type, TypeTree,
+        FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree, StringAttribute, Type, TypeTree,
         UnsignedIntAttribute,
     },
 };
@@ -89,14 +89,20 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             env,
                             ty,
                         );
-                        (struct_define.name.span.clone(), NamedType::Struct { tree })
+                        (
+                            struct_define.name.span.clone(),
+                            NamedTypeTree::Struct { tree },
+                        )
                     }
                     TypeDefine::Enum(enum_define) => {
                         let mut elements = Vec::with_capacity_in(enum_define.elements.len(), ty);
                         for element in enum_define.elements.iter() {
                             elements.push(element.clone());
                         }
-                        (enum_define.name.span.clone(), NamedType::Enum { elements })
+                        (
+                            enum_define.name.span.clone(),
+                            NamedTypeTree::Enum { elements },
+                        )
                     }
                 };
 
@@ -243,7 +249,7 @@ fn resolve_or_type<'input, 'env, 'ast_allocator>(
     env: &'env Bump,
     ty: &'ast_allocator Bump,
 ) -> Type<'ast_allocator> {
-    let or_type = match ast.or_types.len() {
+    match ast.or_types.len() {
         0 => Type::Unknown,
         1 => resolve_type_base(&ast.or_types[0], name_env, named_type_map, errors, env, ty),
         _ => {
@@ -262,23 +268,18 @@ fn resolve_or_type<'input, 'env, 'ast_allocator>(
 
             Type::Or(or_types)
         }
-    };
-
-    match ast.optional.is_some() {
-        true => Type::Optional(Box::new_in(or_type, ty)),
-        false => or_type,
     }
 }
 
 fn resolve_type_base<'input, 'env, 'ast_allocator>(
-    ast: &Either<BaseType<'input>, ArrayType<'input, 'ast_allocator>>,
+    ast: &BaseType<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
     named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty: &'ast_allocator Bump,
+    ty_allocator: &'ast_allocator Bump,
 ) -> Type<'ast_allocator> {
-    match ast {
+    let ty = match &ast.ty {
         Either::Left(base_type) => {
             match base_type.name.value {
                 "int" => Type::Int(IntAttribute::default()),
@@ -303,8 +304,20 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
             }
         }
         Either::Right(array_type) => {
-            let base = resolve_or_type(&array_type.base, name_env, named_type_map, errors, env, ty);
-            Type::Array(Box::new_in(base, ty))
+            let base = resolve_or_type(
+                &array_type.base,
+                name_env,
+                named_type_map,
+                errors,
+                env,
+                ty_allocator,
+            );
+            Type::Array(Box::new_in(base, ty_allocator))
         }
+    };
+
+    match ast.optional.is_some() {
+        true => Type::Optional(Box::new_in(ty, ty_allocator)),
+        false => ty,
     }
 }

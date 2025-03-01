@@ -26,12 +26,26 @@ pub enum Type<'ty> {
 }
 
 impl<'ty> Type<'ty> {
-    /// accept if `self ⊃ other`
-    pub fn try_override_with(
+    /// accept if `self ⊃ other`, but exceptions for optional
+    pub(crate) fn try_override_with(
         &self,
         other: &Type<'ty>,
         allocator: &'ty Bump,
     ) -> Result<Type<'ty>, ()> {
+        // exceptions for optional
+        if let Type::Optional(other_type) = other {
+            if let Type::Optional(_) = self {
+            } else {
+                // If other is optional and self is NOT optional,
+                // validate self as optional.
+                // We must accept, pattern of "node: int? = 100"
+                return Ok(Type::Optional(Box::new_in(
+                    self.try_override_with(&other_type, allocator)?,
+                    allocator,
+                )));
+            }
+        }
+
         match self {
             Type::MaybeInt => match other {
                 Type::Int(_) | Type::Float(_) => Ok(other.clone()),
@@ -207,7 +221,7 @@ pub enum TypeTree<'input, 'ty> {
 }
 
 #[derive(Debug)]
-pub enum NamedType<'input, 'ty> {
+pub enum NamedTypeTree<'input, 'ty> {
     Struct {
         tree: TypeTree<'input, 'ty>,
     },
@@ -218,7 +232,7 @@ pub enum NamedType<'input, 'ty> {
 
 #[derive(Debug)]
 pub struct NamedTypeMap<'input, 'ty> {
-    map: HashMap<NameID, (Range<usize>, NamedType<'input, 'ty>), DefaultHashBuilder, &'ty Bump>,
+    map: HashMap<NameID, (Range<usize>, NamedTypeTree<'input, 'ty>), DefaultHashBuilder, &'ty Bump>,
 }
 
 impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
@@ -232,7 +246,7 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
         &mut self,
         name_id: NameID,
         name_span: Range<usize>,
-        type_tree: NamedType<'input, 'ty>,
+        type_tree: NamedTypeTree<'input, 'ty>,
     ) {
         self.map.insert(name_id, (name_span, type_tree));
     }
@@ -241,7 +255,7 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
         self.map.get(&name_id).map(|(span, _)| span.clone())
     }
 
-    pub fn get_type(&self, name_id: NameID) -> Option<&NamedType<'input, 'ty>> {
+    pub fn get_type(&self, name_id: NameID) -> Option<&NamedTypeTree<'input, 'ty>> {
         self.map.get(&name_id).map(|(_, ty)| ty)
     }
 }

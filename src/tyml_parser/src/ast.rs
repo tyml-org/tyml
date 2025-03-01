@@ -38,7 +38,7 @@ impl_ast!(NodeLiteral<'_>, enum: Literal, Asterisk);
 impl_ast!(ElementType<'_, '_>, span = self.span);
 impl_ast!(OrType<'_, '_>, span = self.span);
 impl_ast!(ArrayType<'_, '_>, span = self.span);
-impl_ast!(BaseType<'_>, span = self.span);
+impl_ast!(NamedType<'_>, span = self.span);
 impl_ast!(ElementInlineType<'_, '_>, span = self.span);
 impl_ast!(DefaultValue<'_>, span = self.span);
 impl_ast!(ValueLiteral<'_>, enum: String, Float, Binary, Null);
@@ -102,7 +102,13 @@ pub struct ElementType<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct OrType<'input, 'allocator> {
-    pub or_types: Vec<Either<BaseType<'input>, ArrayType<'input, 'allocator>>, &'allocator Bump>,
+    pub or_types: Vec<BaseType<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct BaseType<'input, 'allocator> {
+    pub ty: Either<NamedType<'input>, ArrayType<'input, 'allocator>>,
     pub optional: Option<Range<usize>>,
     pub span: Range<usize>,
 }
@@ -114,7 +120,7 @@ pub struct ArrayType<'input, 'allocator> {
 }
 
 #[derive(Debug)]
-pub struct BaseType<'input> {
+pub struct NamedType<'input> {
     pub name: Literal<'input>,
     pub span: Range<usize>,
 }

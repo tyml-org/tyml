@@ -112,7 +112,7 @@ mod tests {
     fn test() {
         let source = "
 settings: {
-    number: int = -3.65e-10
+    number = -3.65e-10
     binary = 0xFF
     string = \"aaaa\"
 }

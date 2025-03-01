@@ -5,8 +5,8 @@ use either::Either;
 use crate::{
     ast::{
         ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine,
-        ElementInlineType, ElementType, EnumDefine, FloatLiteral, IntoLiteral, NodeLiteral, OrType,
-        StructDefine, TypeDefine, ValueLiteral,
+        ElementInlineType, ElementType, EnumDefine, FloatLiteral, IntoLiteral, NamedType,
+        NodeLiteral, OrType, StructDefine, TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -248,11 +248,7 @@ fn parse_or_type<'input, 'allocator>(
 ) -> Option<OrType<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
-    let first_type = parse_base_type(lexer)
-        .map(|base_type| Either::Left(base_type))
-        .or_else(|| {
-            parse_array_type(lexer, errors, allocator).map(|array_type| Either::Right(array_type))
-        });
+    let first_type = parse_base_type(lexer, errors, allocator);
 
     let Some(first_type) = first_type else {
         return None;
@@ -269,12 +265,7 @@ fn parse_or_type<'input, 'allocator>(
 
         lexer.skip_line_feed();
 
-        let ty = parse_base_type(lexer)
-            .map(|base_type| Either::Left(base_type))
-            .or_else(|| {
-                parse_array_type(lexer, errors, allocator)
-                    .map(|array_type| Either::Right(array_type))
-            });
+        let ty = parse_base_type(lexer, errors, allocator);
 
         let Some(ty) = ty else {
             let error = recover_until(
@@ -301,13 +292,34 @@ fn parse_or_type<'input, 'allocator>(
         or_types.push(ty);
     }
 
+    Some(OrType {
+        or_types,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_base_type<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<BaseType<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let ty = parse_named_type(lexer)
+        .map(|base_type| Either::Left(base_type))
+        .or_else(|| {
+            parse_array_type(lexer, errors, allocator).map(|array_type| Either::Right(array_type))
+        });
+
+    let Some(ty) = ty else { return None };
+
     let optional = match lexer.current().get_kind() {
         TokenKind::QuestionMark => Some(lexer.next().unwrap().span),
         _ => None,
     };
 
-    Some(OrType {
-        or_types,
+    Some(BaseType {
+        ty,
         optional,
         span: anchor.elapsed(lexer),
     })
@@ -381,7 +393,7 @@ fn parse_array_type<'input, 'allocator>(
     })
 }
 
-fn parse_base_type<'input, 'allocator>(lexer: &mut Lexer<'input>) -> Option<BaseType<'input>> {
+fn parse_named_type<'input, 'allocator>(lexer: &mut Lexer<'input>) -> Option<NamedType<'input>> {
     let anchor = lexer.cast_anchor();
 
     if lexer.current().get_kind() != TokenKind::Literal {
@@ -390,7 +402,7 @@ fn parse_base_type<'input, 'allocator>(lexer: &mut Lexer<'input>) -> Option<Base
 
     let name = lexer.next().unwrap().into_literal();
 
-    Some(BaseType {
+    Some(NamedType {
         name,
         span: anchor.elapsed(lexer),
     })
