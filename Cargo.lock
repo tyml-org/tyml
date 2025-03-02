@@ -372,6 +372,8 @@ dependencies = [
  "regex",
  "resource",
  "toml",
+ "tyml_parser",
+ "tyml_type",
 ]
 
 [[package]]

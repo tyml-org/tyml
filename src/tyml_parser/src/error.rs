@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 
@@ -9,6 +11,7 @@ pub struct ParseError<'input, 'allocator> {
     pub scope: Scope,
     pub expected: Expected,
     pub error_tokens: Vec<Token<'input>, &'allocator Bump>,
+    pub span: Range<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +67,7 @@ pub(crate) fn recover_until<'input, 'allocator>(
     scope: Scope,
     allocator: &'allocator Bump,
 ) -> ParseError<'input, 'allocator> {
+    let anchor = lexer.cast_anchor();
     let mut error_tokens = Vec::new_in(allocator);
 
     loop {
@@ -86,5 +90,6 @@ pub(crate) fn recover_until<'input, 'allocator>(
         scope,
         expected,
         error_tokens,
+        span: anchor.elapsed(lexer),
     }
 }
