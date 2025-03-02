@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tyml_grammar = { path = "../tyml_grammar/" }
 tyml_parser = { path = "../tyml_parser/" }
 tyml_type = { path = "../tyml_type/" }
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }

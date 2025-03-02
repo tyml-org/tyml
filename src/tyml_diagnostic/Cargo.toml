@@ -1,0 +1,10 @@
+[package]
+name = "tyml_diagnostic"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+resource = "0.6.0"
+toml = "0.8.8"
+ariadne = "0.5.0"
+regex = "1.11.1"

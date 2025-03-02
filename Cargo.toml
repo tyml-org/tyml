@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["src/tyml", "src/tyml_grammar", "src/tyml_parser", "src/tyml_type"]
+members = [
+    "src/tyml",
+    "src/tyml_diagnostic",
+    "src/tyml_grammar",
+    "src/tyml_parser",
+    "src/tyml_type",
+]
