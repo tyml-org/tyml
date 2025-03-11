@@ -1,0 +1,44 @@
+[parse_error.0001]
+message = "要素定義の記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "ここには%color:cyan{要素定義}もしくは%color:cyan{型定義}が必要です"
+[parse_error.0002]
+message = "区切り文字が正しくありません"
+label_0 = "'%color:yellow{%0}'は不明な区切り文字です"
+label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\n}'(改行)のみです"
+[parse_error.0003]
+message = "要素定義の型を特定できません"
+label_0 = "記述形式に誤りがあるため要素の型を識別できません"
+label_1 = "%color:cyan{型}もしくは%color:cyan{既定値}を記述する必要があります"
+[parse_error.0004]
+message = "要素の型の記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "ここには%color:cyan{型名}もしくは%color:cyan{インライン型}が必要です"
+[parse_error.0005]
+message = "括弧'%color:yellow{{}'が閉じられていません"
+label_0 = "'%color:cyan{\\}}'で閉じる必要があります"
+[parse_error.0006]
+message = "既定値の記述方法が正しくありません"
+label_0 = "不明な値です"
+[parse_error.0007]
+message = "型の名称が指定されていません"
+label_0 = "'%color:yellow{type}'の後には定義する型の%color:cyan{名称}が必要です"
+[parse_error.0008]
+message = "型の要素ブロックが記述されていません"
+label_0 = "型名の後には'%color:cyan{{}'と'%color:cyan{\\}}'で囲われた要素ブロックが必要です"
+[parse_error.0009]
+message = "列挙型の名称が指定されていません"
+label_0 = "'%color:yellow{enum}'の後には定義する型の%color:cyan{名称}が必要です"
+[parse_error.0010]
+message = "列挙型の要素ブロックが記述されていません"
+label_0 = "型名の後には'%color:cyan{{}'と'%color:cyan{\\}}'で囲われた要素ブロックが必要です"
+[parse_error.0011]
+message = "列挙型の要素の記述形式が正しくありません"
+label_0 = "これは列挙型の要素として有効ではありません"
+[parse_error.0012]
+message = "列挙型の要素の区切り文字が正しくありません"
+label_0 = "'%color:yellow{%0}'は不明な区切り文字です"
+label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\n}'(改行)のみです"
+[parse_error.0013]
+message = "ユニオン型の要素の記述形式が正しくありません"
+label_0 = "ここにはユニオン型の型候補を記述すべきです"

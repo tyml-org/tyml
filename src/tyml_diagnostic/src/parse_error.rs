@@ -12,27 +12,119 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0001,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
             },
             ParseErrorKind::InvalidDefineSeparator => Diagnostic {
                 message: TymlDiagnositcMessage {
                     section: MessageSection::ParseError,
                     code: 0002,
+                    arguments: vec![self.error_tokens[0].text.to_string()],
+                },
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
+            },
+            ParseErrorKind::NotFoundElementTypeAndDefaultValue => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0003,
+                    arguments: vec![],
+                },
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
+            },
+            ParseErrorKind::InvalidElementTypeFormat => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0004,
+                    arguments: vec![],
+                },
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
+            },
+            ParseErrorKind::NonClosedBrace => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0005,
                     arguments: vec![],
                 },
                 labels: vec![(self.span.clone(), Color::Red)],
             },
-            ParseErrorKind::NotFoundElementTypeAndDefaultValue => todo!(),
-            ParseErrorKind::InvalidElementTypeFormat => todo!(),
-            ParseErrorKind::NonClosedBrace => todo!(),
-            ParseErrorKind::UnknownDefaultValueFormat => todo!(),
-            ParseErrorKind::NotFoundStructName => todo!(),
-            ParseErrorKind::NotFoundStructBlock => todo!(),
-            ParseErrorKind::NotFoundEnumName => todo!(),
-            ParseErrorKind::NotFoundEnumBlock => todo!(),
-            ParseErrorKind::NotFoundEnumElement => todo!(),
-            ParseErrorKind::InvalidEnumElementSeparator => todo!(),
-            ParseErrorKind::InvalidOrTypeFormat => todo!(),
+            ParseErrorKind::UnknownDefaultValueFormat => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0006,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::NotFoundStructName => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0007,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::NotFoundStructBlock => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0008,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::NotFoundEnumName => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0009,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::NotFoundEnumBlock => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0010,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::InvalidEnumElement => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0011,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
+            ParseErrorKind::InvalidEnumElementSeparator => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0012,
+                    arguments: vec![self.error_tokens[0].text.to_string()],
+                },
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
+            },
+            ParseErrorKind::InvalidOrTypeFormat => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0013,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
             ParseErrorKind::NotFoundArrayBaseType => todo!(),
             ParseErrorKind::NonClosedBracket => todo!(),
         }

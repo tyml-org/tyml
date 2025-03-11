@@ -617,7 +617,7 @@ fn parse_enum_define<'input, 'allocator>(
             TokenKind::Literal => lexer.next().unwrap().into_literal(),
             _ => {
                 let error = recover_until(
-                    ParseErrorKind::NotFoundEnumElement,
+                    ParseErrorKind::InvalidEnumElement,
                     lexer,
                     &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
                     Expected::EnumElement,

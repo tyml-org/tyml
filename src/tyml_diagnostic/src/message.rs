@@ -36,9 +36,10 @@ pub(crate) fn get_text_optional(key: &str, lang: &str) -> Option<String> {
     None
 }
 
-static COLOR_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%color:\w+{[^}]*}").unwrap());
+static COLOR_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"%color:\w+{(\\}|[^}])*}").unwrap());
 static COLOR_GROUP_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"%color:(\w+){([^}]*)}").unwrap());
+    LazyLock::new(|| Regex::new(r"%color:(\w+){((\\}|[^}])*)}").unwrap());
 
 pub(crate) fn replace_message(
     mut message: String,

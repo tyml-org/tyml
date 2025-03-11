@@ -52,7 +52,7 @@ pub enum ParseErrorKind {
     NotFoundStructBlock,
     NotFoundEnumName,
     NotFoundEnumBlock,
-    NotFoundEnumElement,
+    InvalidEnumElement,
     InvalidEnumElementSeparator,
     InvalidOrTypeFormat,
     NotFoundArrayBaseType,
