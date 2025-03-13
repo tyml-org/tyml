@@ -5,6 +5,7 @@ use message::{get_text, get_text_optional, replace_message};
 
 mod message;
 pub mod parse_error;
+pub mod type_error;
 
 pub(crate) struct TymlDiagnositcMessage {
     pub section: MessageSection,
@@ -16,7 +17,7 @@ impl TymlDiagnositcMessage {
     pub fn message(&self, lang: &str, colored: bool) -> String {
         replace_message(
             get_text(
-                format!("{}.{}.message", &self.section.section(), self.code).as_str(),
+                format!("{}.{:>04}.message", &self.section.section(), self.code).as_str(),
                 lang,
             ),
             &self.arguments,
@@ -28,7 +29,7 @@ impl TymlDiagnositcMessage {
         let mut labels = Vec::new();
         for i in 0..usize::MAX {
             let Some(text) = get_text_optional(
-                format!("{}.{}.label_{}", &self.section.section(), self.code, i).as_str(),
+                format!("{}.{:>04}.label_{}", &self.section.section(), self.code, i).as_str(),
                 lang,
             ) else {
                 break;
@@ -41,7 +42,7 @@ impl TymlDiagnositcMessage {
 
     pub fn note(&self, lang: &str, colored: bool) -> Option<String> {
         get_text_optional(
-            format!("{}.{}.note", &self.section.section(), self.code).as_str(),
+            format!("{}.{:>04}.note", &self.section.section(), self.code).as_str(),
             lang,
         )
         .map(|text| replace_message(text, &self.arguments, colored))
@@ -49,7 +50,7 @@ impl TymlDiagnositcMessage {
 
     pub fn help(&self, lang: &str, colored: bool) -> Option<String> {
         get_text_optional(
-            format!("{}.{}.help", &self.section.section(), self.code).as_str(),
+            format!("{}.{:>04}.help", &self.section.section(), self.code).as_str(),
             lang,
         )
         .map(|text| replace_message(text, &self.arguments, colored))

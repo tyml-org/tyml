@@ -125,8 +125,25 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 },
                 labels: vec![(self.span.clone(), Color::Red)],
             },
-            ParseErrorKind::NotFoundArrayBaseType => todo!(),
-            ParseErrorKind::NonClosedBracket => todo!(),
+            ParseErrorKind::NotFoundArrayBaseType => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0014,
+                    arguments: vec![],
+                },
+                labels: vec![
+                    (self.span.clone(), Color::Red),
+                    (self.span.clone(), Color::Cyan),
+                ],
+            },
+            ParseErrorKind::NonClosedBracket => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ParseError,
+                    code: 0015,
+                    arguments: vec![],
+                },
+                labels: vec![(self.span.clone(), Color::Red)],
+            },
         }
     }
 }

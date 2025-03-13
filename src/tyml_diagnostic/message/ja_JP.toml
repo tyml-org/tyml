@@ -42,3 +42,17 @@ label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%
 [parse_error.0013]
 message = "ユニオン型の要素の記述形式が正しくありません"
 label_0 = "ここにはユニオン型の型候補を記述すべきです"
+[parse_error.0014]
+message = "配列の基底型が指定されていません"
+label_0 = "ここには配列の基底となる型が必要です"
+label_1 = "配列は'%color:cyan{[int]}'のような形式で指定する必要があります"
+[parse_error.0015]
+message = "括弧'%color:yellow{[}'が閉じられていません"
+label_0 = "'%color:cyan{]}'で閉じる必要があります"
+
+[type_error.0001]
+message = "不明な型が指定されています"
+label_0 = "この名称'%color:red{%0}'の型が見つかりません"
+[type_error.0002]
+message = "既定値と型の互換性がありません"
+label_0 = ""
