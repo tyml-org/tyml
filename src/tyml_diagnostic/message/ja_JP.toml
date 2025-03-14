@@ -1,3 +1,5 @@
+[parse_error]
+name = "構文エラー"
 [parse_error.0001]
 message = "要素定義の記述形式が正しくありません"
 label_0 = "不明なトークンです"
@@ -50,9 +52,16 @@ label_1 = "配列は'%color:cyan{[int]}'のような形式で指定する必要�
 message = "括弧'%color:yellow{[}'が閉じられていません"
 label_0 = "'%color:cyan{]}'で閉じる必要があります"
 
+[type_error]
+name = "型エラー"
 [type_error.0001]
 message = "不明な型が指定されています"
 label_0 = "この名称'%color:red{%0}'の型が見つかりません"
 [type_error.0002]
 message = "既定値と型の互換性がありません"
-label_0 = ""
+label_0 = "この値は型'%color:yellow{%0}'として推論されます"
+label_1 = "値はこの型'%color:yellow{%1}'と互換性がありません"
+[type_error.0003]
+message = "既定値が型の属性に適合しません"
+label_0 = "この値は型の属性と一致しません"
+label_1 = "値はこの型'%color:yellow{%0}'の属性と一致しません"

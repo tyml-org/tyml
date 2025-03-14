@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive},
     sync::Arc,
 };
@@ -137,7 +138,35 @@ impl<'ty> Type<'ty> {
     }
 }
 
-pub trait Attribute<T> {
+pub trait ToTypeName {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String;
+}
+
+impl<'ty> ToTypeName for Type<'ty> {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        match self {
+            Type::Int(attribute) => format!("int{}", attribute.to_type_name(named_type_map)),
+            Type::UnsignedInt(attribute) => {
+                format!("uint{}", attribute.to_type_name(named_type_map))
+            }
+            Type::Float(attribute) => format!("float{}", attribute.to_type_name(named_type_map)),
+            Type::String(attribute) => format!("string{}", attribute.to_type_name(named_type_map)),
+            Type::MaybeInt => format!("int(maybe)"),
+            Type::MaybeUnsignedInt => format!("uint(maybe)"),
+            Type::Named(name_id) => named_type_map.get_name(*name_id).unwrap().to_string(),
+            Type::Or(items) => items
+                .iter()
+                .map(|item| item.to_type_name(named_type_map))
+                .collect::<Vec<_>>()
+                .join(" | "),
+            Type::Array(base) => format!("[{}]", base.to_type_name(named_type_map)),
+            Type::Optional(base) => format!("{}?", base.to_type_name(named_type_map)),
+            Type::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
+pub trait Attribute<T>: ToTypeName {
     fn validate(&self, value: T) -> bool;
 }
 
@@ -152,6 +181,12 @@ impl Attribute<i64> for IntAttribute {
     }
 }
 
+impl ToTypeName for IntAttribute {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        self.range.to_type_name(named_type_map)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UnsignedIntAttribute {
     pub range: NumericalValueRange<u64>,
@@ -163,8 +198,14 @@ impl Attribute<u64> for UnsignedIntAttribute {
     }
 }
 
+impl ToTypeName for UnsignedIntAttribute {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        self.range.to_type_name(named_type_map)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
-pub enum NumericalValueRange<T> {
+pub enum NumericalValueRange<T: Display> {
     Range(Range<T>),
     RangeInclusive(RangeInclusive<T>),
     RangeFrom(RangeFrom<T>),
@@ -174,7 +215,22 @@ pub enum NumericalValueRange<T> {
     None,
 }
 
-impl<T: PartialOrd> Attribute<T> for NumericalValueRange<T> {
+impl<T: Display> ToTypeName for NumericalValueRange<T> {
+    fn to_type_name(&self, _: &NamedTypeMap) -> String {
+        match self {
+            NumericalValueRange::Range(range) => format!(" < {}..{}", range.start, range.end),
+            NumericalValueRange::RangeInclusive(range) => {
+                format!(" < {}..={}", range.start(), range.end())
+            }
+            NumericalValueRange::RangeFrom(range) => format!(" < {}..", range.start),
+            NumericalValueRange::RangeTo(range) => format!(" < ..{}", range.end),
+            NumericalValueRange::RangeToInclusive(range) => format!(" < ..={}", range.end),
+            NumericalValueRange::None => format!(""),
+        }
+    }
+}
+
+impl<T: PartialOrd + Display> Attribute<T> for NumericalValueRange<T> {
     fn validate(&self, value: T) -> bool {
         match self {
             NumericalValueRange::Range(range) => range.contains(&value),
@@ -198,6 +254,12 @@ impl Attribute<f64> for FloatAttribute {
     }
 }
 
+impl ToTypeName for FloatAttribute {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        self.range.to_type_name(named_type_map)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StringAttribute {
     pub tags: Arc<Vec<String>>,
@@ -206,6 +268,12 @@ pub struct StringAttribute {
 impl Attribute<&str> for StringAttribute {
     fn validate(&self, _: &str) -> bool {
         true // TODO : impl attrivute
+    }
+}
+
+impl ToTypeName for StringAttribute {
+    fn to_type_name(&self, _: &NamedTypeMap) -> String {
+        format!("")
     }
 }
 
@@ -232,7 +300,12 @@ pub enum NamedTypeTree<'input, 'ty> {
 
 #[derive(Debug)]
 pub struct NamedTypeMap<'input, 'ty> {
-    map: HashMap<NameID, (Range<usize>, NamedTypeTree<'input, 'ty>), DefaultHashBuilder, &'ty Bump>,
+    map: HashMap<
+        NameID,
+        (&'input str, Range<usize>, NamedTypeTree<'input, 'ty>),
+        DefaultHashBuilder,
+        &'ty Bump,
+    >,
 }
 
 impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
@@ -245,17 +318,22 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
     pub fn link(
         &mut self,
         name_id: NameID,
+        name: &'input str,
         name_span: Range<usize>,
         type_tree: NamedTypeTree<'input, 'ty>,
     ) {
-        self.map.insert(name_id, (name_span, type_tree));
+        self.map.insert(name_id, (name, name_span, type_tree));
+    }
+
+    pub fn get_name(&self, name_id: NameID) -> Option<&'input str> {
+        self.map.get(&name_id).map(|(name, _, _)| *name)
     }
 
     pub fn get_define_span(&self, name_id: NameID) -> Option<Range<usize>> {
-        self.map.get(&name_id).map(|(span, _)| span.clone())
+        self.map.get(&name_id).map(|(_, span, _)| span.clone())
     }
 
     pub fn get_type(&self, name_id: NameID) -> Option<&NamedTypeTree<'input, 'ty>> {
-        self.map.get(&name_id).map(|(_, ty)| ty)
+        self.map.get(&name_id).map(|(_, _, ty)| ty)
     }
 }

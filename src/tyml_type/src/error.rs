@@ -18,10 +18,10 @@ pub enum TypeErrorKind<'input, 'ty> {
     IncompatibleValueType {
         value: Spanned<&'input str>,
         value_type: Type<'ty>,
-        expected: Type<'ty>,
+        expected: Spanned<Type<'ty>>,
     },
-    IncompatibleValue {
+    IncompatibleValueForAttribute {
         value: Spanned<&'input str>,
-        expected: Type<'ty>,
+        expected: Spanned<Type<'ty>>,
     },
 }

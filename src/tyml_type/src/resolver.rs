@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use proc_macro_regex::regex;
 use tyml_parser::ast::{
     BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, FloatLiteral, Literal,
-    NodeLiteral, OrType, TypeDefine, ValueLiteral,
+    NodeLiteral, OrType, Spanned, TypeDefine, ValueLiteral,
 };
 
 use crate::{
@@ -79,7 +79,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
             Define::Type(type_define) => {
                 let name_id = NameID::from(type_define);
 
-                let (name_span, named_type) = match type_define {
+                let (name, name_span, named_type) = match type_define {
                     TypeDefine::Struct(struct_define) => {
                         let tree = resolve_defines_type(
                             &struct_define.defines,
@@ -90,6 +90,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             ty,
                         );
                         (
+                            struct_define.name.value,
                             struct_define.name.span.clone(),
                             NamedTypeTree::Struct { tree },
                         )
@@ -100,13 +101,14 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             elements.push(element.clone());
                         }
                         (
+                            enum_define.name.value,
                             enum_define.name.span.clone(),
                             NamedTypeTree::Enum { elements },
                         )
                     }
                 };
 
-                named_type_map.link(name_id, name_span, named_type);
+                named_type_map.link(name_id, name, name_span, named_type);
             }
         }
     }
@@ -145,6 +147,8 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             TypeTree::Leaf { ty }
         }
         (Some(element_type), None, Some(default)) => {
+            let element_type_span = element_type.span.clone();
+
             let element_type = resolve_or_type(
                 &element_type.type_info,
                 name_env,
@@ -164,7 +168,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                     kind: TypeErrorKind::IncompatibleValueType {
                         value,
                         value_type,
-                        expected: element_type.clone(),
+                        expected: Spanned::new(element_type.clone(), element_type_span),
                     },
                     span,
                 });
@@ -172,9 +176,9 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 let span = value.span.clone();
 
                 errors.push(TypeError {
-                    kind: TypeErrorKind::IncompatibleValue {
+                    kind: TypeErrorKind::IncompatibleValueForAttribute {
                         value,
-                        expected: element_type.clone(),
+                        expected: Spanned::new(element_type.clone(), element_type_span),
                     },
                     span,
                 });

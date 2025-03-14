@@ -1,4 +1,7 @@
-use std::{ops::Deref, sync::LazyLock};
+use std::{
+    ops::{Deref, Range},
+    sync::LazyLock,
+};
 
 use ariadne::{Color, Fmt};
 use regex::Regex;
@@ -76,4 +79,22 @@ pub(crate) fn replace_message(
     }
 
     message
+}
+
+pub(crate) trait ToCharacterRange {
+    fn to_character_range(&self, source: &str) -> Self;
+}
+
+impl ToCharacterRange for Range<usize> {
+    fn to_character_range(&self, source: &str) -> Self {
+        fn into_character_index(index: usize, source: &str) -> usize {
+            source
+                .char_indices()
+                .map(|(position, _)| position)
+                .find(|position| *position == index)
+                .expect(format!("out of source index : {}", index).as_str())
+        }
+
+        into_character_index(self.start, source)..into_character_index(self.end, source)
+    }
 }

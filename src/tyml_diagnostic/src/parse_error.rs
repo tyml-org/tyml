@@ -1,10 +1,11 @@
 use ariadne::Color;
 use tyml_parser::error::{ParseError, ParseErrorKind};
+use tyml_type::types::NamedTypeMap;
 
 use crate::{Diagnostic, DiagnosticBuilder, MessageSection, TymlDiagnositcMessage};
 
 impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
-    fn build(&self) -> Diagnostic {
+    fn build(&self, _: &NamedTypeMap) -> Diagnostic {
         match self.kind {
             ParseErrorKind::InvalidDefineElement => Diagnostic {
                 message: TymlDiagnositcMessage {
