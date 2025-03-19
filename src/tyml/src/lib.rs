@@ -1,4 +1,4 @@
-use std::{mem::transmute, ops::Deref, sync::Arc};
+use std::{fmt::Debug, mem::transmute, ops::Deref, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -7,6 +7,7 @@ use tyml_type::{
     error::TypeError,
     resolver::resolve_type,
     types::{NamedTypeMap, TypeTree},
+    validate::ValueTypeChecker,
 };
 
 pub extern crate tyml_parser;
@@ -40,6 +41,12 @@ impl Tyml {
 
     pub fn type_errors<'this>(&'this self) -> &'this Vec<TypeError<'this, 'this>, &'this Bump> {
         unsafe { transmute(&self.inner.type_errors) }
+    }
+
+    pub fn value_type_checker<'section, 'value, Span: Debug + Clone + PartialEq + Default>(
+        &self,
+    ) -> ValueTypeChecker<'_, '_, '_, '_, 'section, 'value, Span> {
+        ValueTypeChecker::new(self.type_tree(), self.named_type_map())
     }
 }
 
