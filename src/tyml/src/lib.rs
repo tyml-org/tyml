@@ -7,8 +7,8 @@ use tyml_type::{
     error::TypeError,
     resolver::resolve_type,
     types::{NamedTypeMap, TypeTree},
-    validate::ValueTypeChecker,
 };
+use tyml_validate::validate::ValueTypeChecker;
 
 pub extern crate tyml_parser;
 pub extern crate tyml_type;

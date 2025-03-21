@@ -1,13 +1,11 @@
 [package]
-name = "tyml"
+name = "tyml_validate"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-tyml_grammar = { path = "../tyml_grammar/" }
 tyml_parser = { path = "../tyml_parser/" }
 tyml_type = { path = "../tyml_type/" }
-tyml_validate = { path = "../tyml_validate/" }
+hashbrown = "0.15.2"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
-either = "1.13.0"

@@ -113,7 +113,11 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
         }
     }
 
-    TypeTree::Node { node, any_node }
+    TypeTree::Node {
+        node,
+        any_node,
+        span: ast.span.clone(),
+    }
 }
 
 fn get_element_type<'input, 'env, 'ast_allocator>(
@@ -128,6 +132,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
         (None, None, None) => unreachable!(),
         (None, None, Some(default)) => TypeTree::Leaf {
             ty: get_value_type(default, ty),
+            span: ast.span.clone(),
         },
         (None, Some(inline), None) => {
             resolve_defines_type(inline.defines, name_env, named_type_map, errors, env, ty)
@@ -144,7 +149,10 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 env,
                 ty,
             );
-            TypeTree::Leaf { ty }
+            TypeTree::Leaf {
+                ty,
+                span: ast.span.clone(),
+            }
         }
         (Some(element_type), None, Some(default)) => {
             let element_type_span = element_type.span.clone();
@@ -184,7 +192,10 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 });
             }
 
-            TypeTree::Leaf { ty: element_type }
+            TypeTree::Leaf {
+                ty: element_type,
+                span: ast.span.clone(),
+            }
         }
         (Some(_), Some(_), None) => unreachable!(),
         (Some(_), Some(_), Some(_)) => unreachable!(),

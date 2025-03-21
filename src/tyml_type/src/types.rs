@@ -136,6 +136,14 @@ impl<'ty> Type<'ty> {
             Type::Unknown => false,
         }
     }
+
+    pub fn is_allowed_optional(&self) -> bool {
+        match self {
+            Type::Or(or_types) => or_types.iter().any(|ty| ty.is_allowed_optional()),
+            Type::Optional(_) => true,
+            _ => false,
+        }
+    }
 }
 
 pub trait ToTypeName {
@@ -282,10 +290,25 @@ pub enum TypeTree<'input, 'ty> {
     Node {
         node: HashMap<&'input str, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
         any_node: Option<Box<TypeTree<'input, 'ty>, &'ty Bump>>,
+        span: Range<usize>,
     },
     Leaf {
         ty: Type<'ty>,
+        span: Range<usize>,
     },
+}
+
+impl TypeTree<'_, '_> {
+    pub fn is_allowed_optional(&self) -> bool {
+        match self {
+            TypeTree::Node {
+                node: _,
+                any_node: _,
+                span: _,
+            } => false,
+            TypeTree::Leaf { ty, span: _ } => ty.is_allowed_optional(),
+        }
+    }
 }
 
 #[derive(Debug)]

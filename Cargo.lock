@@ -362,6 +362,7 @@ dependencies = [
  "tyml_grammar",
  "tyml_parser",
  "tyml_type",
+ "tyml_validate",
 ]
 
 [[package]]
@@ -404,6 +405,17 @@ dependencies = [
  "hashbrown",
  "proc-macro-regex",
  "tyml_parser",
+]
+
+[[package]]
+name = "tyml_validate"
+version = "0.1.0"
+dependencies = [
+ "allocator-api2",
+ "bumpalo",
+ "hashbrown",
+ "tyml_parser",
+ "tyml_type",
 ]
 
 [[package]]
