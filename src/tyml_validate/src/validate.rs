@@ -200,18 +200,35 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
     MergedValueTree<'section, 'value, 'temp, Span>
 {
     pub fn merge_and_collect_duplicated(
+        value_tree: &ValueTree<'section, 'value, Span>,
+        errors: &mut Vec<TymlValueValidateError<Span>>,
+        allocator: &'temp Bump,
+    ) -> Self {
+        let mut init_merged_value_tree = match value_tree {
+            ValueTree::Section { elements, span } => MergedValueTree::Section {
+                elements: HashMap::new_in(allocator),
+                span: span.clone(),
+            },
+            ValueTree::Value { value, span } => MergedValueTree::Value {
+                value: value.clone(),
+                span: span.clone(),
+            },
+        };
+
+        init_merged_value_tree
+            .merge_and_collect_duplicated_recursive(value_tree, errors, allocator);
+
+        init_merged_value_tree
+    }
+
+    fn merge_and_collect_duplicated_recursive(
         &mut self,
         value_tree: &ValueTree<'section, 'value, Span>,
-        errors: Vec<TymlValueValidateError<Span>>,
+        errors: &mut Vec<TymlValueValidateError<Span>>,
+        allocator: &'temp Bump,
     ) {
         match value_tree {
-            ValueTree::Section { elements, span } => {
-                for (element_name, values) in elements.iter() {
-                    for value_tree in values {
-                        
-                    }
-                }
-            },
+            ValueTree::Section { elements, span } => todo!(),
             ValueTree::Value { value, span } => todo!(),
         }
     }
