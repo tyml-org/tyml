@@ -1,10 +1,13 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Not};
 
+use allocator_api2::vec;
+use allocator_api2::vec::Vec;
+use auto_enums::auto_enum;
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
 use tyml_parser::ast::Spanned;
-use tyml_type::types::{NamedTypeMap, TypeTree};
+use tyml_type::types::{NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
 use crate::error::TymlValueValidateError;
 
@@ -19,7 +22,7 @@ pub struct ValueTypeChecker<
 > {
     pub type_tree: &'tree TypeTree<'input, 'ty>,
     pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
-    pub value_tree: ValueTree<'section, 'value, Span>,
+    value_tree: ValueTree<'section, 'value, Span>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -137,45 +140,159 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
     }
 
     fn validate_inner<'temp>(
+        &self,
         errors: &mut Vec<TymlValueValidateError<Span>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
-        value_tree: &ValueTree<'section, 'value, Span>,
+        value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) {
         match type_tree {
             TypeTree::Node {
                 node,
                 any_node,
-                span: type_tree_span,
+                span: _,
             } => {
                 for (element_name, element_type) in node.iter() {
                     match value_tree {
-                        ValueTree::Section {
+                        MergedValueTree::Section {
                             elements,
-                            span: value_section_span,
-                        } => match elements.get(*element_name) {
-                            Some(values) => todo!(),
-                            None => {
-                                if !element_type.is_allowed_optional() {
-                                    let error = TymlValueValidateError::NoValueFound {
-                                        required: Spanned::new(
-                                            section_name_stack
+                            spans: value_tree_section_spans,
+                        } => {
+                            match elements.get(*element_name) {
+                                Some(element_value) => {
+                                    section_name_stack.push(*element_name);
+
+                                    self.validate_inner(
+                                        errors,
+                                        element_type,
+                                        element_value,
+                                        section_name_stack,
+                                    );
+
+                                    section_name_stack.pop().unwrap();
+                                }
+                                None => {
+                                    if !element_type.is_allowed_optional() {
+                                        let error = TymlValueValidateError::NoValueFound {
+                                            required: Spanned::new(
+                                                section_name_stack
+                                                    .iter()
+                                                    .chain([element_name].into_iter())
+                                                    .map(|name| name.to_string())
+                                                    .collect::<Vec<_>>()
+                                                    .join("."),
+                                                element_type.span(),
+                                            ),
+                                            required_in: value_tree_section_spans
+                                                .iter()
+                                                .cloned()
+                                                .collect(),
+                                        };
+                                        errors.push(error);
+                                    }
+                                }
+                            }
+
+                            for (value_element_name, value_element) in elements.iter() {
+                                if node.contains_key(value_element_name.as_ref()) {
+                                    continue;
+                                }
+
+                                match &any_node {
+                                    Some(any_node_type) => {
+                                        section_name_stack.push("*");
+
+                                        self.validate_inner(
+                                            errors,
+                                            &any_node_type,
+                                            value_element,
+                                            section_name_stack,
+                                        );
+
+                                        section_name_stack.pop().unwrap();
+                                    }
+                                    None => {
+                                        let error = TymlValueValidateError::UnknownValue {
+                                            values: value_element.spans().cloned().collect(),
+                                            path: section_name_stack
                                                 .iter()
                                                 .chain([element_name].into_iter())
                                                 .map(|name| name.to_string())
-                                                .collect(),
-                                            type_tree_span.clone(),
-                                        ),
-                                        required_in_value_section: todo!(),
-                                    };
+                                                .collect::<Vec<_>>()
+                                                .join("."),
+                                        };
+                                        errors.push(error);
+                                    }
                                 }
                             }
-                        },
-                        ValueTree::Value { value, span } => todo!(),
+                        }
+                        MergedValueTree::Value { value: _, span } => {
+                            let error = TymlValueValidateError::NoTreeValue {
+                                found: span.clone(),
+                                path: section_name_stack
+                                    .iter()
+                                    .chain([element_name].into_iter())
+                                    .map(|name| name.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("."),
+                            };
+                            errors.push(error);
+                        }
                     }
                 }
             }
-            TypeTree::Leaf { ty, span } => todo!(),
+            TypeTree::Leaf { ty, span } => {
+                if let Type::Named(id) = ty {
+                    let named_type_tree = self.named_type_map.get_type(*id).unwrap();
+
+                    match named_type_tree {
+                        NamedTypeTree::Struct { tree } => {
+                            self.validate_inner(errors, tree, value_tree, section_name_stack);
+                        }
+                        NamedTypeTree::Enum { elements } => {
+                            let found_error_spans = match value_tree {
+                                MergedValueTree::Section { elements: _, spans } => {
+                                    Some(spans.iter().cloned().collect())
+                                }
+                                MergedValueTree::Value { value, span } => match value {
+                                    Value::String(value) => elements
+                                        .iter()
+                                        .any(|element| element.value == value)
+                                        .not()
+                                        .then(|| std::vec![span.clone()]),
+                                    _ => Some(std::vec![span.clone()]),
+                                },
+                            };
+
+                            if let Some(found) = found_error_spans {
+                                let enum_name =
+                                    self.named_type_map.get_name(*id).unwrap().to_string();
+                                let enum_span = self.named_type_map.get_define_span(*id).unwrap();
+
+                                let error = TymlValueValidateError::InvalidValue {
+                                    found,
+                                    expected: Spanned::new(enum_name, enum_span),
+                                };
+                                errors.push(error);
+                            }
+                        }
+                    }
+                } else {
+                    match value_tree {
+                        MergedValueTree::Section { elements: _, spans } => {
+                            let error = TymlValueValidateError::InvalidValue {
+                                found: spans.iter().cloned().collect(),
+                                expected: Spanned::new(
+                                    ty.to_type_name(&self.named_type_map),
+                                    span.clone(),
+                                ),
+                            };
+                            errors.push(error);
+                        }
+                        MergedValueTree::Value { value, span } => todo!(),
+                    }
+                }
+            }
         }
     }
 }
@@ -188,7 +305,7 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: Clone> {
             DefaultHashBuilder,
             &'temp Bump,
         >,
-        span: Span,
+        spans: Vec<Span, &'temp Bump>,
     },
     Value {
         value: Value<'value>,
@@ -199,18 +316,96 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: Clone> {
 impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
     MergedValueTree<'section, 'value, 'temp, Span>
 {
+    #[auto_enum(Iterator)]
+    pub fn spans(&self) -> impl Iterator<Item = &Span> {
+        match self {
+            MergedValueTree::Section { elements: _, spans } => spans.iter(),
+            MergedValueTree::Value { value: _, span } => std::iter::once(span),
+        }
+    }
+
     fn merge_and_collect_duplicated(
         value_tree: &ValueTree<'section, 'value, Span>,
         errors: &mut Vec<TymlValueValidateError<Span>>,
         allocator: &'temp Bump,
     ) -> Self {
-        match value_tree {
-            ValueTree::Section { elements, span } => {
-                let mut merged_eleemnts = HashMap::new_in(allocator);
+        let mut new_tree = MergedValueTree::Section {
+            elements: HashMap::new_in(allocator),
+            spans: vec![in allocator; value_tree.span().clone(); 1],
+        };
 
-                MergedValueTree::Section { elements: merged_eleemnts, span: span.clone() }
+        Self::merge_inner_recursive(&mut new_tree, value_tree, errors, allocator);
+
+        new_tree
+    }
+
+    fn merge_inner_recursive(
+        new_tree: &mut Self,
+        value_tree: &ValueTree<'section, 'value, Span>,
+        errors: &mut Vec<TymlValueValidateError<Span>>,
+        allocator: &'temp Bump,
+    ) {
+        match new_tree {
+            MergedValueTree::Section {
+                elements: new_elements,
+                spans,
+            } => match value_tree {
+                ValueTree::Section { elements, span } => {
+                    spans.push(span.clone());
+
+                    for (element_name, element_values) in elements.iter() {
+                        if let Some(first_value) = element_values.first() {
+                            let mut new_tree = match first_value {
+                                ValueTree::Section {
+                                    elements: _,
+                                    span: _,
+                                } => MergedValueTree::Section {
+                                    elements: HashMap::new_in(allocator),
+                                    spans: Vec::new_in(allocator),
+                                },
+                                ValueTree::Value { value, span } => MergedValueTree::Value {
+                                    value: value.clone(),
+                                    span: span.clone(),
+                                },
+                            };
+
+                            let mut element_iterator = element_values.iter();
+
+                            if let ValueTree::Value { value: _, span: _ } = first_value {
+                                element_iterator.next();
+                            }
+
+                            for value_tree in element_iterator {
+                                Self::merge_inner_recursive(
+                                    &mut new_tree,
+                                    value_tree,
+                                    errors,
+                                    allocator,
+                                );
+                            }
+
+                            new_elements.insert(element_name.clone(), new_tree);
+                        }
+                    }
+                }
+                ValueTree::Value {
+                    value: _,
+                    span: duplicated,
+                } => {
+                    let error = TymlValueValidateError::DuplicatedValue {
+                        exists: spans.iter().cloned().collect(),
+                        duplicated: duplicated.clone(),
+                    };
+                    errors.push(error);
+                }
             },
-            ValueTree::Value { value, span } => todo!(),
+            MergedValueTree::Value { value: _, span } => {
+                let error = TymlValueValidateError::DuplicatedValue {
+                    exists: std::vec![span.clone()],
+                    duplicated: value_tree.span().clone(),
+                };
+                errors.push(error);
+            }
         }
     }
 }

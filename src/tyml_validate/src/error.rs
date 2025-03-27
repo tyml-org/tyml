@@ -1,16 +1,24 @@
 use tyml_parser::ast::Spanned;
 
 pub enum TymlValueValidateError<Span> {
-    InvalidValueType {
-        expected: Spanned<String>,
+    NoTreeValue {
         found: Span,
+        path: String,
     },
     NoValueFound {
-        required: Spanned<Vec<String>>,
-        required_in_value_section: Vec<Span>,
+        required: Spanned<String>,
+        required_in: Vec<Span>,
     },
     DuplicatedValue {
-        exists: Span,
+        exists: Vec<Span>,
         duplicated: Span,
+    },
+    UnknownValue {
+        values: Vec<Span>,
+        path: String,
+    },
+    InvalidValue {
+        found: Vec<Span>,
+        expected: Spanned<String>,
     },
 }

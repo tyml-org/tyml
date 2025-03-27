@@ -309,6 +309,17 @@ impl TypeTree<'_, '_> {
             TypeTree::Leaf { ty, span: _ } => ty.is_allowed_optional(),
         }
     }
+
+    pub fn span(&self) -> Range<usize> {
+        match self {
+            TypeTree::Node {
+                node: _,
+                any_node: _,
+                span,
+            } => span.clone(),
+            TypeTree::Leaf { ty: _, span } => span.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]
