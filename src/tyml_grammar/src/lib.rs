@@ -32,7 +32,7 @@ mod tests {
 
         float_numeric      ::= r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?" | "inf" | "nan"
 
-        binary_numeric     ::= r"[+-]?0x[a-f|A-F|0-9|_]+" | r"[+-]?0o[0-7|_]+" | r"[+-]?0b[01_]+"
+        binary_numeric     ::= r"0x[a-f|A-F|0-9|_]+" | r"0o[0-7|_]+" | r"0b[01_]+"
 
         type_define        ::= struct_define | enum_define
 

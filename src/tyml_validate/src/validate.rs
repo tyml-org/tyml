@@ -7,7 +7,7 @@ use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
 use tyml_parser::ast::Spanned;
-use tyml_type::types::{NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
+use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
 use crate::error::TymlValueValidateError;
 
@@ -52,6 +52,7 @@ pub enum Value<'value> {
     UnsignedInt(u64),
     Float(f64),
     String(Cow<'value, str>),
+    AnyString(Cow<'value, str>),
     None,
 }
 
@@ -141,11 +142,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
     fn validate_inner<'temp>(
         &self,
-        errors: &mut Vec<TymlValueValidateError<Span>>,
+        errors: &mut Option<Vec<TymlValueValidateError<Span>>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
         value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
-    ) {
+    ) -> bool {
         match type_tree {
             TypeTree::Node {
                 node,
@@ -162,33 +163,41 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 Some(element_value) => {
                                     section_name_stack.push(*element_name);
 
-                                    self.validate_inner(
+                                    let result = self.validate_inner(
                                         errors,
                                         element_type,
                                         element_value,
                                         section_name_stack,
                                     );
 
+                                    if !result && errors.is_none() {
+                                        return false;
+                                    }
+
                                     section_name_stack.pop().unwrap();
                                 }
                                 None => {
                                     if !element_type.is_allowed_optional() {
-                                        let error = TymlValueValidateError::NoValueFound {
-                                            required: Spanned::new(
-                                                section_name_stack
+                                        if let Some(errors) = errors {
+                                            let error = TymlValueValidateError::NoValueFound {
+                                                required: Spanned::new(
+                                                    section_name_stack
+                                                        .iter()
+                                                        .chain([element_name].into_iter())
+                                                        .map(|name| name.to_string())
+                                                        .collect::<Vec<_>>()
+                                                        .join("."),
+                                                    element_type.span(),
+                                                ),
+                                                required_in: value_tree_section_spans
                                                     .iter()
-                                                    .chain([element_name].into_iter())
-                                                    .map(|name| name.to_string())
-                                                    .collect::<Vec<_>>()
-                                                    .join("."),
-                                                element_type.span(),
-                                            ),
-                                            required_in: value_tree_section_spans
-                                                .iter()
-                                                .cloned()
-                                                .collect(),
-                                        };
-                                        errors.push(error);
+                                                    .cloned()
+                                                    .collect(),
+                                            };
+                                            errors.push(error);
+                                        } else {
+                                            return false;
+                                        }
                                     }
                                 }
                             }
@@ -202,41 +211,53 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     Some(any_node_type) => {
                                         section_name_stack.push("*");
 
-                                        self.validate_inner(
+                                        let result = self.validate_inner(
                                             errors,
                                             &any_node_type,
                                             value_element,
                                             section_name_stack,
                                         );
 
+                                        if !result && errors.is_none() {
+                                            return false;
+                                        }
+
                                         section_name_stack.pop().unwrap();
                                     }
                                     None => {
-                                        let error = TymlValueValidateError::UnknownValue {
-                                            values: value_element.spans().cloned().collect(),
-                                            path: section_name_stack
-                                                .iter()
-                                                .chain([element_name].into_iter())
-                                                .map(|name| name.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join("."),
-                                        };
-                                        errors.push(error);
+                                        if let Some(errors) = errors {
+                                            let error = TymlValueValidateError::UnknownValue {
+                                                values: value_element.spans().cloned().collect(),
+                                                path: section_name_stack
+                                                    .iter()
+                                                    .chain([element_name].into_iter())
+                                                    .map(|name| name.to_string())
+                                                    .collect::<Vec<_>>()
+                                                    .join("."),
+                                            };
+                                            errors.push(error);
+                                        } else {
+                                            return false;
+                                        }
                                     }
                                 }
                             }
                         }
                         MergedValueTree::Value { value: _, span } => {
-                            let error = TymlValueValidateError::NoTreeValue {
-                                found: span.clone(),
-                                path: section_name_stack
-                                    .iter()
-                                    .chain([element_name].into_iter())
-                                    .map(|name| name.to_string())
-                                    .collect::<Vec<_>>()
-                                    .join("."),
-                            };
-                            errors.push(error);
+                            if let Some(errors) = errors {
+                                let error = TymlValueValidateError::NoTreeValue {
+                                    found: span.clone(),
+                                    path: section_name_stack
+                                        .iter()
+                                        .chain([element_name].into_iter())
+                                        .map(|name| name.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("."),
+                                };
+                                errors.push(error);
+                            } else {
+                                return false;
+                            }
                         }
                     }
                 }
@@ -265,34 +286,177 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             };
 
                             if let Some(found) = found_error_spans {
-                                let enum_name =
-                                    self.named_type_map.get_name(*id).unwrap().to_string();
-                                let enum_span = self.named_type_map.get_define_span(*id).unwrap();
+                                if let Some(errors) = errors {
+                                    let enum_name =
+                                        self.named_type_map.get_name(*id).unwrap().to_string();
+                                    let enum_span =
+                                        self.named_type_map.get_define_span(*id).unwrap();
 
-                                let error = TymlValueValidateError::InvalidValue {
-                                    found,
-                                    expected: Spanned::new(enum_name, enum_span),
-                                };
-                                errors.push(error);
+                                    let error = TymlValueValidateError::InvalidValue {
+                                        found,
+                                        expected: Spanned::new(enum_name, enum_span),
+                                    };
+                                    errors.push(error);
+                                }
                             }
                         }
                     }
                 } else {
                     match value_tree {
                         MergedValueTree::Section { elements: _, spans } => {
-                            let error = TymlValueValidateError::InvalidValue {
-                                found: spans.iter().cloned().collect(),
-                                expected: Spanned::new(
-                                    ty.to_type_name(&self.named_type_map),
-                                    span.clone(),
-                                ),
-                            };
-                            errors.push(error);
+                            if let Some(errors) = errors {
+                                let error = TymlValueValidateError::InvalidValue {
+                                    found: spans.iter().cloned().collect(),
+                                    expected: Spanned::new(
+                                        ty.to_type_name(&self.named_type_map),
+                                        span.clone(),
+                                    ),
+                                };
+                                errors.push(error);
+                            }
                         }
                         MergedValueTree::Value { value, span } => todo!(),
                     }
                 }
             }
+        }
+
+        true
+    }
+
+    fn validate_type<'temp>(
+        &self,
+        ty: &Type,
+        value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
+    ) -> bool {
+        match ty {
+            Type::Int(attribute) => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::Int(int) => attribute.validate(*int),
+                    Value::UnsignedInt(uint) => {
+                        *uint <= u64::MAX as _ && attribute.validate(*uint as _)
+                    }
+                    Value::AnyString(string) => {
+                        if string.starts_with("0x") {
+                            match i64::from_str_radix(&string[2..], 16) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else if string.starts_with("0o") {
+                            match i64::from_str_radix(&string[2..], 8) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else if string.starts_with("0b") {
+                            match i64::from_str_radix(&string[2..], 2) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else {
+                            match string.parse::<i64>() {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        }
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::UnsignedInt(attribute) => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::UnsignedInt(uint) => attribute.validate(*uint),
+                    Value::Int(int) => *int >= 0 && attribute.validate(*int as _),
+                    Value::AnyString(string) => {
+                        if string.starts_with("0x") {
+                            match u64::from_str_radix(&string[2..], 16) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else if string.starts_with("0o") {
+                            match u64::from_str_radix(&string[2..], 8) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else if string.starts_with("0b") {
+                            match u64::from_str_radix(&string[2..], 2) {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        } else {
+                            match string.parse::<u64>() {
+                                Ok(int) => attribute.validate(int),
+                                Err(_) => false,
+                            }
+                        }
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::Float(attribute) => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::Float(float) => attribute.validate(*float),
+                    Value::Int(int) => attribute.validate(*int as _),
+                    Value::UnsignedInt(uint) => attribute.validate(*uint as _),
+                    Value::AnyString(string) => match string.parse::<f64>() {
+                        Ok(float) => attribute.validate(float),
+                        Err(_) => false,
+                    },
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::String(attribute) => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::String(string) => attribute.validate(&string),
+                    Value::AnyString(string) => attribute.validate(&string),
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::MaybeInt => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::Int(_) => true,
+                    Value::AnyString(string) => {
+                        if string.starts_with("0x") {
+                            i64::from_str_radix(&string[2..], 16).is_ok()
+                        } else if string.starts_with("0o") {
+                            i64::from_str_radix(&string[2..], 8).is_ok()
+                        } else if string.starts_with("0b") {
+                            i64::from_str_radix(&string[2..], 2).is_ok()
+                        } else {
+                            string.parse::<i64>().is_ok()
+                        }
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::MaybeUnsignedInt => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    Value::Int(_) => true,
+                    Value::UnsignedInt(_) => true,
+                    Value::AnyString(string) => {
+                        if string.starts_with("0x") {
+                            u64::from_str_radix(&string[2..], 16).is_ok()
+                        } else if string.starts_with("0o") {
+                            u64::from_str_radix(&string[2..], 8).is_ok()
+                        } else if string.starts_with("0b") {
+                            u64::from_str_radix(&string[2..], 2).is_ok()
+                        } else {
+                            string.parse::<u64>().is_ok()
+                        }
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::Named(name_id) => todo!(),
+            Type::Or(items) => todo!(),
+            Type::Array(_) => todo!(),
+            Type::Optional(_) => todo!(),
+            Type::Unknown => todo!(),
         }
     }
 }

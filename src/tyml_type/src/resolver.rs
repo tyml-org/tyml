@@ -2,7 +2,6 @@ use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use either::Either;
 use hashbrown::HashMap;
-use proc_macro_regex::regex;
 use tyml_parser::ast::{
     BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, FloatLiteral, Literal,
     NodeLiteral, OrType, Spanned, TypeDefine, ValueLiteral,
@@ -209,30 +208,35 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
     match &ast.value {
         ValueLiteral::String(_) => Type::String(StringAttribute::default()),
         ValueLiteral::Float(float_literal) => match float_literal {
-            FloatLiteral::Float(spanned) => {
-                regex!(is_float r"[.eE]+");
-
-                match is_float(spanned.value) {
-                    true => Type::Float(FloatAttribute::default()),
-                    false => match spanned.value.starts_with("-") {
-                        true => Type::MaybeUnsignedInt,
-                        false => Type::MaybeInt,
-                    },
+            FloatLiteral::Float(literal) => {
+                match (literal.value.parse::<u64>(), literal.value.parse::<i64>()) {
+                    (Ok(_), Ok(_)) => Type::MaybeUnsignedInt,
+                    (Ok(_), Err(_)) => Type::UnsignedInt(UnsignedIntAttribute::default()),
+                    (Err(_), Ok(_)) => Type::MaybeInt,
+                    (Err(_), Err(_)) => Type::Float(FloatAttribute::default()),
                 }
             }
             FloatLiteral::Inf(_) => Type::Float(FloatAttribute::default()),
             FloatLiteral::Nan(_) => Type::Float(FloatAttribute::default()),
         },
         ValueLiteral::Binary(binary_literal) => {
-            let text = match binary_literal {
-                BinaryLiteral::Hex(literal) => literal.value,
-                BinaryLiteral::Oct(literal) => literal.value,
-                BinaryLiteral::Bin(literal) => literal.value,
+            let u64_result = match binary_literal {
+                BinaryLiteral::Hex(literal) => u64::from_str_radix(&literal.value[2..], 16),
+                BinaryLiteral::Oct(literal) => u64::from_str_radix(&literal.value[2..], 8),
+                BinaryLiteral::Bin(literal) => u64::from_str_radix(&literal.value[2..], 2),
             };
 
-            match text.starts_with('-') {
-                true => Type::Int(IntAttribute::default()),
-                false => Type::MaybeUnsignedInt,
+            let i64_result = match binary_literal {
+                BinaryLiteral::Hex(literal) => i64::from_str_radix(&literal.value[2..], 16),
+                BinaryLiteral::Oct(literal) => i64::from_str_radix(&literal.value[2..], 8),
+                BinaryLiteral::Bin(literal) => i64::from_str_radix(&literal.value[2..], 2),
+            };
+
+            match (u64_result, i64_result) {
+                (Ok(_), Ok(_)) => Type::MaybeUnsignedInt,
+                (Ok(_), Err(_)) => Type::UnsignedInt(UnsignedIntAttribute::default()),
+                (Err(_), Ok(_)) => Type::MaybeInt,
+                (Err(_), Err(_)) => Type::Float(FloatAttribute::default()),
             }
         }
         ValueLiteral::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
