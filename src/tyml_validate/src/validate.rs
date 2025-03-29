@@ -32,7 +32,7 @@ pub enum ValueTree<'section, 'value, Span: PartialEq + Clone + Default> {
         span: Span,
     },
     Value {
-        value: Value<'value>,
+        value: Value<'section, 'value, Span>,
         span: Span,
     },
 }
@@ -47,12 +47,13 @@ impl<Span: PartialEq + Clone + Default> ValueTree<'_, '_, Span> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'value> {
+pub enum Value<'section, 'value, Span: PartialEq + Clone + Default> {
     Int(i64),
     UnsignedInt(u64),
     Float(f64),
     String(Cow<'value, str>),
     AnyString(Cow<'value, str>),
+    Tree(Box<ValueTree<'section, 'value, Span>>),
     None,
 }
 
@@ -140,7 +141,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
         }
     }
 
-    fn validate_inner<'temp>(
+    fn validate_tree<'temp>(
         &self,
         errors: &mut Option<Vec<TymlValueValidateError<Span>>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
@@ -163,7 +164,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 Some(element_value) => {
                                     section_name_stack.push(*element_name);
 
-                                    let result = self.validate_inner(
+                                    let result = self.validate_tree(
                                         errors,
                                         element_type,
                                         element_value,
@@ -211,7 +212,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     Some(any_node_type) => {
                                         section_name_stack.push("*");
 
-                                        let result = self.validate_inner(
+                                        let result = self.validate_tree(
                                             errors,
                                             &any_node_type,
                                             value_element,
@@ -268,7 +269,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
                     match named_type_tree {
                         NamedTypeTree::Struct { tree } => {
-                            self.validate_inner(errors, tree, value_tree, section_name_stack);
+                            self.validate_tree(errors, tree, value_tree, section_name_stack);
                         }
                         NamedTypeTree::Enum { elements } => {
                             let found_error_spans = match value_tree {
@@ -328,6 +329,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
         &self,
         ty: &Type,
         value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
+        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
         match ty {
             Type::Int(attribute) => match value_tree {
@@ -452,8 +454,27 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 },
                 _ => false,
             },
-            Type::Named(name_id) => todo!(),
-            Type::Or(items) => todo!(),
+            Type::Named(name_id) => {
+                let named_type_tree = self.named_type_map.get_type(*name_id).unwrap();
+
+                match named_type_tree {
+                    NamedTypeTree::Struct { tree } => {
+                        self.validate_tree(&mut None, tree, value_tree, section_name_stack)
+                    }
+                    NamedTypeTree::Enum { elements } => match value_tree {
+                        MergedValueTree::Value { value, span: _ } => match value {
+                            Value::String(string) | Value::AnyString(string) => {
+                                elements.iter().any(|element| element.value == string)
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    },
+                }
+            }
+            Type::Or(items) => items
+                .iter()
+                .any(|ty| self.validate_type(ty, value_tree, section_name_stack)),
             Type::Array(_) => todo!(),
             Type::Optional(_) => todo!(),
             Type::Unknown => todo!(),
@@ -461,7 +482,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
     }
 }
 
-pub enum MergedValueTree<'section, 'value, 'temp, Span: Clone> {
+pub enum MergedValueTree<'section, 'value, 'temp, Span: PartialEq + Clone + Default> {
     Section {
         elements: HashMap<
             Cow<'section, str>,
@@ -472,7 +493,7 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: Clone> {
         spans: Vec<Span, &'temp Bump>,
     },
     Value {
-        value: Value<'value>,
+        value: Value<'section, 'value, Span>,
         span: Span,
     },
 }
