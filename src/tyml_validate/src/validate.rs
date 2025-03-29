@@ -32,7 +32,7 @@ pub enum ValueTree<'section, 'value, Span: PartialEq + Clone + Default> {
         span: Span,
     },
     Value {
-        value: Value<'section, 'value, Span>,
+        value: Value<'value, Self>,
         span: Span,
     },
 }
@@ -47,13 +47,13 @@ impl<Span: PartialEq + Clone + Default> ValueTree<'_, '_, Span> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'section, 'value, Span: PartialEq + Clone + Default> {
+pub enum Value<'value, Tree> {
     Int(i64),
     UnsignedInt(u64),
     Float(f64),
     String(Cow<'value, str>),
     AnyString(Cow<'value, str>),
-    Tree(Box<ValueTree<'section, 'value, Span>>),
+    Tree(Box<Tree>),
     None,
 }
 
@@ -493,7 +493,7 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: PartialEq + Clone + Defa
         spans: Vec<Span, &'temp Bump>,
     },
     Value {
-        value: Value<'section, 'value, Span>,
+        value: Value<'value, Self>,
         span: Span,
     },
 }
