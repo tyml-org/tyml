@@ -31,8 +31,12 @@ pub enum ValueTree<'section, 'value, Span: PartialEq + Clone + Default> {
         elements: HashMap<Cow<'section, str>, Vec<ValueTree<'section, 'value, Span>>>,
         span: Span,
     },
+    Array {
+        elements: Vec<Self>,
+        span: Span,
+    },
     Value {
-        value: Value<'value, Self>,
+        value: Value<'value>,
         span: Span,
     },
 }
@@ -41,19 +45,19 @@ impl<Span: PartialEq + Clone + Default> ValueTree<'_, '_, Span> {
     pub fn span(&self) -> &Span {
         match self {
             ValueTree::Section { elements: _, span } => span,
+            ValueTree::Array { elements: _, span } => span,
             ValueTree::Value { value: _, span } => span,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'value, Tree> {
+pub enum Value<'value> {
     Int(i64),
     UnsignedInt(u64),
     Float(f64),
     String(Cow<'value, str>),
     AnyString(Cow<'value, str>),
-    Tree(Box<Tree>),
     None,
 }
 
@@ -101,6 +105,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             ValueTree::Section { elements: _, span } => {
                                 span == &current_section_span
                             }
+                            ValueTree::Array {
+                                elements: _,
+                                span: _,
+                            } => false,
                             ValueTree::Value { value: _, span: _ } => false,
                         });
 
@@ -123,7 +131,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
                     matched_section_branch
                 }
-                ValueTree::Value { value: _, span: _ } => {
+                ValueTree::Array {
+                    elements: _,
+                    span: _,
+                }
+                | ValueTree::Value { value: _, span: _ } => {
                     // It is unreachable, because the value has been validated in up layer section.
                     unreachable!()
                 }
@@ -244,7 +256,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 }
                             }
                         }
-                        MergedValueTree::Value { value: _, span } => {
+                        MergedValueTree::Array { elements: _, span }
+                        | MergedValueTree::Value { value: _, span } => {
                             if let Some(errors) = errors {
                                 let error = TymlValueValidateError::NoTreeValue {
                                     found: span.clone(),
@@ -263,21 +276,29 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                     }
                 }
             }
-            TypeTree::Leaf { ty, span } => {
-                if let Type::Named(id) = ty {
+            TypeTree::Leaf { ty, span } => match ty {
+                Type::Named(id) => {
                     let named_type_tree = self.named_type_map.get_type(*id).unwrap();
 
                     match named_type_tree {
                         NamedTypeTree::Struct { tree } => {
-                            self.validate_tree(errors, tree, value_tree, section_name_stack);
+                            let result =
+                                self.validate_tree(errors, tree, value_tree, section_name_stack);
+
+                            if !result && errors.is_none() {
+                                return false;
+                            }
                         }
                         NamedTypeTree::Enum { elements } => {
                             let found_error_spans = match value_tree {
                                 MergedValueTree::Section { elements: _, spans } => {
                                     Some(spans.iter().cloned().collect())
                                 }
+                                MergedValueTree::Array { elements: _, span } => {
+                                    Some(std::vec![span.clone()])
+                                }
                                 MergedValueTree::Value { value, span } => match value {
-                                    Value::String(value) => elements
+                                    Value::String(value) | Value::AnyString(value) => elements
                                         .iter()
                                         .any(|element| element.value == value)
                                         .not()
@@ -302,24 +323,48 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             }
                         }
                     }
-                } else {
-                    match value_tree {
-                        MergedValueTree::Section { elements: _, spans } => {
+                }
+                Type::Array(ty) => {
+                    if let MergedValueTree::Array { elements, span: _ } = value_tree {
+                        for element in elements.iter() {
+                            if self.validate_type(&ty, element, section_name_stack) {
+                                continue;
+                            }
+
                             if let Some(errors) = errors {
                                 let error = TymlValueValidateError::InvalidValue {
-                                    found: spans.iter().cloned().collect(),
+                                    found: element.spans().cloned().collect(),
                                     expected: Spanned::new(
                                         ty.to_type_name(&self.named_type_map),
                                         span.clone(),
                                     ),
                                 };
                                 errors.push(error);
+                            } else {
+                                return false;
                             }
                         }
-                        MergedValueTree::Value { value, span } => todo!(),
                     }
                 }
-            }
+                _ => {
+                    let result = self.validate_type(ty, value_tree, section_name_stack);
+
+                    if !result {
+                        if let Some(errors) = errors {
+                            let error = TymlValueValidateError::InvalidValue {
+                                found: value_tree.spans().cloned().collect(),
+                                expected: Spanned::new(
+                                    ty.to_type_name(&self.named_type_map),
+                                    span.clone(),
+                                ),
+                            };
+                            errors.push(error);
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+            },
         }
 
         true
@@ -492,8 +537,12 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: PartialEq + Clone + Defa
         >,
         spans: Vec<Span, &'temp Bump>,
     },
+    Array {
+        elements: Vec<Self, &'temp Bump>,
+        span: Span,
+    },
     Value {
-        value: Value<'value, Self>,
+        value: Value<'value>,
         span: Span,
     },
 }
@@ -505,6 +554,7 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
     pub fn spans(&self) -> impl Iterator<Item = &Span> {
         match self {
             MergedValueTree::Section { elements: _, spans } => spans.iter(),
+            MergedValueTree::Array { elements: _, span } => std::iter::once(span),
             MergedValueTree::Value { value: _, span } => std::iter::once(span),
         }
     }
@@ -548,6 +598,14 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
                                     elements: HashMap::new_in(allocator),
                                     spans: Vec::new_in(allocator),
                                 },
+                                ValueTree::Array { elements, span } => {
+                                    let merged_elements = Vec::new_in(allocator);
+
+                                    MergedValueTree::Array {
+                                        elements: merged_elements,
+                                        span: span.clone(),
+                                    }
+                                }
                                 ValueTree::Value { value, span } => MergedValueTree::Value {
                                     value: value.clone(),
                                     span: span.clone(),
@@ -556,7 +614,12 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
 
                             let mut element_iterator = element_values.iter();
 
-                            if let ValueTree::Value { value: _, span: _ } = first_value {
+                            if let ValueTree::Array {
+                                elements: _,
+                                span: _,
+                            }
+                            | ValueTree::Value { value: _, span: _ } = first_value
+                            {
                                 element_iterator.next();
                             }
 
@@ -576,6 +639,10 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
                 ValueTree::Value {
                     value: _,
                     span: duplicated,
+                }
+                | ValueTree::Array {
+                    elements: _,
+                    span: duplicated,
                 } => {
                     let error = TymlValueValidateError::DuplicatedValue {
                         exists: spans.iter().cloned().collect(),
@@ -584,7 +651,8 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
                     errors.push(error);
                 }
             },
-            MergedValueTree::Value { value: _, span } => {
+            MergedValueTree::Value { value: _, span }
+            | MergedValueTree::Array { elements: _, span } => {
                 let error = TymlValueValidateError::DuplicatedValue {
                     exists: std::vec![span.clone()],
                     duplicated: value_tree.span().clone(),
