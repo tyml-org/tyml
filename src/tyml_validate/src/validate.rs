@@ -1,6 +1,5 @@
 use std::{borrow::Cow, ops::Not};
 
-use allocator_api2::vec;
 use allocator_api2::vec::Vec;
 use auto_enums::auto_enum;
 use bumpalo::Bump;
@@ -146,6 +145,21 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
     pub fn validate(&self) -> Result<(), Vec<TymlValueValidateError<Span>>> {
         let mut errors = Vec::new();
 
+        let allocator = Bump::new();
+
+        let merged_value_tree = MergedValueTree::merge_and_collect_duplicated(
+            &self.value_tree,
+            &mut errors,
+            &allocator,
+        );
+
+        self.validate_tree(
+            &mut Some(&mut errors),
+            &self.type_tree,
+            &merged_value_tree,
+            &mut Vec::new_in(&allocator),
+        );
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -155,7 +169,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
     fn validate_tree<'temp>(
         &self,
-        errors: &mut Option<Vec<TymlValueValidateError<Span>>>,
+        errors: &mut Option<&mut Vec<TymlValueValidateError<Span>>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
         value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
@@ -165,21 +179,68 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 node,
                 any_node,
                 span: _,
-            } => {
-                for (element_name, element_type) in node.iter() {
-                    match value_tree {
-                        MergedValueTree::Section {
-                            elements,
-                            spans: value_tree_section_spans,
-                        } => {
-                            match elements.get(*element_name) {
-                                Some(element_value) => {
-                                    section_name_stack.push(*element_name);
+            } => match value_tree {
+                MergedValueTree::Section {
+                    elements,
+                    spans: value_tree_section_spans,
+                } => {
+                    for (element_name, element_type) in node.iter() {
+                        match elements.get(*element_name) {
+                            Some(element_value) => {
+                                section_name_stack.push(*element_name);
+
+                                let result = self.validate_tree(
+                                    errors,
+                                    element_type,
+                                    element_value,
+                                    section_name_stack,
+                                );
+
+                                if !result && errors.is_none() {
+                                    return false;
+                                }
+
+                                section_name_stack.pop().unwrap();
+                            }
+                            None => {
+                                if !element_type.is_allowed_optional() {
+                                    if let Some(errors) = errors {
+                                        let error = TymlValueValidateError::NoValueFound {
+                                            required: Spanned::new(
+                                                section_name_stack
+                                                    .iter()
+                                                    .chain([element_name].into_iter())
+                                                    .map(|name| name.to_string())
+                                                    .collect::<Vec<_>>()
+                                                    .join("."),
+                                                element_type.span(),
+                                            ),
+                                            required_in: value_tree_section_spans
+                                                .iter()
+                                                .cloned()
+                                                .collect(),
+                                        };
+                                        errors.push(error);
+                                    } else {
+                                        return false;
+                                    }
+                                }
+                            }
+                        }
+
+                        for (value_element_name, value_element) in elements.iter() {
+                            if node.contains_key(value_element_name.as_ref()) {
+                                continue;
+                            }
+
+                            match &any_node {
+                                Some(any_node_type) => {
+                                    section_name_stack.push("*");
 
                                     let result = self.validate_tree(
                                         errors,
-                                        element_type,
-                                        element_value,
+                                        &any_node_type,
+                                        value_element,
                                         section_name_stack,
                                     );
 
@@ -190,92 +251,42 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     section_name_stack.pop().unwrap();
                                 }
                                 None => {
-                                    if !element_type.is_allowed_optional() {
-                                        if let Some(errors) = errors {
-                                            let error = TymlValueValidateError::NoValueFound {
-                                                required: Spanned::new(
-                                                    section_name_stack
-                                                        .iter()
-                                                        .chain([element_name].into_iter())
-                                                        .map(|name| name.to_string())
-                                                        .collect::<Vec<_>>()
-                                                        .join("."),
-                                                    element_type.span(),
-                                                ),
-                                                required_in: value_tree_section_spans
-                                                    .iter()
-                                                    .cloned()
-                                                    .collect(),
-                                            };
-                                            errors.push(error);
-                                        } else {
-                                            return false;
-                                        }
+                                    if let Some(errors) = errors {
+                                        let error = TymlValueValidateError::UnknownValue {
+                                            values: value_element.spans().cloned().collect(),
+                                            path: section_name_stack
+                                                .iter()
+                                                .chain([element_name].into_iter())
+                                                .map(|name| name.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join("."),
+                                        };
+                                        errors.push(error);
+                                    } else {
+                                        return false;
                                     }
                                 }
-                            }
-
-                            for (value_element_name, value_element) in elements.iter() {
-                                if node.contains_key(value_element_name.as_ref()) {
-                                    continue;
-                                }
-
-                                match &any_node {
-                                    Some(any_node_type) => {
-                                        section_name_stack.push("*");
-
-                                        let result = self.validate_tree(
-                                            errors,
-                                            &any_node_type,
-                                            value_element,
-                                            section_name_stack,
-                                        );
-
-                                        if !result && errors.is_none() {
-                                            return false;
-                                        }
-
-                                        section_name_stack.pop().unwrap();
-                                    }
-                                    None => {
-                                        if let Some(errors) = errors {
-                                            let error = TymlValueValidateError::UnknownValue {
-                                                values: value_element.spans().cloned().collect(),
-                                                path: section_name_stack
-                                                    .iter()
-                                                    .chain([element_name].into_iter())
-                                                    .map(|name| name.to_string())
-                                                    .collect::<Vec<_>>()
-                                                    .join("."),
-                                            };
-                                            errors.push(error);
-                                        } else {
-                                            return false;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        MergedValueTree::Array { elements: _, span }
-                        | MergedValueTree::Value { value: _, span } => {
-                            if let Some(errors) = errors {
-                                let error = TymlValueValidateError::NoTreeValue {
-                                    found: span.clone(),
-                                    path: section_name_stack
-                                        .iter()
-                                        .chain([element_name].into_iter())
-                                        .map(|name| name.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join("."),
-                                };
-                                errors.push(error);
-                            } else {
-                                return false;
                             }
                         }
                     }
                 }
-            }
+                MergedValueTree::Array { elements: _, span }
+                | MergedValueTree::Value { value: _, span } => {
+                    if let Some(errors) = errors {
+                        let error = TymlValueValidateError::NotTreeValue {
+                            found: span.clone(),
+                            path: section_name_stack
+                                .iter()
+                                .map(|name| name.to_string())
+                                .collect::<Vec<_>>()
+                                .join("."),
+                        };
+                        errors.push(error);
+                    } else {
+                        return false;
+                    }
+                }
+            },
             TypeTree::Leaf { ty, span } => match ty {
                 Type::Named(id) => {
                     let named_type_tree = self.named_type_map.get_type(*id).unwrap();
@@ -324,10 +335,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                         }
                     }
                 }
-                Type::Array(ty) => {
+                Type::Array(base_type) => {
                     if let MergedValueTree::Array { elements, span: _ } = value_tree {
                         for element in elements.iter() {
-                            if self.validate_type(&ty, element, section_name_stack) {
+                            if self.validate_type(&base_type, element, section_name_stack) {
                                 continue;
                             }
 
@@ -335,7 +346,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 let error = TymlValueValidateError::InvalidValue {
                                     found: element.spans().cloned().collect(),
                                     expected: Spanned::new(
-                                        ty.to_type_name(&self.named_type_map),
+                                        base_type.to_type_name(&self.named_type_map),
                                         span.clone(),
                                     ),
                                 };
@@ -343,6 +354,19 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             } else {
                                 return false;
                             }
+                        }
+                    } else {
+                        if let Some(errors) = errors {
+                            let error = TymlValueValidateError::NotArrayValue {
+                                found: value_tree.spans().cloned().collect(),
+                                expected: Spanned::new(
+                                    ty.to_type_name(&self.named_type_map),
+                                    span.clone(),
+                                ),
+                            };
+                            errors.push(error);
+                        } else {
+                            return false;
                         }
                     }
                 }
@@ -520,9 +544,28 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
             Type::Or(items) => items
                 .iter()
                 .any(|ty| self.validate_type(ty, value_tree, section_name_stack)),
-            Type::Array(_) => todo!(),
-            Type::Optional(_) => todo!(),
-            Type::Unknown => todo!(),
+            Type::Array(ty) => match value_tree {
+                MergedValueTree::Array { elements, span: _ } => elements
+                    .iter()
+                    .all(|element| self.validate_type(&ty, element, section_name_stack)),
+                _ => false,
+            },
+            Type::Optional(base_type) => {
+                if let MergedValueTree::Value { value, span: _ } = value_tree {
+                    match value {
+                        Value::None => return true,
+                        Value::AnyString(value) => {
+                            if value == "null" {
+                                return true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                self.validate_type(&base_type, value_tree, section_name_stack)
+            }
+            Type::Unknown => true,
         }
     }
 }
@@ -566,10 +609,10 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
     ) -> Self {
         let mut new_tree = MergedValueTree::Section {
             elements: HashMap::new_in(allocator),
-            spans: vec![in allocator; value_tree.span().clone(); 1],
+            spans: Vec::new_in(allocator),
         };
 
-        Self::merge_inner_recursive(&mut new_tree, value_tree, errors, allocator);
+        Self::merge_inner_recursive(&mut new_tree, value_tree, errors, false, allocator);
 
         new_tree
     }
@@ -578,6 +621,7 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
         new_tree: &mut Self,
         value_tree: &ValueTree<'section, 'value, Span>,
         errors: &mut Vec<TymlValueValidateError<Span>>,
+        is_init_merge: bool,
         allocator: &'temp Bump,
     ) {
         match new_tree {
@@ -598,36 +642,24 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
                                     elements: HashMap::new_in(allocator),
                                     spans: Vec::new_in(allocator),
                                 },
-                                ValueTree::Array { elements, span } => {
-                                    let merged_elements = Vec::new_in(allocator);
-
-                                    MergedValueTree::Array {
-                                        elements: merged_elements,
-                                        span: span.clone(),
-                                    }
-                                }
+                                ValueTree::Array { elements, span } => MergedValueTree::Array {
+                                    elements: Vec::with_capacity_in(elements.len(), allocator),
+                                    span: span.clone(),
+                                },
                                 ValueTree::Value { value, span } => MergedValueTree::Value {
                                     value: value.clone(),
                                     span: span.clone(),
                                 },
                             };
 
-                            let mut element_iterator = element_values.iter();
+                            for (index, value_tree) in element_values.iter().enumerate() {
+                                let is_init_merge = index == 0;
 
-                            if let ValueTree::Array {
-                                elements: _,
-                                span: _,
-                            }
-                            | ValueTree::Value { value: _, span: _ } = first_value
-                            {
-                                element_iterator.next();
-                            }
-
-                            for value_tree in element_iterator {
                                 Self::merge_inner_recursive(
                                     &mut new_tree,
                                     value_tree,
                                     errors,
+                                    is_init_merge,
                                     allocator,
                                 );
                             }
@@ -651,13 +683,65 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
                     errors.push(error);
                 }
             },
-            MergedValueTree::Value { value: _, span }
-            | MergedValueTree::Array { elements: _, span } => {
-                let error = TymlValueValidateError::DuplicatedValue {
-                    exists: std::vec![span.clone()],
-                    duplicated: value_tree.span().clone(),
-                };
-                errors.push(error);
+            MergedValueTree::Array {
+                elements: new_elements,
+                span,
+            } => {
+                if is_init_merge {
+                    if let ValueTree::Array { elements, span: _ } = value_tree {
+                        for element in elements.iter() {
+                            let mut new_tree = match element {
+                                ValueTree::Section {
+                                    elements: _,
+                                    span: _,
+                                } => MergedValueTree::Section {
+                                    elements: HashMap::new_in(allocator),
+                                    spans: Vec::new_in(allocator),
+                                },
+                                ValueTree::Array { elements: _, span } => MergedValueTree::Array {
+                                    elements: Vec::new_in(allocator),
+                                    span: span.clone(),
+                                },
+                                ValueTree::Value { value, span } => MergedValueTree::Value {
+                                    value: value.clone(),
+                                    span: span.clone(),
+                                },
+                            };
+
+                            Self::merge_inner_recursive(
+                                &mut new_tree,
+                                element,
+                                errors,
+                                true,
+                                allocator,
+                            );
+
+                            new_elements.push(new_tree);
+                        }
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    let error = TymlValueValidateError::DuplicatedValue {
+                        exists: std::vec![span.clone()],
+                        duplicated: value_tree.span().clone(),
+                    };
+                    errors.push(error);
+                }
+            }
+            MergedValueTree::Value { value: _, span } => {
+                if is_init_merge {
+                    if let ValueTree::Value { value: _, span: _ } = value_tree {
+                    } else {
+                        unreachable!()
+                    };
+                } else {
+                    let error = TymlValueValidateError::DuplicatedValue {
+                        exists: std::vec![span.clone()],
+                        duplicated: value_tree.span().clone(),
+                    };
+                    errors.push(error);
+                }
             }
         }
     }
