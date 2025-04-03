@@ -4,7 +4,9 @@ use tyml_type::{
     types::{NamedTypeMap, ToTypeName},
 };
 
-use crate::{Diagnostic, DiagnosticBuilder, MessageSection, TymlDiagnositcMessage};
+use crate::{
+    AsUtf8ByteRange, Diagnostic, DiagnosticBuilder, MessageSection, TymlDiagnositcMessage,
+};
 
 impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
     fn build(&self, named_type_map: &NamedTypeMap) -> crate::Diagnostic {
@@ -15,7 +17,7 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     code: 0001,
                     arguments: vec![name.value.to_string()],
                 },
-                labels: vec![(name.span.clone(), Color::Red)],
+                labels: vec![(name.span.as_utf8_byte_range(), Color::Red)],
             },
             TypeErrorKind::IncompatibleValueType {
                 value,
@@ -31,8 +33,8 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     ],
                 },
                 labels: vec![
-                    (value.span.clone(), Color::Red),
-                    (expected.span.clone(), Color::Yellow),
+                    (value.span.as_utf8_byte_range(), Color::Red),
+                    (expected.span.as_utf8_byte_range(), Color::Yellow),
                 ],
             },
             TypeErrorKind::IncompatibleValueForAttribute { value, expected } => Diagnostic {
@@ -42,8 +44,8 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     arguments: vec![expected.value.to_type_name(named_type_map)],
                 },
                 labels: vec![
-                    (value.span.clone(), Color::Red),
-                    (expected.span.clone(), Color::Yellow),
+                    (value.span.as_utf8_byte_range(), Color::Red),
+                    (expected.span.as_utf8_byte_range(), Color::Yellow),
                 ],
             },
         }

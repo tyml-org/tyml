@@ -2,7 +2,9 @@ use ariadne::Color;
 use tyml_parser::error::{ParseError, ParseErrorKind};
 use tyml_type::types::NamedTypeMap;
 
-use crate::{Diagnostic, DiagnosticBuilder, MessageSection, TymlDiagnositcMessage};
+use crate::{
+    AsUtf8ByteRange, Diagnostic, DiagnosticBuilder, MessageSection, TymlDiagnositcMessage,
+};
 
 impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
     fn build(&self, _: &NamedTypeMap) -> Diagnostic {
@@ -14,8 +16,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::InvalidDefineSeparator => Diagnostic {
@@ -25,8 +27,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![self.error_tokens[0].text.to_string()],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::NotFoundElementTypeAndDefaultValue => Diagnostic {
@@ -36,8 +38,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::InvalidElementTypeFormat => Diagnostic {
@@ -47,8 +49,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::NonClosedBrace => Diagnostic {
@@ -57,7 +59,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0005,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::UnknownDefaultValueFormat => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -65,7 +67,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0006,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::NotFoundStructName => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -73,7 +75,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0007,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::NotFoundStructBlock => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -81,7 +83,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0008,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::NotFoundEnumName => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -89,7 +91,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0009,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::NotFoundEnumBlock => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -97,7 +99,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0010,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::InvalidEnumElement => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -105,7 +107,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0011,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::InvalidEnumElementSeparator => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -114,8 +116,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![self.error_tokens[0].text.to_string()],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::InvalidOrTypeFormat => Diagnostic {
@@ -124,7 +126,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0013,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
             ParseErrorKind::NotFoundArrayBaseType => Diagnostic {
                 message: TymlDiagnositcMessage {
@@ -133,8 +135,8 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     arguments: vec![],
                 },
                 labels: vec![
-                    (self.span.clone(), Color::Red),
-                    (self.span.clone(), Color::Cyan),
+                    (self.span.as_utf8_byte_range(), Color::Red),
+                    (self.span.as_utf8_byte_range(), Color::Cyan),
                 ],
             },
             ParseErrorKind::NonClosedBracket => Diagnostic {
@@ -143,7 +145,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     code: 0015,
                     arguments: vec![],
                 },
-                labels: vec![(self.span.clone(), Color::Red)],
+                labels: vec![(self.span.as_utf8_byte_range(), Color::Red)],
             },
         }
     }

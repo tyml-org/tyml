@@ -393,6 +393,7 @@ name = "tyml_diagnostic"
 version = "0.1.0"
 dependencies = [
  "ariadne",
+ "extension-fn",
  "regex",
  "resource",
  "toml",
