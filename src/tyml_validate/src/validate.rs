@@ -10,20 +10,6 @@ use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type,
 
 use crate::error::TymlValueValidateError;
 
-pub struct ValueTypeChecker<
-    'input,
-    'ty,
-    'tree,
-    'map,
-    'section,
-    'value,
-    Span: PartialEq + Clone + Default,
-> {
-    pub type_tree: &'tree TypeTree<'input, 'ty>,
-    pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
-    value_tree: ValueTree<'section, 'value, Span>,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueTree<'section, 'value, Span: PartialEq + Clone + Default> {
     Section {
@@ -60,12 +46,122 @@ pub enum Value<'value> {
     None,
 }
 
+pub trait AnyStringEvaluator {
+    fn validate_value_type(&self, ty: &Type, value: &Cow<'_, str>) -> bool;
+}
+
+pub struct StandardAnyStringEvaluator {}
+
+impl AnyStringEvaluator for StandardAnyStringEvaluator {
+    fn validate_value_type(&self, ty: &Type, value: &Cow<'_, str>) -> bool {
+        match ty {
+            Type::Int(attribute) => {
+                if value.starts_with("0x") {
+                    match i64::from_str_radix(&value[2..].replace("_", ""), 16) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else if value.starts_with("0o") {
+                    match i64::from_str_radix(&value[2..].replace("_", ""), 8) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else if value.starts_with("0b") {
+                    match i64::from_str_radix(&value[2..].replace("_", ""), 2) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else {
+                    match value.replace("_", "").parse::<i64>() {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                }
+            }
+            Type::UnsignedInt(attribute) => {
+                if value.starts_with("0x") {
+                    match u64::from_str_radix(&value[2..].replace("_", ""), 16) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else if value.starts_with("0o") {
+                    match u64::from_str_radix(&value[2..].replace("_", ""), 8) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else if value.starts_with("0b") {
+                    match u64::from_str_radix(&value[2..].replace("_", ""), 2) {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                } else {
+                    match value.replace("_", "").parse::<u64>() {
+                        Ok(int) => attribute.validate(int),
+                        Err(_) => false,
+                    }
+                }
+            }
+            Type::Float(attribute) => match value.parse::<f64>() {
+                Ok(float) => attribute.validate(float),
+                Err(_) => false,
+            },
+            Type::String(attribute) => attribute.validate(&value),
+            Type::MaybeInt => {
+                if value.starts_with("0x") {
+                    i64::from_str_radix(&value[2..].replace("_", ""), 16).is_ok()
+                } else if value.starts_with("0o") {
+                    i64::from_str_radix(&value[2..].replace("_", ""), 8).is_ok()
+                } else if value.starts_with("0b") {
+                    i64::from_str_radix(&value[2..].replace("_", ""), 2).is_ok()
+                } else {
+                    value.replace("_", "").parse::<i64>().is_ok()
+                }
+            }
+            Type::MaybeUnsignedInt => {
+                if value.starts_with("0x") {
+                    u64::from_str_radix(&value[2..].replace("_", ""), 16).is_ok()
+                } else if value.starts_with("0o") {
+                    u64::from_str_radix(&value[2..].replace("_", ""), 8).is_ok()
+                } else if value.starts_with("0b") {
+                    u64::from_str_radix(&value[2..].replace("_", ""), 2).is_ok()
+                } else {
+                    value.replace("_", "").parse::<u64>().is_ok()
+                }
+            }
+            Type::Optional(_) => {
+                if value == "null" {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+}
+
+pub struct ValueTypeChecker<
+    'input,
+    'ty,
+    'tree,
+    'map,
+    'section,
+    'value,
+    Span: PartialEq + Clone + Default,
+> {
+    pub type_tree: &'tree TypeTree<'input, 'ty>,
+    pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
+    value_tree: ValueTree<'section, 'value, Span>,
+    any_string_evaluator: Box<dyn AnyStringEvaluator>,
+}
+
 impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Default>
     ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value, Span>
 {
     pub fn new(
         tree: &'tree TypeTree<'input, 'ty>,
         named_type_map: &'map NamedTypeMap<'input, 'ty>,
+        any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
     ) -> Self {
         Self {
             type_tree: tree,
@@ -74,6 +170,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 elements: HashMap::new(),
                 span: Default::default(),
             },
+            any_string_evaluator: any_string_evaluator_override
+                .unwrap_or(Box::new(StandardAnyStringEvaluator {}) as _),
         }
     }
 
@@ -400,35 +498,20 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
         value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
+        if let MergedValueTree::Value { value, span: _ } = value_tree {
+            if let Value::AnyString(value) = value {
+                if self.any_string_evaluator.validate_value_type(ty, value) {
+                    return true;
+                }
+            }
+        }
+
         match ty {
             Type::Int(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
                     Value::Int(int) => attribute.validate(*int),
                     Value::UnsignedInt(uint) => {
                         *uint <= u64::MAX as _ && attribute.validate(*uint as _)
-                    }
-                    Value::AnyString(string) => {
-                        if string.starts_with("0x") {
-                            match i64::from_str_radix(&string[2..], 16) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else if string.starts_with("0o") {
-                            match i64::from_str_radix(&string[2..], 8) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else if string.starts_with("0b") {
-                            match i64::from_str_radix(&string[2..], 2) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else {
-                            match string.parse::<i64>() {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        }
                     }
                     _ => false,
                 },
@@ -438,29 +521,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 MergedValueTree::Value { value, span: _ } => match value {
                     Value::UnsignedInt(uint) => attribute.validate(*uint),
                     Value::Int(int) => *int >= 0 && attribute.validate(*int as _),
-                    Value::AnyString(string) => {
-                        if string.starts_with("0x") {
-                            match u64::from_str_radix(&string[2..], 16) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else if string.starts_with("0o") {
-                            match u64::from_str_radix(&string[2..], 8) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else if string.starts_with("0b") {
-                            match u64::from_str_radix(&string[2..], 2) {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        } else {
-                            match string.parse::<u64>() {
-                                Ok(int) => attribute.validate(int),
-                                Err(_) => false,
-                            }
-                        }
-                    }
                     _ => false,
                 },
                 _ => false,
@@ -470,10 +530,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                     Value::Float(float) => attribute.validate(*float),
                     Value::Int(int) => attribute.validate(*int as _),
                     Value::UnsignedInt(uint) => attribute.validate(*uint as _),
-                    Value::AnyString(string) => match string.parse::<f64>() {
-                        Ok(float) => attribute.validate(float),
-                        Err(_) => false,
-                    },
                     _ => false,
                 },
                 _ => false,
@@ -481,7 +537,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
             Type::String(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
                     Value::String(string) => attribute.validate(&string),
-                    Value::AnyString(string) => attribute.validate(&string),
                     _ => false,
                 },
                 _ => false,
@@ -489,17 +544,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
             Type::MaybeInt => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
                     Value::Int(_) => true,
-                    Value::AnyString(string) => {
-                        if string.starts_with("0x") {
-                            i64::from_str_radix(&string[2..], 16).is_ok()
-                        } else if string.starts_with("0o") {
-                            i64::from_str_radix(&string[2..], 8).is_ok()
-                        } else if string.starts_with("0b") {
-                            i64::from_str_radix(&string[2..], 2).is_ok()
-                        } else {
-                            string.parse::<i64>().is_ok()
-                        }
-                    }
                     _ => false,
                 },
                 _ => false,
@@ -508,17 +552,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 MergedValueTree::Value { value, span: _ } => match value {
                     Value::Int(_) => true,
                     Value::UnsignedInt(_) => true,
-                    Value::AnyString(string) => {
-                        if string.starts_with("0x") {
-                            u64::from_str_radix(&string[2..], 16).is_ok()
-                        } else if string.starts_with("0o") {
-                            u64::from_str_radix(&string[2..], 8).is_ok()
-                        } else if string.starts_with("0b") {
-                            u64::from_str_radix(&string[2..], 2).is_ok()
-                        } else {
-                            string.parse::<u64>().is_ok()
-                        }
-                    }
                     _ => false,
                 },
                 _ => false,
@@ -554,11 +587,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 if let MergedValueTree::Value { value, span: _ } = value_tree {
                     match value {
                         Value::None => return true,
-                        Value::AnyString(value) => {
-                            if value == "null" {
-                                return true;
-                            }
-                        }
                         _ => {}
                     }
                 }

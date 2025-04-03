@@ -8,7 +8,7 @@ use tyml_type::{
     resolver::resolve_type,
     types::{NamedTypeMap, TypeTree},
 };
-use tyml_validate::validate::ValueTypeChecker;
+use tyml_validate::validate::{AnyStringEvaluator, ValueTypeChecker};
 
 pub extern crate tyml_parser;
 pub extern crate tyml_type;
@@ -45,8 +45,13 @@ impl Tyml {
 
     pub fn value_type_checker<'section, 'value, Span: Debug + Clone + PartialEq + Default>(
         &self,
+        any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
     ) -> ValueTypeChecker<'_, '_, '_, '_, 'section, 'value, Span> {
-        ValueTypeChecker::new(self.type_tree(), self.named_type_map())
+        ValueTypeChecker::new(
+            self.type_tree(),
+            self.named_type_map(),
+            any_string_evaluator_override,
+        )
     }
 }
 
