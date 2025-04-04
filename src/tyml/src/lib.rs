@@ -2,6 +2,7 @@ use std::{fmt::Debug, mem::transmute, ops::Deref, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
+use tyml_diagnostic::DiagnosticSpan;
 use tyml_parser::{ast::Defines, error::ParseError, lexer::Lexer, parser::parse_defines};
 use tyml_type::{
     error::TypeError,
@@ -10,8 +11,10 @@ use tyml_type::{
 };
 use tyml_validate::validate::{AnyStringEvaluator, ValueTypeChecker};
 
+pub extern crate tyml_diagnostic;
 pub extern crate tyml_parser;
 pub extern crate tyml_type;
+pub extern crate tyml_validate;
 
 #[derive(Debug, Clone)]
 pub struct Tyml {
@@ -43,10 +46,10 @@ impl Tyml {
         unsafe { transmute(&self.inner.type_errors) }
     }
 
-    pub fn value_type_checker<'section, 'value, Span: Debug + Clone + PartialEq + Default>(
-        &self,
+    pub fn value_type_checker<'this, 'section, 'value>(
+        &'this self,
         any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
-    ) -> ValueTypeChecker<'_, '_, '_, '_, 'section, 'value, Span> {
+    ) -> ValueTypeChecker<'this, 'this, 'this, 'this, 'section, 'value, DiagnosticSpan> {
         ValueTypeChecker::new(
             self.type_tree(),
             self.named_type_map(),
@@ -118,6 +121,11 @@ unsafe impl Sync for TymlInner {}
 mod tests {
     use std::convert::identity;
 
+    use allocator_api2::vec;
+    use hashbrown::HashMap;
+    use tyml_diagnostic::DiagnosticSpan;
+    use tyml_validate::validate::{Value, ValueTree};
+
     use crate::Tyml;
 
     #[test]
@@ -126,13 +134,14 @@ mod tests {
 settings: {
     number = -3.65e-10
     binary = 0xFF
-    string = \"aaaa\"
+    string: string? = \"aaaa\"
 }
 
 type Server {
-    name: [ string | [ int | int ] ]
+    name: string
     ip: string
     port: int? = 25565
+    whitelist: [ string ]
 }
 enum Enum {
     Element0
@@ -140,6 +149,42 @@ enum Enum {
 }
 ";
         let tyml = Tyml::new(source.to_string()).unwrap_or_else(identity);
-        dbg!(tyml);
+
+        let mut checker = tyml.value_type_checker(None);
+
+        let mut elements = HashMap::new();
+        elements.insert(
+            "number".into(),
+            vec![ValueTree::Value {
+                value: Value::Float(10.0),
+                span: DiagnosticSpan::UnicodeCharacter(0..0),
+            }],
+        );
+        elements.insert(
+            "binary".into(),
+            vec![ValueTree::Value {
+                value: Value::Int(0xFF),
+                span: DiagnosticSpan::UnicodeCharacter(0..0),
+            }],
+        );
+        elements.insert(
+            "string".into(),
+            vec![ValueTree::Value {
+                value: Value::None,
+                span: DiagnosticSpan::UnicodeCharacter(0..0),
+            }],
+        );
+
+        let settings = ValueTree::Section {
+            elements,
+            span: DiagnosticSpan::UnicodeCharacter(0..0),
+        };
+
+        checker.set_value(
+            [("settings", DiagnosticSpan::UnicodeCharacter(0..0))].into_iter(),
+            settings,
+        );
+
+        checker.validate().unwrap();
     }
 }

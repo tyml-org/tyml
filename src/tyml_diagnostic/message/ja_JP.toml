@@ -5,7 +5,7 @@ message = "要素定義の記述形式が正しくありません"
 label_0 = "不明なトークンです"
 label_1 = "ここには%color:cyan{要素定義}もしくは%color:cyan{型定義}が必要です"
 [parse_error.0002]
-message = "区切り文字が正しくありません"
+message = "文字'%color:red{%0}'は区切り文字として有効ではありません"
 label_0 = "'%color:yellow{%0}'は不明な区切り文字です"
 label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\n}'(改行)のみです"
 [parse_error.0003]
@@ -65,3 +65,15 @@ label_1 = "値はこの型'%color:yellow{%1}'と互換性がありません"
 message = "既定値が型の属性に適合しません"
 label_0 = "この値は型の属性と一致しません"
 label_1 = "値はこの型'%color:yellow{%0}'の属性と一致しません"
+
+[validate_error]
+name = "検証エラー"
+[validate_error.0001]
+message = "構造体以外の値が指定されています"
+label_0 = "'%color:yellow{%0}'には構造体を指定する必要があります"
+label_1 = "構造体として定義されているため、値や配列を指定できません"
+[validate_error.0002]
+message = "必要な値が見つかりません"
+label_0 = "ここを探しましたが見つかりませんでした"
+label_1 = "ここで'%color:yellow{%0}'が定義されていますが、値は見つかりませんでした"
+note = "必要ない場合は型に'%color:cyan{?}'を付けることで、Optional型として扱うことができます"

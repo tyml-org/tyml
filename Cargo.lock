@@ -382,6 +382,8 @@ dependencies = [
  "allocator-api2",
  "bumpalo",
  "either",
+ "hashbrown",
+ "tyml_diagnostic",
  "tyml_grammar",
  "tyml_parser",
  "tyml_type",
@@ -399,6 +401,7 @@ dependencies = [
  "toml",
  "tyml_parser",
  "tyml_type",
+ "tyml_validate",
 ]
 
 [[package]]

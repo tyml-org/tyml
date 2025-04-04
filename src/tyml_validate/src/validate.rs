@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Not};
+use std::{borrow::Cow, fmt::Debug, ops::Not};
 
 use allocator_api2::vec::Vec;
 use auto_enums::auto_enum;
@@ -155,7 +155,7 @@ pub struct ValueTypeChecker<
     any_string_evaluator: Box<dyn AnyStringEvaluator>,
 }
 
-impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Default>
+impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Default + Debug>
     ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value, Span>
 {
     pub fn new(
@@ -251,10 +251,19 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
             &allocator,
         );
 
+        let root_value_tree = match &merged_value_tree {
+            MergedValueTree::Section { elements, spans: _ } => elements.get("root").unwrap(),
+            MergedValueTree::Array {
+                elements: _,
+                span: _,
+            } => unreachable!(),
+            MergedValueTree::Value { value: _, span: _ } => unreachable!(),
+        };
+
         self.validate_tree(
             &mut Some(&mut errors),
             &self.type_tree,
-            &merged_value_tree,
+            &root_value_tree,
             &mut Vec::new_in(&allocator),
         );
 
@@ -276,7 +285,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
             TypeTree::Node {
                 node,
                 any_node,
-                span: _,
+                span: tyml_span,
             } => match value_tree {
                 MergedValueTree::Section {
                     elements,
@@ -378,6 +387,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 .map(|name| name.to_string())
                                 .collect::<Vec<_>>()
                                 .join("."),
+                            tyml_span: tyml_span.clone(),
                         };
                         errors.push(error);
                     } else {
@@ -618,7 +628,7 @@ pub enum MergedValueTree<'section, 'value, 'temp, Span: PartialEq + Clone + Defa
     },
 }
 
-impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default>
+impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
     MergedValueTree<'section, 'value, 'temp, Span>
 {
     #[auto_enum(Iterator)]

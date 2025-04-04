@@ -1,9 +1,13 @@
+use std::{fmt::Debug, ops::Range};
+
 use tyml_parser::ast::Spanned;
 
-pub enum TymlValueValidateError<Span> {
+#[derive(Debug)]
+pub enum TymlValueValidateError<Span: Debug> {
     NotTreeValue {
         found: Span,
         path: String,
+        tyml_span: Range<usize>,
     },
     NoValueFound {
         required: Spanned<String>,
