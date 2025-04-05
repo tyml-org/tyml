@@ -5,6 +5,7 @@ use regex::Regex;
 use resource::resource_str;
 use toml::{Table, Value};
 
+// TODO : parse on compile
 static JA_JP: LazyLock<Table> =
     LazyLock::new(|| resource_str!("message/ja_JP.toml").parse().unwrap());
 static EN_US: LazyLock<Table> =

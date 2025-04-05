@@ -16,6 +16,7 @@ pub enum TymlValueValidateError<Span: Debug> {
     DuplicatedValue {
         exists: Vec<Span>,
         duplicated: Span,
+        path: String,
     },
     UnknownValue {
         values: Vec<Span>,

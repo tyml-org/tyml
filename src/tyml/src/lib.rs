@@ -59,7 +59,7 @@ impl Tyml {
 }
 
 impl Tyml {
-    pub fn new<T: Into<Arc<String>>>(source_code: T) -> Result<Tyml, Tyml> {
+    pub fn parse<T: Into<Arc<String>>>(source_code: T) -> Result<Tyml, Tyml> {
         let source_code = source_code.into();
         let allocator = Box::new(Bump::new());
 
@@ -148,7 +148,7 @@ enum Enum {
     Element1
 }
 ";
-        let tyml = Tyml::new(source.to_string()).unwrap_or_else(identity);
+        let tyml = Tyml::parse(source.to_string()).unwrap_or_else(identity);
 
         let mut checker = tyml.value_type_checker(None);
 

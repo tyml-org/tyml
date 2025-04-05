@@ -61,17 +61,90 @@ impl DiagnosticBuilder for TymlValueValidateError<DiagnosticSpan> {
                     }))
                     .collect(),
             },
-            TymlValueValidateError::DuplicatedValue { exists, duplicated } => Diagnostic {
+            TymlValueValidateError::DuplicatedValue {
+                exists,
+                duplicated,
+                path,
+            } => Diagnostic {
                 message: TymlDiagnositcMessage {
                     section: MessageSection::ValidateError,
                     code: 0003,
-                    arguments: vec![],
+                    arguments: vec![path.clone()],
                 },
-                labels: vec![],
+                labels: once(DiagnosticLabel {
+                    kind: SourceCodeKind::ValidateTraget,
+                    span: duplicated.clone(),
+                    color: Color::Red,
+                    message_override: Some(0),
+                })
+                .chain(exists.iter().map(|span| DiagnosticLabel {
+                    kind: SourceCodeKind::ValidateTraget,
+                    span: span.clone(),
+                    color: Color::Yellow,
+                    message_override: Some(1),
+                }))
+                .collect(),
             },
-            TymlValueValidateError::UnknownValue { values, path } => todo!(),
-            TymlValueValidateError::InvalidValue { found, expected } => todo!(),
-            TymlValueValidateError::NotArrayValue { found, expected } => todo!(),
+            TymlValueValidateError::UnknownValue { values, path } => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ValidateError,
+                    code: 0004,
+                    arguments: vec![path.clone()],
+                },
+                labels: values
+                    .iter()
+                    .map(|span| DiagnosticLabel {
+                        kind: SourceCodeKind::ValidateTraget,
+                        span: span.clone(),
+                        color: Color::Red,
+                        message_override: Some(0),
+                    })
+                    .collect(),
+            },
+            TymlValueValidateError::InvalidValue { found, expected } => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ValidateError,
+                    code: 0005,
+                    arguments: vec![expected.value.clone()],
+                },
+                labels: found
+                    .iter()
+                    .map(|span| DiagnosticLabel {
+                        kind: SourceCodeKind::ValidateTraget,
+                        span: span.clone(),
+                        color: Color::Red,
+                        message_override: Some(0),
+                    })
+                    .chain(once(DiagnosticLabel {
+                        kind: SourceCodeKind::Tyml,
+                        span: expected.span.as_utf8_byte_range(),
+                        color: Color::Yellow,
+                        message_override: Some(1),
+                    }))
+                    .collect(),
+            },
+            TymlValueValidateError::NotArrayValue { found, expected } => Diagnostic {
+                message: TymlDiagnositcMessage {
+                    section: MessageSection::ValidateError,
+                    code: 0006,
+                    arguments: vec![expected.value.clone()],
+                },
+                labels: found
+                    .iter()
+                    .map(|span| DiagnosticLabel {
+                        kind: SourceCodeKind::ValidateTraget,
+                        span: span.clone(),
+                        color: Color::Red,
+                        message_override: Some(0),
+                    })
+                    .chain(once(DiagnosticLabel {
+                        kind: SourceCodeKind::Tyml,
+                        span: expected.span.as_utf8_byte_range(),
+                        color: Color::Yellow,
+                        message_override: Some(1),
+                    }))
+                    .collect(),
+            },
         }
     }
 }

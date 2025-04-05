@@ -316,6 +316,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                             required: Spanned::new(
                                                 section_name_stack
                                                     .iter()
+                                                    .skip(1)
                                                     .chain([element_name].into_iter())
                                                     .map(|name| name.to_string())
                                                     .collect::<Vec<_>>()
@@ -363,6 +364,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                             values: value_element.spans().cloned().collect(),
                                             path: section_name_stack
                                                 .iter()
+                                                .skip(1)
                                                 .chain([element_name].into_iter())
                                                 .map(|name| name.to_string())
                                                 .collect::<Vec<_>>()
@@ -384,6 +386,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             found: span.clone(),
                             path: section_name_stack
                                 .iter()
+                                .skip(1)
                                 .map(|name| name.to_string())
                                 .collect::<Vec<_>>()
                                 .join("."),
@@ -650,15 +653,23 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
             spans: Vec::new_in(allocator),
         };
 
-        Self::merge_inner_recursive(&mut new_tree, value_tree, errors, false, allocator);
+        Self::merge_inner_recursive(
+            &mut new_tree,
+            value_tree,
+            errors,
+            &mut allocator_api2::vec::Vec::new_in(allocator),
+            false,
+            allocator,
+        );
 
         new_tree
     }
 
-    fn merge_inner_recursive(
+    fn merge_inner_recursive<'tree>(
         new_tree: &mut Self,
-        value_tree: &ValueTree<'section, 'value, Span>,
+        value_tree: &'tree ValueTree<'section, 'value, Span>,
         errors: &mut Vec<TymlValueValidateError<Span>>,
+        section_name_stack: &mut allocator_api2::vec::Vec<&'tree str, &'temp Bump>,
         is_init_merge: bool,
         allocator: &'temp Bump,
     ) {
@@ -690,6 +701,8 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                                 },
                             };
 
+                            section_name_stack.push(&element_name);
+
                             for (index, value_tree) in element_values.iter().enumerate() {
                                 let is_init_merge = index == 0;
 
@@ -697,10 +710,13 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                                     &mut new_tree,
                                     value_tree,
                                     errors,
+                                    section_name_stack,
                                     is_init_merge,
                                     allocator,
                                 );
                             }
+
+                            section_name_stack.pop().unwrap();
 
                             new_elements.insert(element_name.clone(), new_tree);
                         }
@@ -717,6 +733,12 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                     let error = TymlValueValidateError::DuplicatedValue {
                         exists: spans.iter().cloned().collect(),
                         duplicated: duplicated.clone(),
+                        path: section_name_stack
+                            .iter()
+                            .skip(1)
+                            .map(|path| path.to_string())
+                            .collect::<Vec<_>>()
+                            .join("."),
                     };
                     errors.push(error);
                 }
@@ -746,13 +768,18 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                                 },
                             };
 
+                            section_name_stack.push("[array]");
+
                             Self::merge_inner_recursive(
                                 &mut new_tree,
                                 element,
                                 errors,
+                                section_name_stack,
                                 true,
                                 allocator,
                             );
+
+                            section_name_stack.pop().unwrap();
 
                             new_elements.push(new_tree);
                         }
@@ -763,6 +790,12 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                     let error = TymlValueValidateError::DuplicatedValue {
                         exists: std::vec![span.clone()],
                         duplicated: value_tree.span().clone(),
+                        path: section_name_stack
+                            .iter()
+                            .skip(1)
+                            .map(|path| path.to_string())
+                            .collect::<Vec<_>>()
+                            .join("."),
                     };
                     errors.push(error);
                 }
@@ -777,6 +810,12 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                     let error = TymlValueValidateError::DuplicatedValue {
                         exists: std::vec![span.clone()],
                         duplicated: value_tree.span().clone(),
+                        path: section_name_stack
+                            .iter()
+                            .skip(1)
+                            .map(|path| path.to_string())
+                            .collect::<Vec<_>>()
+                            .join("."),
                     };
                     errors.push(error);
                 }
