@@ -7,6 +7,7 @@ edition = "2021"
 tyml_diagnostic = { path = "../tyml_diagnostic/" }
 tyml_grammar = { path = "../tyml_grammar/" }
 tyml_parser = { path = "../tyml_parser/" }
+tyml_source = { path = "../tyml_source/" }
 tyml_type = { path = "../tyml_type/" }
 tyml_validate = { path = "../tyml_validate/" }
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }

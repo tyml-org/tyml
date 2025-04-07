@@ -1,11 +1,12 @@
-use std::ops::Range;
+use std::ops::{Deref, Range};
 
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::{Color, Label, Report, ReportKind, sources};
 use extension_fn::extension_fn;
 use message::{get_text, get_text_optional, replace_message};
+use tyml_source::SourceCode;
 use tyml_type::types::NamedTypeMap;
 
-mod message;
+pub mod message;
 pub mod parse_error;
 pub mod type_error;
 pub mod validate_error;
@@ -152,19 +153,28 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn print(&self, lang: &str, tyml_source: &str, validate_target_source: &str) {
+    pub fn print(&self, lang: &str, tyml_source: &SourceCode, validate_target_source: &SourceCode) {
         let section_name = self.message.section_name(lang, true);
 
         let get_label_span = |label: &DiagnosticLabel| match label.kind {
-            SourceCodeKind::Tyml => label.span.to_unicode_character_range(tyml_source),
-            SourceCodeKind::ValidateTraget => label
-                .span
-                .to_unicode_character_range(validate_target_source),
+            SourceCodeKind::Tyml => (
+                tyml_source.name.deref().clone(),
+                label.span.to_unicode_character_range(&tyml_source.code),
+            ),
+            SourceCodeKind::ValidateTraget => (
+                validate_target_source.name.deref().clone(),
+                label
+                    .span
+                    .to_unicode_character_range(&validate_target_source.code),
+            ),
         };
 
         let mut builder = Report::build(
             ReportKind::Custom(section_name.as_str(), Color::White),
-            self.labels.get(0).map(get_label_span).unwrap_or(0..0),
+            self.labels
+                .get(0)
+                .map(get_label_span)
+                .unwrap_or((tyml_source.name.deref().clone(), 0..0)),
         );
 
         builder.set_message(self.message.message(lang, true));
@@ -194,6 +204,15 @@ impl Diagnostic {
             builder.set_help(help);
         }
 
-        builder.finish().print(Source::from(tyml_source)).unwrap();
+        builder
+            .finish()
+            .print(sources([
+                (tyml_source.name.deref().clone(), tyml_source.code.as_str()),
+                (
+                    validate_target_source.name.deref().clone(),
+                    validate_target_source.code.as_str(),
+                ),
+            ]))
+            .unwrap();
     }
 }

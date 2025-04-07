@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 tyml_parser = { path = "../tyml_parser/" }
+tyml_source = { path = "../tyml_source/" }
 tyml_type = { path = "../tyml_type/" }
 tyml_validate = { path = "../tyml_validate/" }
 resource = "0.6.0"

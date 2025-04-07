@@ -5,11 +5,18 @@ use regex::Regex;
 use resource::resource_str;
 use toml::{Table, Value};
 
-// TODO : parse on compile
 static JA_JP: LazyLock<Table> =
     LazyLock::new(|| resource_str!("message/ja_JP.toml").parse().unwrap());
 static EN_US: LazyLock<Table> =
     LazyLock::new(|| resource_str!("message/en_US.toml").parse().unwrap());
+
+pub struct Lang {}
+
+#[allow(non_upper_case_globals)]
+impl Lang {
+    pub const ja_JP: &str = "ja_JP";
+    pub const en_US: &str = "en_US";
+}
 
 pub(crate) fn get_text(key: &str, lang: &str) -> String {
     return get_text_optional(key, lang).unwrap();
@@ -17,8 +24,8 @@ pub(crate) fn get_text(key: &str, lang: &str) -> String {
 
 pub(crate) fn get_text_optional(key: &str, lang: &str) -> Option<String> {
     let table = match lang {
-        "ja_JP" => JA_JP.deref(),
-        "en_US" => EN_US.deref(),
+        Lang::ja_JP => JA_JP.deref(),
+        Lang::en_US => EN_US.deref(),
         _ => panic!("Unsupported language : {}", lang),
     };
 
@@ -38,9 +45,9 @@ pub(crate) fn get_text_optional(key: &str, lang: &str) -> Option<String> {
 }
 
 static COLOR_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"%color:\w+{(\\}|[^}])*}").unwrap());
+    LazyLock::new(|| Regex::new(r"%color:\w+\{(\\\}|[^\}])*\}").unwrap());
 static COLOR_GROUP_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"%color:(\w+){((\\}|[^}])*)}").unwrap());
+    LazyLock::new(|| Regex::new(r"%color:(\w+)\{((\\\}|[^\}])*)\}").unwrap());
 
 pub(crate) fn replace_message(
     mut message: String,
@@ -53,8 +60,8 @@ pub(crate) fn replace_message(
 
     for matched in COLOR_REGEX.find_iter(message.clone().as_str()) {
         let tags = COLOR_GROUP_REGEX.captures(matched.as_str()).unwrap();
-        let color = &tags[0];
-        let text = &tags[1];
+        let color = &tags[1];
+        let text = &tags[2];
 
         match colored {
             true => {

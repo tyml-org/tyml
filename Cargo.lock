@@ -386,6 +386,7 @@ dependencies = [
  "tyml_diagnostic",
  "tyml_grammar",
  "tyml_parser",
+ "tyml_source",
  "tyml_type",
  "tyml_validate",
 ]
@@ -400,6 +401,7 @@ dependencies = [
  "resource",
  "toml",
  "tyml_parser",
+ "tyml_source",
  "tyml_type",
  "tyml_validate",
 ]
@@ -421,6 +423,10 @@ dependencies = [
  "extension-fn",
  "regex",
 ]
+
+[[package]]
+name = "tyml_source"
+version = "0.1.0"
 
 [[package]]
 name = "tyml_type"

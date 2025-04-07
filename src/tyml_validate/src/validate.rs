@@ -155,13 +155,17 @@ pub struct ValueTypeChecker<
     any_string_evaluator: Box<dyn AnyStringEvaluator>,
 }
 
+pub struct ValidateEvaluator {
+    pub any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
+}
+
 impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Default + Debug>
     ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value, Span>
 {
     pub fn new(
         tree: &'tree TypeTree<'input, 'ty>,
         named_type_map: &'map NamedTypeMap<'input, 'ty>,
-        any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
+        validate_evaluator: ValidateEvaluator,
     ) -> Self {
         Self {
             type_tree: tree,
@@ -170,7 +174,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                 elements: HashMap::new(),
                 span: Default::default(),
             },
-            any_string_evaluator: any_string_evaluator_override
+            any_string_evaluator: validate_evaluator
+                .any_string_evaluator_override
                 .unwrap_or(Box::new(StandardAnyStringEvaluator {}) as _),
         }
     }

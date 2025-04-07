@@ -5,6 +5,7 @@ members = [
     "src/tyml_diagnostic",
     "src/tyml_grammar",
     "src/tyml_parser",
+    "src/tyml_source",
     "src/tyml_type",
     "src/tyml_validate",
 ]
