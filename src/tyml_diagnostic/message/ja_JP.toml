@@ -1,5 +1,5 @@
 [parse_error]
-name = "構文エラー"
+name = "%color:red{[SE%0] 構文エラー}"
 [parse_error.0001]
 message = "要素定義の記述形式が正しくありません"
 label_0 = "不明なトークンです"
@@ -53,7 +53,7 @@ message = "括弧'%color:yellow{[}'が閉じられていません"
 label_0 = "'%color:cyan{]}'で閉じる必要があります"
 
 [type_error]
-name = "型エラー"
+name = "%color:red{[TE%0] 型エラー}"
 [type_error.0001]
 message = "不明な型が指定されています"
 label_0 = "この名称'%color:red{%0}'の型が見つかりません"
@@ -67,7 +67,7 @@ label_0 = "この値は型の属性と一致しません"
 label_1 = "値はこの型'%color:yellow{%0}'の属性と一致しません"
 
 [validate_error]
-name = "検証エラー"
+name = "%color:red{[VE%0] 検証エラー}"
 [validate_error.0001]
 message = "構造体以外の値が記述されています"
 label_0 = "'%color:yellow{%0}'には構造体を指定する必要があります"

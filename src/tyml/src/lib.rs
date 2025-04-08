@@ -294,7 +294,7 @@ mod tests {
 settings: {
     number = -3.65e-10
     binary = 0xFF
-    string: string?
+    string: string
 }
 
 type Server {
@@ -332,7 +332,7 @@ enum Enum {
             }],
         );
         elements.insert(
-            "string".into(),
+            "strings".into(),
             vec![ValueTree::Value {
                 value: Value::None,
                 span: DiagnosticSpan::UnicodeCharacter(0..0),

@@ -58,6 +58,11 @@ pub(crate) fn replace_message(
         message = message.replace(format!("%{}", index).as_str(), replace.as_str());
     }
 
+    if colored {
+        let reset_color = "".to_string().fg(Color::White);
+        message = format!("{}{}", reset_color, message);
+    }
+
     for matched in COLOR_REGEX.find_iter(message.clone().as_str()) {
         let tags = COLOR_GROUP_REGEX.captures(matched.as_str()).unwrap();
         let color = &tags[1];

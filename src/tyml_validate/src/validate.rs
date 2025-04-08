@@ -339,44 +339,44 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                 }
                             }
                         }
+                    }
 
-                        for (value_element_name, value_element) in elements.iter() {
-                            if node.contains_key(value_element_name.as_ref()) {
-                                continue;
-                            }
+                    for (value_element_name, value_element) in elements.iter() {
+                        if node.contains_key(value_element_name.as_ref()) {
+                            continue;
+                        }
 
-                            match &any_node {
-                                Some(any_node_type) => {
-                                    section_name_stack.push("*");
+                        match &any_node {
+                            Some(any_node_type) => {
+                                section_name_stack.push("*");
 
-                                    let result = self.validate_tree(
-                                        errors,
-                                        &any_node_type,
-                                        value_element,
-                                        section_name_stack,
-                                    );
+                                let result = self.validate_tree(
+                                    errors,
+                                    &any_node_type,
+                                    value_element,
+                                    section_name_stack,
+                                );
 
-                                    if !result && errors.is_none() {
-                                        return false;
-                                    }
-
-                                    section_name_stack.pop().unwrap();
+                                if !result && errors.is_none() {
+                                    return false;
                                 }
-                                None => {
-                                    if let Some(errors) = errors {
-                                        let error = TymlValueValidateError::UnknownValue {
-                                            values: value_element.spans().cloned().collect(),
-                                            path: section_name_stack
-                                                .iter()
-                                                .chain([element_name].into_iter())
-                                                .map(|name| name.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join("."),
-                                        };
-                                        errors.push(error);
-                                    } else {
-                                        return false;
-                                    }
+
+                                section_name_stack.pop().unwrap();
+                            }
+                            None => {
+                                if let Some(errors) = errors {
+                                    let error = TymlValueValidateError::UnknownValue {
+                                        values: value_element.spans().cloned().collect(),
+                                        path: section_name_stack
+                                            .iter()
+                                            .chain([&value_element_name.as_ref()].into_iter())
+                                            .map(|name| name.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join("."),
+                                    };
+                                    errors.push(error);
+                                } else {
+                                    return false;
                                 }
                             }
                         }

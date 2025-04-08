@@ -21,7 +21,7 @@ impl TymlDiagnositcMessage {
     pub fn section_name(&self, lang: &str, colored: bool) -> String {
         replace_message(
             get_text(format!("{}.name", self.section.section()).as_str(), lang),
-            &vec![self.code.to_string()],
+            &vec![format!("{:>04}", self.code)],
             colored,
         )
     }
