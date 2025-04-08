@@ -25,9 +25,11 @@ pub enum TymlValueValidateError<Span: Debug> {
     InvalidValue {
         found: Vec<Span>,
         expected: Spanned<String>,
+        path: String,
     },
     NotArrayValue {
         found: Vec<Span>,
         expected: Spanned<String>,
+        path: String,
     },
 }

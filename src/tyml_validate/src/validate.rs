@@ -321,7 +321,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                             required: Spanned::new(
                                                 section_name_stack
                                                     .iter()
-                                                    .skip(1)
                                                     .chain([element_name].into_iter())
                                                     .map(|name| name.to_string())
                                                     .collect::<Vec<_>>()
@@ -369,7 +368,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                             values: value_element.spans().cloned().collect(),
                                             path: section_name_stack
                                                 .iter()
-                                                .skip(1)
                                                 .chain([element_name].into_iter())
                                                 .map(|name| name.to_string())
                                                 .collect::<Vec<_>>()
@@ -391,7 +389,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                             found: span.clone(),
                             path: section_name_stack
                                 .iter()
-                                .skip(1)
                                 .map(|name| name.to_string())
                                 .collect::<Vec<_>>()
                                 .join("."),
@@ -444,6 +441,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     let error = TymlValueValidateError::InvalidValue {
                                         found,
                                         expected: Spanned::new(enum_name, enum_span),
+                                        path: section_name_stack
+                                            .iter()
+                                            .map(|name| name.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join("."),
                                     };
                                     errors.push(error);
                                 }
@@ -465,6 +467,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                         base_type.to_type_name(&self.named_type_map),
                                         span.clone(),
                                     ),
+                                    path: section_name_stack
+                                        .iter()
+                                        .map(|name| name.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("."),
                                 };
                                 errors.push(error);
                             } else {
@@ -479,6 +486,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     ty.to_type_name(&self.named_type_map),
                                     span.clone(),
                                 ),
+                                path: section_name_stack
+                                    .iter()
+                                    .map(|name| name.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("."),
                             };
                             errors.push(error);
                         } else {
@@ -497,6 +509,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
                                     ty.to_type_name(&self.named_type_map),
                                     span.clone(),
                                 ),
+                                path: section_name_stack
+                                    .iter()
+                                    .map(|name| name.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("."),
                             };
                             errors.push(error);
                         } else {
@@ -740,7 +757,6 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                         duplicated: duplicated.clone(),
                         path: section_name_stack
                             .iter()
-                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),
@@ -797,7 +813,6 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                         duplicated: value_tree.span().clone(),
                         path: section_name_stack
                             .iter()
-                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),
@@ -817,7 +832,6 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
                         duplicated: value_tree.span().clone(),
                         path: section_name_stack
                             .iter()
-                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),

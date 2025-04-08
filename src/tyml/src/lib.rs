@@ -294,7 +294,7 @@ mod tests {
 settings: {
     number = -3.65e-10
     binary = 0xFF
-    string: string = \"aaaa\"
+    string: string?
 }
 
 type Server {

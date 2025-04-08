@@ -233,9 +233,14 @@ impl<'input> Iterator for Lexer<'input> {
             let start_position = self.current_byte_position;
 
             let token = if current_max_length == 0 {
-                // TODO : get char's utf-8 length
-                self.current_byte_position += 1;
-                let end_position = start_position + 1;
+                let char_length = self.source[start_position..]
+                    .chars()
+                    .next()
+                    .unwrap()
+                    .len_utf8();
+
+                self.current_byte_position += char_length;
+                let end_position = start_position + char_length;
 
                 Token {
                     kind: TokenKind::UnexpectedCharacter,
@@ -270,8 +275,16 @@ pub struct Anchor {
 
 impl Anchor {
     pub fn elapsed(&self, lexer: &Lexer) -> Range<usize> {
-        assert!(self.byte_position <= lexer.current_byte_position);
+        // skip until not whitespace
+        let floor = lexer.source[self.byte_position..]
+            .chars()
+            .take_while(|char| char.is_whitespace())
+            .map(|char| char.len_utf8())
+            .sum::<usize>();
 
-        self.byte_position..lexer.current_byte_position
+        let start = self.byte_position + floor;
+        let end = lexer.current_byte_position.max(start);
+
+        start..end
     }
 }

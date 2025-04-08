@@ -101,11 +101,15 @@ impl DiagnosticBuilder for TymlValueValidateError<DiagnosticSpan> {
                     })
                     .collect(),
             },
-            TymlValueValidateError::InvalidValue { found, expected } => Diagnostic {
+            TymlValueValidateError::InvalidValue {
+                found,
+                expected,
+                path,
+            } => Diagnostic {
                 message: TymlDiagnositcMessage {
                     section: MessageSection::ValidateError,
                     code: 0005,
-                    arguments: vec![expected.value.clone()],
+                    arguments: vec![path.clone(), expected.value.clone()],
                 },
                 labels: found
                     .iter()
@@ -123,11 +127,15 @@ impl DiagnosticBuilder for TymlValueValidateError<DiagnosticSpan> {
                     }))
                     .collect(),
             },
-            TymlValueValidateError::NotArrayValue { found, expected } => Diagnostic {
+            TymlValueValidateError::NotArrayValue {
+                found,
+                expected,
+                path,
+            } => Diagnostic {
                 message: TymlDiagnositcMessage {
                     section: MessageSection::ValidateError,
                     code: 0006,
-                    arguments: vec![expected.value.clone()],
+                    arguments: vec![path.clone(), expected.value.clone()],
                 },
                 labels: found
                     .iter()
