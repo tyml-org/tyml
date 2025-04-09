@@ -407,6 +407,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tyml_generator"
+version = "0.1.0"
+dependencies = [
+ "either",
+ "extension-fn",
+ "regex",
+]
+
+[[package]]
 name = "tyml_grammar"
 version = "0.1.0"
 dependencies = [
