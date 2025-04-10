@@ -396,7 +396,6 @@ name = "tyml_diagnostic"
 version = "0.1.0"
 dependencies = [
  "ariadne",
- "extension-fn",
  "regex",
  "resource",
  "toml",
@@ -410,9 +409,12 @@ dependencies = [
 name = "tyml_generator"
 version = "0.1.0"
 dependencies = [
+ "allocator-api2",
+ "bumpalo",
  "either",
  "extension-fn",
  "regex",
+ "tyml_validate",
 ]
 
 [[package]]
@@ -436,6 +438,9 @@ dependencies = [
 [[package]]
 name = "tyml_source"
 version = "0.1.0"
+dependencies = [
+ "extension-fn",
+]
 
 [[package]]
 name = "tyml_type"
@@ -458,6 +463,7 @@ dependencies = [
  "bumpalo",
  "hashbrown",
  "tyml_parser",
+ "tyml_source",
  "tyml_type",
 ]
 

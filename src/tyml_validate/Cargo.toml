@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 tyml_parser = { path = "../tyml_parser/" }
+tyml_source = { path = "../tyml_source/" }
 tyml_type = { path = "../tyml_type/" }
 hashbrown = "0.15.2"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }

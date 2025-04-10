@@ -221,15 +221,27 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
         },
         ValueLiteral::Binary(binary_literal) => {
             let u64_result = match binary_literal {
-                BinaryLiteral::Hex(literal) => u64::from_str_radix(&literal.value[2..], 16),
-                BinaryLiteral::Oct(literal) => u64::from_str_radix(&literal.value[2..], 8),
-                BinaryLiteral::Bin(literal) => u64::from_str_radix(&literal.value[2..], 2),
+                BinaryLiteral::Hex(literal) => {
+                    u64::from_str_radix(literal.value.replace("0x", "").as_str(), 16)
+                }
+                BinaryLiteral::Oct(literal) => {
+                    u64::from_str_radix(literal.value.replace("0o", "").as_str(), 8)
+                }
+                BinaryLiteral::Bin(literal) => {
+                    u64::from_str_radix(literal.value.replace("0b", "").as_str(), 2)
+                }
             };
 
             let i64_result = match binary_literal {
-                BinaryLiteral::Hex(literal) => i64::from_str_radix(&literal.value[2..], 16),
-                BinaryLiteral::Oct(literal) => i64::from_str_radix(&literal.value[2..], 8),
-                BinaryLiteral::Bin(literal) => i64::from_str_radix(&literal.value[2..], 2),
+                BinaryLiteral::Hex(literal) => {
+                    i64::from_str_radix(literal.value.replace("0x", "").as_str(), 16)
+                }
+                BinaryLiteral::Oct(literal) => {
+                    i64::from_str_radix(literal.value.replace("0o", "").as_str(), 8)
+                }
+                BinaryLiteral::Bin(literal) => {
+                    i64::from_str_radix(literal.value.replace("0b", "").as_str(), 2)
+                }
             };
 
             match (u64_result, i64_result) {

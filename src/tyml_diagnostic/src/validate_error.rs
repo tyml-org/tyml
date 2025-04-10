@@ -1,14 +1,15 @@
 use std::iter::once;
 
 use ariadne::Color;
+use tyml_source::AsUtf8ByteRange;
 use tyml_validate::error::TymlValueValidateError;
 
 use crate::{
-    AsUtf8ByteRange, Diagnostic, DiagnosticBuilder, DiagnosticLabel, DiagnosticSpan,
-    MessageSection, SourceCodeKind, TymlDiagnositcMessage,
+    Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
+    TymlDiagnositcMessage,
 };
 
-impl DiagnosticBuilder for TymlValueValidateError<DiagnosticSpan> {
+impl DiagnosticBuilder for TymlValueValidateError {
     fn build(&self, _: &tyml_type::types::NamedTypeMap) -> crate::Diagnostic {
         match self {
             TymlValueValidateError::NotTreeValue {

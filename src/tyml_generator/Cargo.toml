@@ -7,3 +7,6 @@ edition = "2024"
 regex = "1.11.1"
 extension-fn = "1.2.0"
 either = "1.13.0"
+tyml_validate = { path = "../tyml_validate/" }
+allocator-api2 = "0.2.21"
+bumpalo = { version = "3.17.0", features = ["allocator-api2"] }

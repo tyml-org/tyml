@@ -1,10 +1,11 @@
 use ariadne::Color;
 use tyml_parser::error::{ParseError, ParseErrorKind};
+use tyml_source::AsUtf8ByteRange;
 use tyml_type::types::NamedTypeMap;
 
 use crate::{
-    AsUtf8ByteRange, Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection,
-    SourceCodeKind, TymlDiagnositcMessage,
+    Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
+    TymlDiagnositcMessage,
 };
 
 impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {

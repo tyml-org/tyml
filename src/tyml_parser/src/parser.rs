@@ -433,7 +433,12 @@ fn parse_default_value<'input, 'allocator>(
         TokenKind::BinaryNumeric => {
             let current_text = lexer.current().unwrap().text;
 
-            let binary_literal = match &current_text[0..2] {
+            let prefix = match current_text.chars().next() {
+                Some('+') | Some('-') => &current_text[1..3],
+                _ => &current_text[0..2],
+            };
+
+            let binary_literal = match &prefix[0..2] {
                 "0x" => BinaryLiteral::Hex(lexer.next().unwrap().into_literal()),
                 "0o" => BinaryLiteral::Oct(lexer.next().unwrap().into_literal()),
                 "0b" => BinaryLiteral::Bin(lexer.next().unwrap().into_literal()),

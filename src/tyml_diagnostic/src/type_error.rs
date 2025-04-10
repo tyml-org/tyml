@@ -1,12 +1,13 @@
 use ariadne::Color;
+use tyml_source::AsUtf8ByteRange;
 use tyml_type::{
     error::{TypeError, TypeErrorKind},
     types::{NamedTypeMap, ToTypeName},
 };
 
 use crate::{
-    AsUtf8ByteRange, Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection,
-    SourceCodeKind, TymlDiagnositcMessage,
+    Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
+    TymlDiagnositcMessage,
 };
 
 impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {

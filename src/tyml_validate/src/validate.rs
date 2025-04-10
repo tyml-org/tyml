@@ -6,28 +6,29 @@ use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
 use tyml_parser::ast::Spanned;
+use tyml_source::SourceCodeSpan;
 use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
 use crate::error::TymlValueValidateError;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ValueTree<'section, 'value, Span: PartialEq + Clone + Default> {
+pub enum ValueTree<'section, 'value> {
     Section {
-        elements: HashMap<Cow<'section, str>, Vec<ValueTree<'section, 'value, Span>>>,
-        span: Span,
+        elements: HashMap<Cow<'section, str>, Vec<ValueTree<'section, 'value>>>,
+        span: SourceCodeSpan,
     },
     Array {
         elements: Vec<Self>,
-        span: Span,
+        span: SourceCodeSpan,
     },
     Value {
         value: Value<'value>,
-        span: Span,
+        span: SourceCodeSpan,
     },
 }
 
-impl<Span: PartialEq + Clone + Default> ValueTree<'_, '_, Span> {
-    pub fn span(&self) -> &Span {
+impl ValueTree<'_, '_> {
+    pub fn span(&self) -> &SourceCodeSpan {
         match self {
             ValueTree::Section { elements: _, span } => span,
             ValueTree::Array { elements: _, span } => span,
@@ -140,18 +141,10 @@ impl AnyStringEvaluator for StandardAnyStringEvaluator {
     }
 }
 
-pub struct ValueTypeChecker<
-    'input,
-    'ty,
-    'tree,
-    'map,
-    'section,
-    'value,
-    Span: PartialEq + Clone + Default,
-> {
+pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub type_tree: &'tree TypeTree<'input, 'ty>,
     pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
-    value_tree: ValueTree<'section, 'value, Span>,
+    value_tree: ValueTree<'section, 'value>,
     any_string_evaluator: Box<dyn AnyStringEvaluator>,
 }
 
@@ -159,8 +152,8 @@ pub struct ValidateEvaluator {
     pub any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
 }
 
-impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Default + Debug>
-    ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value, Span>
+impl<'input, 'ty, 'tree, 'map, 'section, 'value>
+    ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value>
 {
     pub fn new(
         tree: &'tree TypeTree<'input, 'ty>,
@@ -182,8 +175,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
     pub fn set_value(
         &mut self,
-        sections: impl Iterator<Item = (impl Into<Cow<'section, str>>, Span)>,
-        value: ValueTree<'section, 'value, Span>,
+        sections: impl Iterator<Item = (impl Into<Cow<'section, str>>, SourceCodeSpan)>,
+        value: ValueTree<'section, 'value>,
     ) {
         let root_section = [(Cow::Borrowed("root"), self.value_tree.span().clone())];
         // Iterator<(Into<Cow>, Span)> => Iterator<(Cow, Span)>
@@ -245,7 +238,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
         }
     }
 
-    pub fn validate(&self) -> Result<(), Vec<TymlValueValidateError<Span>>> {
+    pub fn validate(&self) -> Result<(), Vec<TymlValueValidateError>> {
         let mut errors = Vec::new();
 
         let allocator = Bump::new();
@@ -281,9 +274,9 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
 
     fn validate_tree<'temp>(
         &self,
-        errors: &mut Option<&mut Vec<TymlValueValidateError<Span>>>,
+        errors: &mut Option<&mut Vec<TymlValueValidateError>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
-        value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
+        value_tree: &MergedValueTree<'section, 'value, 'temp>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
         match type_tree {
@@ -530,7 +523,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
     fn validate_type<'temp>(
         &self,
         ty: &Type,
-        value_tree: &MergedValueTree<'section, 'value, 'temp, Span>,
+        value_tree: &MergedValueTree<'section, 'value, 'temp>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
         if let MergedValueTree::Value { value, span: _ } = value_tree {
@@ -633,31 +626,29 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value, Span: PartialEq + Clone + Defau
     }
 }
 
-pub enum MergedValueTree<'section, 'value, 'temp, Span: PartialEq + Clone + Default> {
+pub enum MergedValueTree<'section, 'value, 'temp> {
     Section {
         elements: HashMap<
             Cow<'section, str>,
-            MergedValueTree<'section, 'value, 'temp, Span>,
+            MergedValueTree<'section, 'value, 'temp>,
             DefaultHashBuilder,
             &'temp Bump,
         >,
-        spans: Vec<Span, &'temp Bump>,
+        spans: Vec<SourceCodeSpan, &'temp Bump>,
     },
     Array {
         elements: Vec<Self, &'temp Bump>,
-        span: Span,
+        span: SourceCodeSpan,
     },
     Value {
         value: Value<'value>,
-        span: Span,
+        span: SourceCodeSpan,
     },
 }
 
-impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
-    MergedValueTree<'section, 'value, 'temp, Span>
-{
+impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
     #[auto_enum(Iterator)]
-    pub fn spans(&self) -> impl Iterator<Item = &Span> {
+    pub fn spans(&self) -> impl Iterator<Item = &SourceCodeSpan> {
         match self {
             MergedValueTree::Section { elements: _, spans } => spans.iter(),
             MergedValueTree::Array { elements: _, span } => std::iter::once(span),
@@ -666,8 +657,8 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
     }
 
     fn merge_and_collect_duplicated(
-        value_tree: &ValueTree<'section, 'value, Span>,
-        errors: &mut Vec<TymlValueValidateError<Span>>,
+        value_tree: &ValueTree<'section, 'value>,
+        errors: &mut Vec<TymlValueValidateError>,
         allocator: &'temp Bump,
     ) -> Self {
         let mut new_tree = MergedValueTree::Section {
@@ -689,8 +680,8 @@ impl<'section, 'value, 'temp, Span: PartialEq + Clone + Default + Debug>
 
     fn merge_inner_recursive<'tree>(
         new_tree: &mut Self,
-        value_tree: &'tree ValueTree<'section, 'value, Span>,
-        errors: &mut Vec<TymlValueValidateError<Span>>,
+        value_tree: &'tree ValueTree<'section, 'value>,
+        errors: &mut Vec<TymlValueValidateError>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'tree str, &'temp Bump>,
         is_init_merge: bool,
         allocator: &'temp Bump,

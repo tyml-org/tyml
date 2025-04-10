@@ -2,7 +2,7 @@ use std::{fmt::Debug, mem::transmute, ops::Deref, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
-use tyml_diagnostic::{DiagnosticBuilder, DiagnosticSpan};
+use tyml_diagnostic::DiagnosticBuilder;
 use tyml_parser::{ast::Defines, error::ParseError, lexer::Lexer, parser::parse_defines};
 use tyml_source::SourceCode;
 use tyml_type::{
@@ -103,7 +103,7 @@ impl<State> TymlContext<State> {
         }
     }
 
-    pub fn validate_result(&self) -> &Result<(), Vec<TymlValueValidateError<DiagnosticSpan>>>
+    pub fn validate_result(&self) -> &Result<(), Vec<TymlValueValidateError>>
     where
         State: IValidated,
     {
@@ -151,7 +151,7 @@ pub struct Parsed {
 #[derive(Debug)]
 pub struct Validated {
     pub tyml: Tyml,
-    pub result: Result<(), Vec<TymlValueValidateError<DiagnosticSpan>>>,
+    pub result: Result<(), Vec<TymlValueValidateError>>,
 }
 
 pub trait IInitial {}
@@ -175,11 +175,11 @@ impl IParsed for Validated {
 }
 
 pub trait IValidated: IParsed {
-    fn result(&self) -> &Result<(), Vec<TymlValueValidateError<DiagnosticSpan>>>;
+    fn result(&self) -> &Result<(), Vec<TymlValueValidateError>>;
 }
 
 impl IValidated for Validated {
-    fn result(&self) -> &Result<(), Vec<TymlValueValidateError<DiagnosticSpan>>> {
+    fn result(&self) -> &Result<(), Vec<TymlValueValidateError>> {
         &self.result
     }
 }
@@ -221,7 +221,7 @@ impl Tyml {
     pub fn value_type_checker<'this, 'section, 'value>(
         &'this self,
         validate_evaluator: ValidateEvaluator,
-    ) -> ValueTypeChecker<'this, 'this, 'this, 'this, 'section, 'value, DiagnosticSpan> {
+    ) -> ValueTypeChecker<'this, 'this, 'this, 'this, 'section, 'value> {
         ValueTypeChecker::new(self.type_tree(), self.named_type_map(), validate_evaluator)
     }
 }
@@ -282,8 +282,8 @@ mod tests {
 
     use allocator_api2::vec;
     use hashbrown::HashMap;
-    use tyml_diagnostic::{message::Lang, DiagnosticBuilder, DiagnosticSpan};
-    use tyml_source::SourceCode;
+    use tyml_diagnostic::{message::Lang, DiagnosticBuilder};
+    use tyml_source::{SourceCode, SourceCodeSpan};
     use tyml_validate::validate::{ValidateEvaluator, Value, ValueTree};
 
     use crate::TymlContext;
@@ -321,31 +321,31 @@ enum Enum {
             "number".into(),
             vec![ValueTree::Value {
                 value: Value::Float(10.0),
-                span: DiagnosticSpan::UnicodeCharacter(0..0),
+                span: SourceCodeSpan::UnicodeCharacter(0..0),
             }],
         );
         elements.insert(
             "binary".into(),
             vec![ValueTree::Value {
                 value: Value::Int(0xFF),
-                span: DiagnosticSpan::UnicodeCharacter(0..0),
+                span: SourceCodeSpan::UnicodeCharacter(0..0),
             }],
         );
         elements.insert(
             "strings".into(),
             vec![ValueTree::Value {
                 value: Value::None,
-                span: DiagnosticSpan::UnicodeCharacter(0..0),
+                span: SourceCodeSpan::UnicodeCharacter(0..0),
             }],
         );
 
         let settings = ValueTree::Section {
             elements,
-            span: DiagnosticSpan::UnicodeCharacter(0..0),
+            span: SourceCodeSpan::UnicodeCharacter(0..0),
         };
 
         validator.set_value(
-            [("settings", DiagnosticSpan::UnicodeCharacter(0..0))].into_iter(),
+            [("settings", SourceCodeSpan::UnicodeCharacter(0..0))].into_iter(),
             settings,
         );
 

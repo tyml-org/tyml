@@ -1,9 +1,8 @@
-use std::ops::{Deref, Range};
+use std::ops::Deref;
 
 use ariadne::{Color, Label, Report, ReportKind, sources};
-use extension_fn::extension_fn;
 use message::{get_text, get_text_optional, replace_message};
-use tyml_source::SourceCode;
+use tyml_source::{SourceCode, SourceCodeSpan, ToUnicodeCharacterRange};
 use tyml_type::types::NamedTypeMap;
 
 pub mod message;
@@ -84,51 +83,6 @@ impl MessageSection {
     }
 }
 
-pub trait ToUnicodeCharacterRange {
-    fn to_unicode_character_range(&self, source_code: &str) -> Range<usize>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DiagnosticSpan {
-    /// 0 indexed, UTF-8 byte index
-    UTF8Byte(Range<usize>),
-    /// 0 indexed, Unicode character index
-    UnicodeCharacter(Range<usize>),
-}
-
-impl Default for DiagnosticSpan {
-    fn default() -> Self {
-        DiagnosticSpan::UnicodeCharacter(0..0)
-    }
-}
-
-#[extension_fn(Range<usize>)]
-pub fn as_utf8_byte_range(&self) -> DiagnosticSpan {
-    DiagnosticSpan::UTF8Byte(self.clone())
-}
-
-impl ToUnicodeCharacterRange for DiagnosticSpan {
-    fn to_unicode_character_range(&self, source_code: &str) -> Range<usize> {
-        match self {
-            DiagnosticSpan::UTF8Byte(range) => {
-                let start = source_code
-                    .char_indices()
-                    .map(|(position, _)| position)
-                    .position(|position| position >= range.start)
-                    .unwrap_or(source_code.len());
-                let end = source_code
-                    .char_indices()
-                    .map(|(position, _)| position)
-                    .position(|position| position >= range.end)
-                    .unwrap_or(source_code.len());
-
-                start..end
-            }
-            DiagnosticSpan::UnicodeCharacter(range) => range.clone(),
-        }
-    }
-}
-
 pub trait DiagnosticBuilder {
     fn build(&self, named_type_map: &NamedTypeMap) -> Diagnostic;
 }
@@ -136,7 +90,7 @@ pub trait DiagnosticBuilder {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiagnosticLabel {
     pub kind: SourceCodeKind,
-    pub span: DiagnosticSpan,
+    pub span: SourceCodeSpan,
     pub color: Color,
     pub message_override: Option<usize>,
 }
