@@ -12,7 +12,7 @@ pub struct Section {
     pub kind: SectionKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionKind {
     /// [section]
     Bracket,
@@ -22,13 +22,17 @@ pub enum SectionKind {
 
 pub struct SectionParser {
     pub literal: GeneratorTokenKind,
+    pub kind: SectionKind,
 }
 
 pub struct SectionAST {}
 
 impl ParserGenerator<'_, SectionAST, SectionParser> for Section {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> SectionParser {
-        todo!()
+        SectionParser {
+            literal: self.literal.register(registry),
+            kind: self.kind,
+        }
     }
 }
 

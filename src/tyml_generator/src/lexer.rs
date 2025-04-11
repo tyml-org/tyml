@@ -7,7 +7,7 @@ use regex::Regex;
 pub enum GeneratorTokenizer {
     Keyword(String),
     Regex(Regex),
-    Function(fn(&str) -> usize),
+    Function(Box<dyn Fn(&str) -> usize>),
 }
 
 impl GeneratorTokenizer {
@@ -64,8 +64,8 @@ impl TokenizerRegistry {
     pub fn new() -> Self {
         Self {
             registry: Either::Left(vec![
-                GeneratorTokenizer::Function(|_| 0),    // None
-                GeneratorTokenizer::regex(r"[ 　\t]+"), // Whitespace
+                GeneratorTokenizer::Function(Box::new(|_| 0)), // None
+                GeneratorTokenizer::regex(r"[ 　\t]+"),        // Whitespace
             ]),
         }
     }
