@@ -40,6 +40,20 @@ impl Parser<'_, SectionAST> for SectionParser {
     fn parse(lexer: &mut crate::lexer::GeneratorLexer<'_>) -> Option<SectionAST> {
         todo!()
     }
+
+    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
+        match self.kind {
+            SectionKind::Bracket => "expected.bracket_section".into(),
+            SectionKind::MultiBracket => "expected.multi_bracket_section".into(),
+        }
+    }
+
+    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+        match self.kind {
+            SectionKind::Bracket => Some("[section]".into()),
+            SectionKind::MultiBracket => Some("[section1][section2]".into()),
+        }
+    }
 }
 
 impl<'input> AST<'input> for SectionAST {

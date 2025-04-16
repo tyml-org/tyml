@@ -47,6 +47,17 @@ impl<'input> Parser<'input, KeyValueAST> for KeyValueParser {
     fn parse(lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<KeyValueAST> {
         todo!()
     }
+
+    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
+        "expected.key_value".into()
+    }
+
+    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+        match self.kind {
+            KeyValueKind::Colon => Some("key: value".into()),
+            KeyValueKind::Equal => Some("key = value".into()),
+        }
+    }
 }
 
 impl<'input> AST<'input> for KeyValueAST {
