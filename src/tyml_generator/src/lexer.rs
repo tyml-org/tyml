@@ -161,6 +161,10 @@ impl<'input> GeneratorLexer<'input> {
         self.current_byte_position = anchor.byte_position;
         self.current_token_cache = None;
     }
+
+    pub fn is_reached_eof(&self) -> bool {
+        self.current_byte_position >= self.source.len()
+    }
 }
 
 impl<'input> Iterator for GeneratorLexer<'input> {

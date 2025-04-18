@@ -1,11 +1,13 @@
 use std::ops::Range;
 
+use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::GeneratorTokenKind;
 
 use super::{
     AST, Parser, ParserGenerator,
+    error::GeneratedParseError,
     literal::Literal,
     value::{Value, ValueParser},
 };
@@ -44,7 +46,15 @@ impl<'input> ParserGenerator<'input, KeyValueAST, KeyValueParser> for KeyValue {
 }
 
 impl<'input> Parser<'input, KeyValueAST> for KeyValueParser {
-    fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<KeyValueAST> {
+    fn parse(
+        &self,
+        lexer: &mut crate::lexer::GeneratorLexer<'input>,
+        errors: &mut Vec<GeneratedParseError>,
+    ) -> Option<KeyValueAST> {
+        todo!()
+    }
+
+    fn first_token_kind(&self) -> GeneratorTokenKind {
         todo!()
     }
 

@@ -1,7 +1,10 @@
+use allocator_api2::vec::Vec;
+
 use crate::lexer::GeneratorTokenKind;
 
 use super::{
     AST, Parser, ParserGenerator,
+    error::GeneratedParseError,
     literal::{BinaryLiteral, BoolLiteral, FloatLiteral, Literal, StringLiteral},
 };
 
@@ -44,7 +47,15 @@ impl<'input> ParserGenerator<'input, ValueAST, ValueParser> for Value {
 }
 
 impl<'input> Parser<'input, ValueAST> for ValueParser {
-    fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<ValueAST> {
+    fn parse(
+        &self,
+        lexer: &mut crate::lexer::GeneratorLexer<'input>,
+        errors: &mut Vec<GeneratedParseError>,
+    ) -> Option<ValueAST> {
+        todo!()
+    }
+
+    fn first_token_kind(&self) -> GeneratorTokenKind {
         todo!()
     }
 
