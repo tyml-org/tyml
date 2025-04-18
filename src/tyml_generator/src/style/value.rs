@@ -44,7 +44,7 @@ impl<'input> ParserGenerator<'input, ValueAST, ValueParser> for Value {
 }
 
 impl<'input> Parser<'input, ValueAST> for ValueParser {
-    fn parse(lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<ValueAST> {
+    fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<ValueAST> {
         todo!()
     }
 }

@@ -37,11 +37,22 @@ impl ParserGenerator<'_, LanguageAST, LanguageParser> for LanguageStyle {
 }
 
 impl<'input> Parser<'input, LanguageAST> for LanguageParser {
-    fn parse(lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<LanguageAST>
+    fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<LanguageAST>
     where
         Self: Sized,
     {
-        todo!()
+        match self {
+            LanguageParser::Section { section, key_value } => {
+                loop {
+                    let section = match section.parse(lexer) {
+                        Some(section) => section,
+                        None => {
+                            let error = 
+                        },
+                    };
+                }
+            },
+        }
     }
 }
 

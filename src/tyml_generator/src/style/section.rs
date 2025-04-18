@@ -37,7 +37,7 @@ impl ParserGenerator<'_, SectionAST, SectionParser> for Section {
 }
 
 impl Parser<'_, SectionAST> for SectionParser {
-    fn parse(lexer: &mut crate::lexer::GeneratorLexer<'_>) -> Option<SectionAST> {
+    fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'_>) -> Option<SectionAST> {
         todo!()
     }
 }
