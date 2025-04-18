@@ -47,6 +47,14 @@ impl<'input> Parser<'input, ValueAST> for ValueParser {
     fn parse(&self, lexer: &mut crate::lexer::GeneratorLexer<'input>) -> Option<ValueAST> {
         todo!()
     }
+
+    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
+        "expected.value".into()
+    }
+
+    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+        None
+    }
 }
 
 impl<'input> AST<'input> for ValueAST {

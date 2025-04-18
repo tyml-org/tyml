@@ -54,6 +54,14 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
             },
         }
     }
+
+    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
+        "_unused".into()
+    }
+
+    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+        None
+    }
 }
 
 impl<'input> AST<'input> for LanguageAST {
