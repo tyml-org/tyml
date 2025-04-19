@@ -62,7 +62,7 @@ impl ParserGenerator<'_, SectionAST, SectionParser> for Section {
 impl Parser<'_, SectionAST> for SectionParser {
     fn parse(
         &self,
-        lexer: &mut crate::lexer::GeneratorLexer<'_>,
+        lexer: &mut crate::lexer::GeneratorLexer<'_, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<SectionAST> {
         todo!()

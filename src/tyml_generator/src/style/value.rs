@@ -49,7 +49,7 @@ impl<'input> ParserGenerator<'input, ValueAST, ValueParser> for Value {
 impl<'input> Parser<'input, ValueAST> for ValueParser {
     fn parse(
         &self,
-        lexer: &mut crate::lexer::GeneratorLexer<'input>,
+        lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<ValueAST> {
         todo!()

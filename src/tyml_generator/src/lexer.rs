@@ -1,5 +1,7 @@
 use std::{mem::swap, ops::Range, sync::Arc};
 
+use allocator_api2::vec::Vec;
+use bumpalo::Bump;
 use either::Either;
 use extension_fn::extension_fn;
 use regex::Regex;
@@ -43,17 +45,15 @@ impl GeneratorTokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GeneratorToken<'input> {
-    pub kind: GeneratorTokenKind,
+pub struct GeneratorToken<'input, 'parse> {
+    pub kinds: allocator_api2::vec::Vec<GeneratorTokenKind, &'parse Bump>,
     pub text: &'input str,
     pub span: Range<usize>,
 }
 
-#[extension_fn(Option<GeneratorToken<'_>>)]
-pub fn get_kind(&self) -> GeneratorTokenKind {
-    self.as_ref()
-        .map(|token| token.kind)
-        .unwrap_or(GeneratorTokenKind::None)
+#[extension_fn(<'parse> Option<GeneratorToken<'_, 'parse>>)]
+pub fn get_kinds(&self) -> Option<&allocator_api2::vec::Vec<GeneratorTokenKind, &'parse Bump>> {
+    self.as_ref().map(|token| &token.kinds)
 }
 
 pub struct TokenizerRegistry {
@@ -62,11 +62,12 @@ pub struct TokenizerRegistry {
 
 impl TokenizerRegistry {
     pub fn new() -> Self {
+        let mut default = Vec::new();
+        default.push(GeneratorTokenizer::Function(Box::new(|_| 0))); // None
+        default.push(GeneratorTokenizer::regex(r"[ 　\t]+")); // Whitespace
+
         Self {
-            registry: Either::Left(vec![
-                GeneratorTokenizer::Function(Box::new(|_| 0)), // None
-                GeneratorTokenizer::regex(r"[ 　\t]+"),        // Whitespace
-            ]),
+            registry: Either::Left(default),
         }
     }
 
@@ -90,7 +91,7 @@ impl TokenizerRegistry {
         }
     }
 
-    pub fn registry(&self) -> Arc<Vec<GeneratorTokenizer>> {
+    pub fn get_registry(&self) -> Arc<Vec<GeneratorTokenizer>> {
         match &self.registry {
             Either::Right(registry) => registry.clone(),
             _ => panic!("Dereference before freeze!"),
@@ -109,26 +110,28 @@ impl Clone for TokenizerRegistry {
     }
 }
 
-pub struct GeneratorLexer<'input> {
+pub struct GeneratorLexer<'input, 'parse> {
     source: &'input str,
     tokenizers: Arc<Vec<GeneratorTokenizer>>,
     current_byte_position: usize,
-    current_token_cache: Option<GeneratorToken<'input>>,
+    current_token_cache: Option<GeneratorToken<'input, 'parse>>,
     pub ignore_whitespace: bool,
+    allocator: &'parse Bump,
 }
 
-impl<'input> GeneratorLexer<'input> {
-    pub fn new(source: &'input str, registry: &TokenizerRegistry) -> Self {
+impl<'input, 'parse> GeneratorLexer<'input, 'parse> {
+    pub fn new(source: &'input str, registry: &TokenizerRegistry, allocator: &'parse Bump) -> Self {
         Self {
             source,
-            tokenizers: registry.registry(),
+            tokenizers: registry.get_registry(),
             current_byte_position: 0,
             current_token_cache: None,
             ignore_whitespace: true,
+            allocator,
         }
     }
 
-    pub fn current(&mut self) -> Option<GeneratorToken<'input>> {
+    pub fn current(&mut self) -> Option<GeneratorToken<'input, 'parse>> {
         let anchor = self.cast_anchor();
 
         // move to next temporarily
@@ -140,6 +143,13 @@ impl<'input> GeneratorLexer<'input> {
         self.current_token_cache.clone()
     }
 
+    pub fn current_contains(&mut self, kind: GeneratorTokenKind) -> bool {
+        match self.current() {
+            Some(token) => token.kinds.contains(&kind),
+            None => false,
+        }
+    }
+
     pub fn cast_anchor(&self) -> GeneratorAnchor {
         GeneratorAnchor {
             byte_position: self.current_byte_position,
@@ -148,7 +158,16 @@ impl<'input> GeneratorLexer<'input> {
 
     pub fn skip(&mut self, kind: &[GeneratorTokenKind]) {
         loop {
-            if kind.contains(&self.current().get_kind()) {
+            let current = self.current();
+
+            let Some(current_kinds) = current.get_kinds() else {
+                break;
+            };
+
+            if current_kinds
+                .iter()
+                .any(|current_kind| kind.contains(current_kind))
+            {
                 self.next();
                 continue;
             } else {
@@ -167,8 +186,8 @@ impl<'input> GeneratorLexer<'input> {
     }
 }
 
-impl<'input> Iterator for GeneratorLexer<'input> {
-    type Item = GeneratorToken<'input>;
+impl<'input, 'parse> Iterator for GeneratorLexer<'input, 'parse> {
+    type Item = GeneratorToken<'input, 'parse>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // take cache
@@ -185,14 +204,17 @@ impl<'input> Iterator for GeneratorLexer<'input> {
             let current_input = &self.source[self.current_byte_position..self.source.len()];
 
             let mut current_max_length = 0;
-            let mut current_token_kind = GeneratorTokenKind::Whitespace;
+            let mut current_token_kinds = Vec::new_in(self.allocator);
 
             for (index, tokenizer) in self.tokenizers.iter().enumerate() {
                 let byte_length = tokenizer.tokenize(current_input);
 
-                if byte_length > current_max_length {
+                if byte_length >= current_max_length {
+                    if byte_length > current_max_length {
+                        current_token_kinds.clear();
+                    }
                     current_max_length = byte_length;
-                    current_token_kind = GeneratorTokenKind(index);
+                    current_token_kinds.push(GeneratorTokenKind(index));
                 }
             }
 
@@ -208,22 +230,26 @@ impl<'input> Iterator for GeneratorLexer<'input> {
                 self.current_byte_position += char_length;
                 let end_position = start_position + char_length;
 
+                current_token_kinds.push(GeneratorTokenKind::UnexpectedCharacter);
+
                 GeneratorToken {
-                    kind: GeneratorTokenKind::UnexpectedCharacter,
+                    kinds: current_token_kinds,
                     text: &self.source[start_position..end_position],
                     span: start_position..end_position,
                 }
             } else {
                 self.current_byte_position += current_max_length;
 
-                if self.ignore_whitespace && current_token_kind == GeneratorTokenKind::Whitespace {
+                if self.ignore_whitespace
+                    && current_token_kinds.contains(&GeneratorTokenKind::Whitespace)
+                {
                     continue;
                 }
 
                 let end_position = self.current_byte_position;
 
                 GeneratorToken {
-                    kind: current_token_kind,
+                    kinds: current_token_kinds,
                     text: &self.source[start_position..end_position],
                     span: start_position..end_position,
                 }

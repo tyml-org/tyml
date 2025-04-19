@@ -18,9 +18,7 @@ pub(crate) fn recover_until<'input, T: AST<'input>, P: Parser<'input, T>>(
     let anchor = lexer.cast_anchor();
 
     loop {
-        let Some(token) = lexer.current() else { break };
-
-        if until.contains(&token.kind) {
+        if until.iter().any(|until| lexer.current_contains(*until)) {
             break;
         }
 

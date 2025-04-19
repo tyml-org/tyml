@@ -3,8 +3,6 @@ use std::ops::Range;
 use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
 
-use crate::lexer::GetKind;
-
 use super::{
     AST, Parser, ParserGenerator,
     error::{GeneratedParseError, recover_until},
@@ -47,7 +45,7 @@ impl ParserGenerator<'_, LanguageAST, LanguageParser> for LanguageStyle {
 impl<'input> Parser<'input, LanguageAST> for LanguageParser {
     fn parse(
         &self,
-        lexer: &mut crate::lexer::GeneratorLexer<'input>,
+        lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<LanguageAST>
     where
@@ -82,7 +80,7 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
                         Some(key_value) => key_value,
                         None => {
                             // next token must be start of section
-                            if lexer.current().get_kind() == section.first_token_kind() {
+                            if lexer.current_contains(section.first_token_kind()) {
                                 break;
                             }
 
@@ -93,7 +91,7 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
                             );
                             errors.push(error);
 
-                            if lexer.current().get_kind() == section.first_token_kind() {
+                            if lexer.current_contains(section.first_token_kind()) {
                                 break;
                             }
 

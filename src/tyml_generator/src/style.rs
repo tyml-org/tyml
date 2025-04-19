@@ -21,7 +21,7 @@ pub trait ParserGenerator<'input, T: AST<'input>, P: Parser<'input, T>> {
 pub trait Parser<'input, T: AST<'input>> {
     fn parse(
         &self,
-        lexer: &mut GeneratorLexer<'input>,
+        lexer: &mut GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<T>;
 
