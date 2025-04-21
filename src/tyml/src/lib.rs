@@ -309,7 +309,7 @@ enum Enum {
 }
 ";
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
-        let validate_target_source = SourceCode::new("test.ml".to_string(), "".to_string());
+        let validate_target_source = SourceCode::new("test.ini".to_string(), "".to_string());
 
         let tyml = TymlContext::new(tyml_source, validate_target_source).parse();
         let mut validator = tyml.tyml().value_type_checker(ValidateEvaluator {

@@ -1,12 +1,15 @@
+use extension_fn::extension_fn;
+
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     Normal(NormalLiteral),
     String(StringLiteral),
     Float(FloatLiteral),
     Binary(BinaryLiteral),
     Bool(BoolLiteral),
+    Custom(CustomRegexLiteral),
 }
 
 impl Literal {
@@ -17,46 +20,78 @@ impl Literal {
             Literal::Float(float_literal) => float_literal.register(registry),
             Literal::Binary(binary_literal) => binary_literal.register(registry),
             Literal::Bool(bool_literal) => bool_literal.register(registry),
+            Literal::Custom(custom_regex_literal) => custom_regex_literal.regiter(registry),
         }
     }
+}
+
+#[extension_fn(<'item, I: Iterator<Item = &'item Literal>> I)]
+pub fn register(self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+    let mut all_regex = Vec::new();
+
+    for literal in self {
+        let regex = match literal {
+            Literal::Normal(normal_literal) => normal_literal.build_regex(),
+            Literal::String(string_literal) => string_literal.build_regex(),
+            Literal::Float(float_literal) => float_literal.build_regex(),
+            Literal::Binary(binary_literal) => binary_literal.build_regex(),
+            Literal::Bool(bool_literal) => bool_literal.build_regx(),
+            Literal::Custom(custom_regex_literal) => custom_regex_literal.build_regex(),
+        };
+
+        all_regex.push(regex);
+    }
+
+    registry.register(GeneratorTokenizer::regex(
+        all_regex
+            .iter()
+            .map(|str| format!("({})", str))
+            .collect::<Vec<_>>()
+            .join("|")
+            .as_str(),
+    ))
 }
 
 #[derive(Debug, Clone)]
 pub struct NormalLiteral {
     pub allow_line: bool,
-    pub allow_symbol: bool,
     pub allow_escape: bool,
+    pub symbol_regex: Option<String>,
 }
 
 impl NormalLiteral {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
-        let mut regex = r"[\w".to_string();
+    pub fn build_regex(&self) -> String {
+        let mut regex = r"(\w".to_string();
 
         if self.allow_line {
-            regex += r"-";
+            regex += r"|\\-";
         }
-        if self.allow_symbol {
-            regex += r"\S";
+        if let Some(symbol) = &self.symbol_regex {
+            regex += format!("|({})", symbol).as_str();
         }
         if self.allow_escape {
-            regex = format!(r"({}]|[^\\]|\\.)+", regex);
+            regex = format!(r"({})|[^\\]|\\.)+", regex);
         } else {
-            regex += "]+";
+            regex += ")+";
         }
 
-        registry.register(GeneratorTokenizer::regex(regex.as_str()))
+        regex
+    }
+
+    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(&self.build_regex()))
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StringLiteral {
     pub quotes_kind: QuotesKind,
     pub allow_escape: bool,
 }
 
 impl StringLiteral {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
-        let regex_str = match self.quotes_kind {
+    pub fn build_regex(&self) -> String {
+        match self.quotes_kind {
             QuotesKind::DoubleQuotes => match self.allow_escape {
                 true => r#""([^"\\]|\\.)*""#,
                 false => r#"".*""#,
@@ -73,9 +108,12 @@ impl StringLiteral {
                 true => r"'''([^'\\]|\\.|('|'')[^'])*'''",
                 false => r"'''([^']|('|'')[^'])*'''",
             },
-        };
+        }
+        .into()
+    }
 
-        registry.register(GeneratorTokenizer::regex(regex_str))
+    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(&self.build_regex()))
     }
 }
 
@@ -87,7 +125,7 @@ pub enum QuotesKind {
     TripleQuotes,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FloatLiteral {
     pub allow_e: bool,
     pub inf_nan_kind: InfNanKind,
@@ -105,7 +143,7 @@ pub enum InfNanKind {
 }
 
 impl FloatLiteral {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+    pub fn build_regex(&self) -> String {
         let digit = match self.allow_under_line {
             true => r"[\d_]",
             false => r"[\d]",
@@ -129,16 +167,18 @@ impl FloatLiteral {
             InfNanKind::Insensitive => "|[Ii][Nn][Ff]|[Nn][Aa][Nn]",
         };
 
-        let regex = format!(
+        format!(
             r"{}{}(\.{})?{}{}",
             plus_minus, digit, digit, e_suffix, inf_nan
-        );
+        )
+    }
 
-        registry.register(GeneratorTokenizer::regex(regex.as_str()))
+    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(&self.build_regex()))
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinaryLiteral {
     pub allow_bit: bool,
     pub allow_oct: bool,
@@ -148,7 +188,7 @@ pub struct BinaryLiteral {
 }
 
 impl BinaryLiteral {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+    pub fn build_regex(&self) -> String {
         let plus_minus = match self.allow_plus_minus {
             true => "[+-]?",
             false => "",
@@ -172,18 +212,20 @@ impl BinaryLiteral {
             false => "".to_string(),
         };
 
-        let regex = format!("{}({}|{}|{})", plus_minus, bit, oct, hex);
+        format!("{}({}|{}|{})", plus_minus, bit, oct, hex)
+    }
 
-        registry.register(GeneratorTokenizer::regex(regex.as_str()))
+    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(&self.build_regex()))
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoolLiteral {
     pub kind: BoolKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BoolKind {
     CamelCase,
     UpperCase,
@@ -192,14 +234,32 @@ pub enum BoolKind {
 }
 
 impl BoolLiteral {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
-        let regex = match self.kind {
+    pub fn build_regx(&self) -> String {
+        match self.kind {
             BoolKind::CamelCase => "True|False",
             BoolKind::UpperCase => "TRUE|FALSE",
             BoolKind::LowerCase => "true|false",
             BoolKind::Insensitive => "[Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]",
-        };
+        }
+        .into()
+    }
 
-        registry.register(GeneratorTokenizer::regex(regex))
+    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(&self.build_regx()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomRegexLiteral {
+    pub regex: String,
+}
+
+impl CustomRegexLiteral {
+    pub fn build_regex(&self) -> String {
+        self.regex.clone()
+    }
+
+    pub fn regiter(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+        registry.register(GeneratorTokenizer::regex(self.regex.as_str()))
     }
 }

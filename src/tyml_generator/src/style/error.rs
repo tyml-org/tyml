@@ -2,15 +2,16 @@ use std::{borrow::Cow, ops::Range};
 
 use crate::lexer::{GeneratorLexer, GeneratorTokenKind};
 
-use super::{AST, Parser};
+use super::ParserPart;
 
+#[derive(Debug)]
 pub struct GeneratedParseError {
     pub span: Range<usize>,
     pub expected_message_key: Cow<'static, str>,
     pub expected_format: Option<Cow<'static, str>>,
 }
 
-pub(crate) fn recover_until<'input, T: AST<'input>, P: Parser<'input, T>>(
+pub(crate) fn recover_until_or_lf<'input, P: ParserPart>(
     lexer: &mut GeneratorLexer,
     until: &[GeneratorTokenKind],
     parser: &P,
@@ -19,6 +20,14 @@ pub(crate) fn recover_until<'input, T: AST<'input>, P: Parser<'input, T>>(
 
     loop {
         if until.iter().any(|until| lexer.current_contains(*until)) {
+            break;
+        }
+
+        if lexer.current().is_none() {
+            break;
+        };
+
+        if lexer.is_current_lf() {
             break;
         }
 

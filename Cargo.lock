@@ -412,6 +412,7 @@ dependencies = [
  "allocator-api2",
  "auto_enums",
  "bumpalo",
+ "derivative",
  "either",
  "extension-fn",
  "regex",

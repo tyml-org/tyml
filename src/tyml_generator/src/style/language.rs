@@ -3,9 +3,11 @@ use std::ops::Range;
 use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
 
+use crate::lexer::GeneratorTokenKind;
+
 use super::{
-    AST, Parser, ParserGenerator,
-    error::{GeneratedParseError, recover_until},
+    AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
+    error::{GeneratedParseError, recover_until_or_lf},
     key_value::{KeyValue, KeyValueAST, KeyValueParser},
     section::{Section, SectionAST, SectionParser},
 };
@@ -25,13 +27,14 @@ pub enum LanguageParser {
     },
 }
 
-pub enum LanguageAST {
+#[derive(Debug)]
+pub enum LanguageAST<'input> {
     Section {
-        sections: Vec<(SectionAST, Vec<KeyValueAST>)>,
+        sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>)>,
     },
 }
 
-impl ParserGenerator<'_, LanguageAST, LanguageParser> for LanguageStyle {
+impl<'input> ParserGenerator<'input, LanguageAST<'input>, LanguageParser> for LanguageStyle {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> LanguageParser {
         match self {
             LanguageStyle::Section { section, key_value } => LanguageParser::Section {
@@ -42,12 +45,12 @@ impl ParserGenerator<'_, LanguageAST, LanguageParser> for LanguageStyle {
     }
 }
 
-impl<'input> Parser<'input, LanguageAST> for LanguageParser {
+impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
     fn parse(
         &self,
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
-    ) -> Option<LanguageAST>
+    ) -> Option<LanguageAST<'input>>
     where
         Self: Sized,
     {
@@ -59,15 +62,28 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
                     break;
                 }
 
+                lexer.skip_lf();
+
                 let section_ast = match section.parse(lexer, errors) {
                     Some(section) => section,
                     None => {
-                        let error = recover_until(lexer, &[section.first_token_kind()], section);
+                        let error =
+                            recover_until_or_lf(lexer, &[section.first_token_kind()], section);
                         errors.push(error);
 
                         continue;
                     }
                 };
+
+                if !lexer.is_current_lf() {
+                    let error = recover_until_or_lf(
+                        lexer,
+                        &[GeneratorTokenKind::LineFeed],
+                        &NamedParserPart::LINE_FEED,
+                    );
+                    errors.push(error);
+                }
+                lexer.skip_lf();
 
                 let mut key_values = Vec::new();
 
@@ -84,7 +100,7 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
                                 break;
                             }
 
-                            let error = recover_until(
+                            let error = recover_until_or_lf(
                                 lexer,
                                 &[key_value.first_token_kind(), section.first_token_kind()],
                                 key_value,
@@ -99,6 +115,16 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
                         }
                     };
 
+                    if !lexer.is_current_lf() {
+                        let error = recover_until_or_lf(
+                            lexer,
+                            &[GeneratorTokenKind::LineFeed],
+                            &NamedParserPart::LINE_FEED,
+                        );
+                        errors.push(error);
+                    }
+                    lexer.skip_lf();
+
                     key_values.push(key_value);
                 }
 
@@ -110,9 +136,16 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
     }
 
     fn first_token_kind(&self) -> crate::lexer::GeneratorTokenKind {
-        todo!()
+        match self {
+            LanguageParser::Section {
+                section,
+                key_value: _,
+            } => section.first_token_kind(),
+        }
     }
+}
 
+impl ParserPart for LanguageParser {
     fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
         "_unused".into()
     }
@@ -122,7 +155,7 @@ impl<'input> Parser<'input, LanguageAST> for LanguageParser {
     }
 }
 
-impl<'input> AST<'input> for LanguageAST {
+impl<'input> AST<'input> for LanguageAST<'input> {
     fn span() -> Range<usize> {
         todo!()
     }

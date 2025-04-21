@@ -1,4 +1,4 @@
-use std::{mem::swap, ops::Range, sync::Arc};
+use std::{borrow::Cow, fmt::Debug, mem::swap, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -34,6 +34,18 @@ impl GeneratorTokenizer {
     }
 }
 
+impl Debug for GeneratorTokenizer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GeneratorTokenizer::Keyword(keyword) => {
+                write!(f, "GeneratorTokenizer::Keyword({})", keyword)
+            }
+            GeneratorTokenizer::Regex(regex) => write!(f, "GeneratorTokenizer::Regex({:?})", regex),
+            GeneratorTokenizer::Function(_) => write!(f, "GeneratorTokenizer::Function(...)"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GeneratorTokenKind(usize);
 
@@ -41,6 +53,7 @@ pub struct GeneratorTokenKind(usize);
 impl GeneratorTokenKind {
     pub const None: Self = GeneratorTokenKind(0);
     pub const Whitespace: Self = GeneratorTokenKind(1);
+    pub const LineFeed: Self = GeneratorTokenKind(2);
     pub const UnexpectedCharacter: Self = GeneratorTokenKind(usize::MAX);
 }
 
@@ -51,9 +64,37 @@ pub struct GeneratorToken<'input, 'parse> {
     pub span: Range<usize>,
 }
 
+impl<'input> GeneratorToken<'input, '_> {
+    pub fn into_spanned(&self) -> SpannedText<'input> {
+        SpannedText::borrowed(self.text, self.span.clone())
+    }
+}
+
 #[extension_fn(<'parse> Option<GeneratorToken<'_, 'parse>>)]
 pub fn get_kinds(&self) -> Option<&allocator_api2::vec::Vec<GeneratorTokenKind, &'parse Bump>> {
     self.as_ref().map(|token| &token.kinds)
+}
+
+#[derive(Debug)]
+pub struct SpannedText<'input> {
+    pub text: Cow<'input, str>,
+    pub span: Range<usize>,
+}
+
+impl<'input> SpannedText<'input> {
+    pub fn borrowed(text: &'input str, span: Range<usize>) -> Self {
+        Self {
+            text: text.into(),
+            span,
+        }
+    }
+
+    pub fn owned(text: String, span: Range<usize>) -> Self {
+        Self {
+            text: text.into(),
+            span,
+        }
+    }
 }
 
 pub struct TokenizerRegistry {
@@ -65,6 +106,7 @@ impl TokenizerRegistry {
         let mut default = Vec::new();
         default.push(GeneratorTokenizer::Function(Box::new(|_| 0))); // None
         default.push(GeneratorTokenizer::regex(r"[ 　\t]+")); // Whitespace
+        default.push(GeneratorTokenizer::regex(r"\n|\r|\r\n"));
 
         Self {
             registry: Either::Left(default),
@@ -183,6 +225,22 @@ impl<'input, 'parse> GeneratorLexer<'input, 'parse> {
 
     pub fn is_reached_eof(&self) -> bool {
         self.current_byte_position >= self.source.len()
+    }
+
+    pub fn is_current_lf(&mut self) -> bool {
+        self.current_contains(GeneratorTokenKind::LineFeed)
+    }
+
+    pub fn skip_lf(&mut self) {
+        loop {
+            let Some(current) = self.current() else { break };
+
+            if !current.kinds.contains(&GeneratorTokenKind::LineFeed) {
+                break;
+            }
+
+            self.next();
+        }
     }
 }
 

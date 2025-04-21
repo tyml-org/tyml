@@ -3,11 +3,11 @@ use std::ops::Range;
 use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
 
-use crate::lexer::GeneratorTokenKind;
+use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 
 use super::{
-    AST, Parser, ParserGenerator,
-    error::GeneratedParseError,
+    AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
+    error::{GeneratedParseError, recover_until_or_lf},
     literal::Literal,
     value::{Value, ValueParser},
 };
@@ -25,52 +25,100 @@ pub enum KeyValueKind {
     Colon,
     /// key = value
     Equal,
+    /// key value
+    NoSeparator,
 }
 
 pub struct KeyValueParser {
     pub key: GeneratorTokenKind,
-    pub kind: KeyValueKind,
+    pub kind: Option<GeneratorTokenKind>,
+    pub parser_kind: KeyValueKind,
     pub value: ValueParser,
 }
 
-pub struct KeyValueAST {}
+#[derive(Debug)]
+pub struct KeyValueAST<'input> {
+    pub key: SpannedText<'input>,
+    pub value: Option<SpannedText<'input>>,
+}
 
-impl<'input> ParserGenerator<'input, KeyValueAST, KeyValueParser> for KeyValue {
+impl<'input> ParserGenerator<'input, KeyValueAST<'input>, KeyValueParser> for KeyValue {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> KeyValueParser {
+        let kind = match self.kind {
+            KeyValueKind::Colon => Some(registry.register(GeneratorTokenizer::Keyword(":".into()))),
+            KeyValueKind::Equal => Some(registry.register(GeneratorTokenizer::Keyword("=".into()))),
+            KeyValueKind::NoSeparator => None,
+        };
+
         KeyValueParser {
             key: self.key.register(registry),
-            kind: self.kind,
+            kind,
+            parser_kind: self.kind,
             value: self.value.generate(registry),
         }
     }
 }
 
-impl<'input> Parser<'input, KeyValueAST> for KeyValueParser {
+impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
     fn parse(
         &self,
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
-    ) -> Option<KeyValueAST> {
-        todo!()
+    ) -> Option<KeyValueAST<'input>> {
+        let key = match lexer.current_contains(self.key) {
+            true => lexer.next().unwrap().into_spanned(),
+            false => return None,
+        };
+
+        if let Some(kind) = self.kind {
+            if !lexer.current_contains(kind) {
+                let parser_part = match self.parser_kind {
+                    KeyValueKind::Colon => NamedParserPart::KEY_VALUE_COLON,
+                    KeyValueKind::Equal => NamedParserPart::KEY_VALUE_EQUAL,
+                    KeyValueKind::NoSeparator => unreachable!(),
+                };
+
+                let error = recover_until_or_lf(lexer, &[], &parser_part);
+                errors.push(error);
+
+                return Some(KeyValueAST { key, value: None });
+            }
+        }
+        lexer.next();
+
+        let value = match lexer.current_contains(self.value.first_token_kind()) {
+            true => Some(lexer.next().unwrap().into_spanned()),
+            false => {
+                let error = recover_until_or_lf(lexer, &[], &NamedParserPart::VALUE);
+                errors.push(error);
+
+                None
+            }
+        };
+
+        Some(KeyValueAST { key, value })
     }
 
     fn first_token_kind(&self) -> GeneratorTokenKind {
-        todo!()
+        self.key
     }
+}
 
+impl ParserPart for KeyValueParser {
     fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        "expected.key_value".into()
+        "expected.message.key_value".into()
     }
 
     fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
-        match self.kind {
-            KeyValueKind::Colon => Some("key: value".into()),
-            KeyValueKind::Equal => Some("key = value".into()),
+        match self.parser_kind {
+            KeyValueKind::Colon => Some("expected.format.key_value_colon".into()),
+            KeyValueKind::Equal => Some("expected.format.key_value_equal".into()),
+            KeyValueKind::NoSeparator => Some("expected.format.key_value_none".into()),
         }
     }
 }
 
-impl<'input> AST<'input> for KeyValueAST {
+impl<'input> AST<'input> for KeyValueAST<'input> {
     fn span() -> Range<usize> {
         todo!()
     }
