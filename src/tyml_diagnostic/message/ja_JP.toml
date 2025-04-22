@@ -86,7 +86,7 @@ message = "不明な要素'%color:red{%0}'が記述されています"
 label_0 = "この要素は定義されていません"
 [validate_error.0005]
 message = "要素'%color:yellow{%0}'の値とその型'%color:yellow{%1}'が一致しません"
-label_0 = "この値は定義されている型と一致しません"
+label_0 = "この値は定義されている型'%color:yellow{%1}'と一致しません"
 label_1 = "要素'%color:yellow{%0}'は型'%color:yellow{%1}'として定義されています"
 [validate_error.0006]
 message = "要素'%color:yellow{%0}'に配列型'%color:yellow{%1}'ではない値が記述されています"

@@ -1,15 +1,16 @@
 use std::ops::Range;
 
 use allocator_api2::vec::Vec;
-use tyml_validate::validate::ValueTypeChecker;
+use tyml_source::AsUtf8ByteRange;
+use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 
 use super::{
     AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
-    literal::Literal,
-    value::{Value, ValueParser},
+    literal::{CustomLiteralOption, Literal},
+    value::{Value, ValueAST, ValueParser},
 };
 
 #[derive(Debug)]
@@ -30,7 +31,7 @@ pub enum KeyValueKind {
 }
 
 pub struct KeyValueParser {
-    pub key: GeneratorTokenKind,
+    pub key: (GeneratorTokenKind, Option<CustomLiteralOption>),
     pub kind: Option<GeneratorTokenKind>,
     pub parser_kind: KeyValueKind,
     pub value: ValueParser,
@@ -39,7 +40,9 @@ pub struct KeyValueParser {
 #[derive(Debug)]
 pub struct KeyValueAST<'input> {
     pub key: SpannedText<'input>,
-    pub value: Option<SpannedText<'input>>,
+    pub key_literl_option: Option<CustomLiteralOption>,
+    pub value: Option<ValueAST<'input>>,
+    pub span: Range<usize>,
 }
 
 impl<'input> ParserGenerator<'input, KeyValueAST<'input>, KeyValueParser> for KeyValue {
@@ -65,7 +68,9 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<KeyValueAST<'input>> {
-        let key = match lexer.current_contains(self.key) {
+        let anchor = lexer.cast_anchor();
+
+        let key = match lexer.current_contains(self.key.0) {
             true => lexer.next().unwrap().into_spanned(),
             false => return None,
         };
@@ -81,14 +86,19 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
                 let error = recover_until_or_lf(lexer, &[], &parser_part);
                 errors.push(error);
 
-                return Some(KeyValueAST { key, value: None });
+                return Some(KeyValueAST {
+                    key,
+                    key_literl_option: self.key.1.clone(),
+                    value: None,
+                    span: anchor.elapsed(lexer),
+                });
             }
         }
         lexer.next();
 
-        let value = match lexer.current_contains(self.value.first_token_kind()) {
-            true => Some(lexer.next().unwrap().into_spanned()),
-            false => {
+        let value = match self.value.parse(lexer, errors) {
+            Some(value) => Some(value),
+            None => {
                 let error = recover_until_or_lf(lexer, &[], &NamedParserPart::VALUE);
                 errors.push(error);
 
@@ -96,11 +106,16 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
             }
         };
 
-        Some(KeyValueAST { key, value })
+        Some(KeyValueAST {
+            key,
+            key_literl_option: self.key.1.clone(),
+            value,
+            span: anchor.elapsed(lexer),
+        })
     }
 
     fn first_token_kind(&self) -> GeneratorTokenKind {
-        self.key
+        self.key.0
     }
 }
 
@@ -119,15 +134,48 @@ impl ParserPart for KeyValueParser {
 }
 
 impl<'input> AST<'input> for KeyValueAST<'input> {
-    fn span() -> Range<usize> {
-        todo!()
+    fn span(&self) -> Range<usize> {
+        self.span.clone()
     }
 
     fn take_value(
         &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (&'input str, Range<usize>),
+            &bumpalo::Bump,
+        >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &bumpalo::Bump>,
     ) {
-        todo!()
+        let trim_key = self
+            .key_literl_option
+            .as_ref()
+            .map(|option| option.trim_space)
+            .unwrap_or(false);
+
+        let key_text = match trim_key {
+            true => self.key.text.trim(),
+            false => self.key.text,
+        };
+
+        section_name_stack.push((key_text, self.key.span.clone()));
+
+        match &self.value {
+            Some(value) => {
+                value.take_value(section_name_stack, validator);
+            }
+            None => {
+                validator.set_value(
+                    section_name_stack
+                        .iter()
+                        .map(|(name, span)| (*name, span.as_utf8_byte_range())),
+                    ValueTree::Value {
+                        value: ValidateValue::None,
+                        span: self.span.as_utf8_byte_range(),
+                    },
+                );
+            }
+        }
+
+        section_name_stack.pop().unwrap();
     }
 }

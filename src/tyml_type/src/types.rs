@@ -16,6 +16,7 @@ pub enum Type<'ty> {
     Int(IntAttribute),
     UnsignedInt(UnsignedIntAttribute),
     Float(FloatAttribute),
+    Bool,
     String(StringAttribute),
     MaybeInt,
     MaybeUnsignedInt,
@@ -123,6 +124,7 @@ impl<'ty> Type<'ty> {
                 .parse::<f64>()
                 .map(|value| attribute.validate(value))
                 .unwrap_or(false),
+            Type::Bool => value.to_ascii_lowercase().parse::<bool>().is_ok(),
             Type::String(attribute) => attribute.validate(value),
             Type::MaybeInt => value.parse::<i64>().is_ok(),
             Type::MaybeUnsignedInt => value.parse::<u64>().is_ok(),
@@ -158,9 +160,10 @@ impl<'ty> ToTypeName for Type<'ty> {
                 format!("uint{}", attribute.to_type_name(named_type_map))
             }
             Type::Float(attribute) => format!("float{}", attribute.to_type_name(named_type_map)),
+            Type::Bool => "bool".into(),
             Type::String(attribute) => format!("string{}", attribute.to_type_name(named_type_map)),
-            Type::MaybeInt => format!("int(maybe)"),
-            Type::MaybeUnsignedInt => format!("uint(maybe)"),
+            Type::MaybeInt => "int(maybe)".into(),
+            Type::MaybeUnsignedInt => "uint(maybe)".into(),
             Type::Named(name_id) => named_type_map.get_name(*name_id).unwrap().to_string(),
             Type::Or(items) => items
                 .iter()
@@ -169,7 +172,7 @@ impl<'ty> ToTypeName for Type<'ty> {
                 .join(" | "),
             Type::Array(base) => format!("[{}]", base.to_type_name(named_type_map)),
             Type::Optional(base) => format!("{}?", base.to_type_name(named_type_map)),
-            Type::Unknown => "unknown".to_string(),
+            Type::Unknown => "unknown".into(),
         }
     }
 }

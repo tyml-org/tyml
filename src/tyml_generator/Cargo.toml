@@ -8,6 +8,7 @@ regex = "1.11.1"
 extension-fn = "1.2.0"
 either = "1.13.0"
 tyml_validate = { path = "../tyml_validate/" }
+tyml_source = { path = "../tyml_source/" }
 allocator-api2 = "0.2.21"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 auto_enums = "0.8.7"

@@ -30,12 +30,12 @@ pub trait Parser<'input, T: AST<'input>>: ParserPart {
 
 pub trait AST<'input> {
     /// UTF-8 byte span
-    fn span() -> Range<usize>;
+    fn span(&self) -> Range<usize>;
 
     fn take_value(
         &self,
+        section_name_stack: &mut Vec<(&'input str, Range<usize>), &Bump>,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-        section_name_stack: &mut Vec<&'input str, &Bump>,
     );
 }
 

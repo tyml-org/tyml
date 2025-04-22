@@ -8,7 +8,7 @@ use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 use super::{
     AST, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
-    literal::Literal,
+    literal::{CustomLiteralOption, Literal},
 };
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub enum SectionKind {
 }
 
 pub struct SectionParser {
-    pub literal: GeneratorTokenKind,
+    pub literal: (GeneratorTokenKind, Option<CustomLiteralOption>),
     pub kind: SectionParserKind,
 }
 
@@ -43,7 +43,9 @@ pub enum SectionParserKind {
 
 #[derive(Debug)]
 pub struct SectionAST<'input> {
-    sections: Vec<SpannedText<'input>>,
+    pub sections: Vec<SpannedText<'input>>,
+    /// Only section name part span
+    pub span: Range<usize>,
 }
 
 impl<'input> ParserGenerator<'input, SectionAST<'input>, SectionParser> for Section {
@@ -72,6 +74,8 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<SectionAST<'input>> {
+        let anchor = lexer.cast_anchor();
+
         match self.kind {
             SectionParserKind::Bracket {
                 bracket_left,
@@ -82,7 +86,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 }
                 lexer.next();
 
-                let literal = match lexer.current_contains(self.literal) {
+                let literal = match lexer.current_contains(self.literal.0) {
                     true => lexer.next().unwrap(),
                     false => {
                         let error = recover_until_or_lf(lexer, &[bracket_right], self);
@@ -90,6 +94,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            span: anchor.elapsed(lexer),
                         });
                     }
                 };
@@ -104,6 +109,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                     return Some(SectionAST {
                         sections: Vec::new(),
+                        span: anchor.elapsed(lexer),
                     });
                 }
                 lexer.next();
@@ -111,7 +117,10 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 let mut sections = Vec::new();
                 sections.push(literal.into_spanned());
 
-                Some(SectionAST { sections })
+                Some(SectionAST {
+                    sections,
+                    span: anchor.elapsed(lexer),
+                })
             }
             SectionParserKind::MultiBracket {
                 bracket_left,
@@ -129,7 +138,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     }
                     lexer.next();
 
-                    let literal = match lexer.current_contains(self.literal) {
+                    let literal = match lexer.current_contains(self.literal.0) {
                         true => lexer.next().unwrap(),
                         false => {
                             let error = recover_until_or_lf(lexer, &[bracket_right], self);
@@ -137,6 +146,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                             return Some(SectionAST {
                                 sections: Vec::new(),
+                                span: anchor.elapsed(lexer),
                             });
                         }
                     };
@@ -149,12 +159,16 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            span: anchor.elapsed(lexer),
                         });
                     }
                     lexer.next();
                 }
 
-                Some(SectionAST { sections })
+                Some(SectionAST {
+                    sections,
+                    span: anchor.elapsed(lexer),
+                })
             }
         }
     }
@@ -202,15 +216,15 @@ impl ParserPart for SectionParser {
 }
 
 impl<'input> AST<'input> for SectionAST<'input> {
-    fn span() -> Range<usize> {
-        todo!()
+    fn span(&self) -> Range<usize> {
+        self.span.clone()
     }
 
     fn take_value(
         &self,
-        validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &bumpalo::Bump>,
+        _: &mut allocator_api2::vec::Vec<(&'input str, Range<usize>), &bumpalo::Bump>,
+        _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        todo!()
+        unreachable!()
     }
 }

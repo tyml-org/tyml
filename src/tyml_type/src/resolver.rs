@@ -317,6 +317,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 "uint" => Type::UnsignedInt(UnsignedIntAttribute::default()),
                 "float" => Type::Float(FloatAttribute::default()),
                 "string" => Type::String(StringAttribute::default()),
+                "bool" => Type::Bool,
                 _ => {
                     // maybe user type
                     match name_env.resolve(base_type.name.value) {

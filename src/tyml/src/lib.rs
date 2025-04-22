@@ -10,10 +10,7 @@ use tyml_type::{
     resolver::resolve_type,
     types::{NamedTypeMap, TypeTree},
 };
-use tyml_validate::{
-    error::TymlValueValidateError,
-    validate::{ValidateEvaluator, ValueTypeChecker},
-};
+use tyml_validate::validate::ValueTypeChecker;
 
 pub extern crate tyml_diagnostic;
 pub extern crate tyml_parser;
@@ -24,15 +21,13 @@ pub extern crate tyml_validate;
 pub struct TymlContext<State = Initial> {
     state: State,
     pub tyml_source: SourceCode,
-    pub validate_target_source: SourceCode,
 }
 
 impl TymlContext {
-    pub fn new(tyml_source: SourceCode, validate_target_source: SourceCode) -> Self {
+    pub fn new(tyml_source: SourceCode) -> Self {
         TymlContext {
             state: Initial {},
             tyml_source,
-            validate_target_source,
         }
     }
 }
@@ -47,7 +42,6 @@ impl<State> TymlContext<State> {
                 tyml: Tyml::parse(self.tyml_source.code.clone()),
             },
             tyml_source: self.tyml_source.clone(),
-            validate_target_source: self.validate_target_source.clone(),
         }
     }
 
@@ -66,7 +60,7 @@ impl<State> TymlContext<State> {
             error.build(self.tyml().named_type_map()).print(
                 lang,
                 &self.tyml_source,
-                &self.validate_target_source,
+                &self.tyml_source,
             );
         }
 
@@ -74,7 +68,7 @@ impl<State> TymlContext<State> {
             error.build(self.tyml().named_type_map()).print(
                 lang,
                 &self.tyml_source,
-                &self.validate_target_source,
+                &self.tyml_source,
             );
         }
     }
@@ -85,73 +79,14 @@ impl<State> TymlContext<State> {
     {
         self.tyml().has_error()
     }
-
-    pub fn validate(&self, validate_evaluator: ValidateEvaluator) -> TymlContext<Validated>
-    where
-        State: IParsed,
-    {
-        let validator = self.tyml().value_type_checker(validate_evaluator);
-        let result = validator.validate();
-
-        TymlContext {
-            state: Validated {
-                tyml: self.tyml().clone(),
-                result,
-            },
-            tyml_source: self.tyml_source.clone(),
-            validate_target_source: self.validate_target_source.clone(),
-        }
-    }
-
-    pub fn validate_result(&self) -> &Result<(), Vec<TymlValueValidateError>>
-    where
-        State: IValidated,
-    {
-        self.state.result()
-    }
-
-    pub fn print_validate_error(&self, lang: &str)
-    where
-        State: IValidated,
-    {
-        if let Err(errors) = self.state.result() {
-            for error in errors.iter() {
-                error.build(self.tyml().named_type_map()).print(
-                    lang,
-                    &self.tyml_source,
-                    &self.validate_target_source,
-                );
-            }
-        }
-    }
-
-    pub fn has_validate_error(&self) -> bool
-    where
-        State: IValidated,
-    {
-        self.state.result().is_err()
-    }
-
-    pub fn has_error(&self) -> bool
-    where
-        State: IValidated,
-    {
-        self.has_tyml_error() || self.has_validate_error()
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Initial {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parsed {
     pub tyml: Tyml,
-}
-
-#[derive(Debug)]
-pub struct Validated {
-    pub tyml: Tyml,
-    pub result: Result<(), Vec<TymlValueValidateError>>,
 }
 
 pub trait IInitial {}
@@ -165,22 +100,6 @@ pub trait IParsed {
 impl IParsed for Parsed {
     fn tyml(&self) -> &Tyml {
         &self.tyml
-    }
-}
-
-impl IParsed for Validated {
-    fn tyml(&self) -> &Tyml {
-        &self.tyml
-    }
-}
-
-pub trait IValidated: IParsed {
-    fn result(&self) -> &Result<(), Vec<TymlValueValidateError>>;
-}
-
-impl IValidated for Validated {
-    fn result(&self) -> &Result<(), Vec<TymlValueValidateError>> {
-        &self.result
     }
 }
 
@@ -220,9 +139,8 @@ impl Tyml {
 
     pub fn value_type_checker<'this, 'section, 'value>(
         &'this self,
-        validate_evaluator: ValidateEvaluator,
     ) -> ValueTypeChecker<'this, 'this, 'this, 'this, 'section, 'value> {
-        ValueTypeChecker::new(self.type_tree(), self.named_type_map(), validate_evaluator)
+        ValueTypeChecker::new(self.type_tree(), self.named_type_map())
     }
 }
 
@@ -231,7 +149,7 @@ impl Tyml {
         let source_code = source_code.into();
         let allocator = Box::new(Bump::new());
 
-        let mut lexer = Lexer::new(source_code.as_ref().as_str());
+        let mut lexer = Lexer::new(&source_code);
         let mut parse_errors = Vec::new_in(allocator.deref());
 
         let ast = parse_defines(&mut lexer, &mut parse_errors, allocator.deref());
@@ -280,74 +198,91 @@ unsafe impl Sync for TymlInner {}
 #[cfg(test)]
 mod tests {
 
-    use allocator_api2::vec;
-    use hashbrown::HashMap;
+    use allocator_api2::vec::Vec;
+    use bumpalo::Bump;
     use tyml_diagnostic::{message::Lang, DiagnosticBuilder};
-    use tyml_source::{SourceCode, SourceCodeSpan};
-    use tyml_validate::validate::{ValidateEvaluator, Value, ValueTree};
+    use tyml_generator::{
+        lexer::{GeneratorLexer, TokenizerRegistry},
+        style::{
+            key_value::{KeyValue, KeyValueKind},
+            language::LanguageStyle,
+            literal::{CustomLiteralOption, CustomRegexLiteral, FloatLiteral, InfNanKind, Literal},
+            section::{Section, SectionKind},
+            value::Value,
+            Parser, ParserGenerator, AST,
+        },
+    };
+    use tyml_source::SourceCode;
 
     use crate::TymlContext;
 
     #[test]
-    fn test() {
+    fn lib_test() {
         let source = "
 settings: {
-    number = -3.65e-10
-    binary = 0xFF
-    string: string
-}
-
-type Server {
-    name: string
     ip: string
-    port: int? = 25565
-    whitelist: [ string ]
-}
-enum Enum {
-    Element0
-    Element1
+    port: int
 }
 ";
+
+        let ini_source = "
+[settings]
+ip = 192.168.1.8
+port = 25565
+";
+
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
-        let validate_target_source = SourceCode::new("test.ini".to_string(), "".to_string());
+        let validate_target_source =
+            SourceCode::new("test.ini".to_string(), ini_source.to_string());
 
-        let tyml = TymlContext::new(tyml_source, validate_target_source).parse();
-        let mut validator = tyml.tyml().value_type_checker(ValidateEvaluator {
-            any_string_evaluator_override: None,
-        });
+        let tyml = TymlContext::new(tyml_source).parse();
+        let mut validator = tyml.tyml().value_type_checker();
 
-        let mut elements = HashMap::new();
-        elements.insert(
-            "number".into(),
-            vec![ValueTree::Value {
-                value: Value::Float(10.0),
-                span: SourceCodeSpan::UnicodeCharacter(0..0),
-            }],
-        );
-        elements.insert(
-            "binary".into(),
-            vec![ValueTree::Value {
-                value: Value::Int(0xFF),
-                span: SourceCodeSpan::UnicodeCharacter(0..0),
-            }],
-        );
-        elements.insert(
-            "strings".into(),
-            vec![ValueTree::Value {
-                value: Value::None,
-                span: SourceCodeSpan::UnicodeCharacter(0..0),
-            }],
-        );
-
-        let settings = ValueTree::Section {
-            elements,
-            span: SourceCodeSpan::UnicodeCharacter(0..0),
+        let ini_literal = CustomRegexLiteral {
+            regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]+".into(),
+            option: CustomLiteralOption { trim_space: true },
         };
 
-        validator.set_value(
-            [("settings", SourceCodeSpan::UnicodeCharacter(0..0))].into_iter(),
-            settings,
-        );
+        let literal = Literal::Custom(ini_literal.clone());
+
+        let any_string_literal = Literal::Custom(ini_literal);
+
+        let language = LanguageStyle::Section {
+            section: Section {
+                literal: literal.clone(),
+                kind: SectionKind::Bracket,
+            },
+            key_value: KeyValue {
+                key: literal.clone(),
+                kind: KeyValueKind::Equal,
+                value: Value {
+                    float: Some(FloatLiteral {
+                        allow_e: true,
+                        inf_nan_kind: InfNanKind::Insensitive,
+                        allow_plus_minus: true,
+                        allow_under_line: true,
+                    }),
+                    any_string: Some(any_string_literal),
+                    ..Default::default()
+                },
+            },
+        };
+
+        let mut registry = TokenizerRegistry::new();
+
+        let ml_parser = language.generate(&mut registry);
+
+        registry.freeze();
+
+        let mut errors = Vec::new();
+
+        let allocator = Bump::new();
+
+        let mut lexer = GeneratorLexer::new(&validate_target_source.code, &registry, &allocator);
+
+        let ast = ml_parser.parse(&mut lexer, &mut errors).unwrap();
+
+        ast.take_value(&mut Vec::new_in(&allocator), &mut validator);
 
         tyml.print_tyml_error(Lang::ja_JP);
 
@@ -356,7 +291,7 @@ enum Enum {
                 error.build(tyml.tyml().named_type_map()).print(
                     Lang::ja_JP,
                     &tyml.tyml_source,
-                    &tyml.validate_target_source,
+                    &validate_target_source,
                 );
             }
         }

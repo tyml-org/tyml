@@ -31,6 +31,7 @@ pub enum LanguageParser {
 pub enum LanguageAST<'input> {
     Section {
         sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>)>,
+        span: Range<usize>,
     },
 }
 
@@ -54,6 +55,8 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
     where
         Self: Sized,
     {
+        let anchor = lexer.cast_anchor();
+
         let mut sections = Vec::new();
 
         match self {
@@ -132,7 +135,10 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
             },
         }
 
-        Some(LanguageAST::Section { sections })
+        Some(LanguageAST::Section {
+            sections,
+            span: anchor.elapsed(lexer),
+        })
     }
 
     fn first_token_kind(&self) -> crate::lexer::GeneratorTokenKind {
@@ -147,7 +153,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
 
 impl ParserPart for LanguageParser {
     fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        "_unused".into()
+        "expected.message.entire".into()
     }
 
     fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
@@ -156,15 +162,48 @@ impl ParserPart for LanguageParser {
 }
 
 impl<'input> AST<'input> for LanguageAST<'input> {
-    fn span() -> Range<usize> {
-        todo!()
+    fn span(&self) -> Range<usize> {
+        match self {
+            LanguageAST::Section { sections: _, span } => span.clone(),
+        }
     }
 
     fn take_value(
         &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (&'input str, Range<usize>),
+            &bumpalo::Bump,
+        >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &bumpalo::Bump>,
     ) {
-        todo!()
+        match self {
+            LanguageAST::Section { sections, span: _ } => {
+                for (section, key_values) in sections.iter() {
+                    // stack this section
+                    let stacked = if section.sections.is_empty() {
+                        section_name_stack.push(("unknown", section.span.clone()));
+
+                        1
+                    } else {
+                        section_name_stack.extend(
+                            section
+                                .sections
+                                .iter()
+                                .map(|text| (text.text, text.span.clone())),
+                        );
+
+                        section.sections.len()
+                    };
+
+                    for key_value in key_values.iter() {
+                        key_value.take_value(section_name_stack, validator);
+                    }
+
+                    for _ in 0..stacked {
+                        section_name_stack.pop().unwrap();
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, mem::swap, ops::Range, sync::Arc};
+use std::{fmt::Debug, mem::swap, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -66,7 +66,7 @@ pub struct GeneratorToken<'input, 'parse> {
 
 impl<'input> GeneratorToken<'input, '_> {
     pub fn into_spanned(&self) -> SpannedText<'input> {
-        SpannedText::borrowed(self.text, self.span.clone())
+        SpannedText::new(self.text, self.span.clone())
     }
 }
 
@@ -77,23 +77,13 @@ pub fn get_kinds(&self) -> Option<&allocator_api2::vec::Vec<GeneratorTokenKind, 
 
 #[derive(Debug)]
 pub struct SpannedText<'input> {
-    pub text: Cow<'input, str>,
+    pub text: &'input str,
     pub span: Range<usize>,
 }
 
 impl<'input> SpannedText<'input> {
-    pub fn borrowed(text: &'input str, span: Range<usize>) -> Self {
-        Self {
-            text: text.into(),
-            span,
-        }
-    }
-
-    pub fn owned(text: String, span: Range<usize>) -> Self {
-        Self {
-            text: text.into(),
-            span,
-        }
+    pub fn new(text: &'input str, span: Range<usize>) -> Self {
+        Self { text, span }
     }
 }
 

@@ -3,7 +3,7 @@ pub mod style;
 
 #[cfg(test)]
 mod test {
-    use allocator_api2::{vec, vec::Vec};
+    use allocator_api2::vec::Vec;
     use bumpalo::Bump;
 
     use crate::{
@@ -12,7 +12,7 @@ mod test {
             Parser, ParserGenerator,
             key_value::{KeyValue, KeyValueKind},
             language::LanguageStyle,
-            literal::{CustomRegexLiteral, Literal},
+            literal::{CustomLiteralOption, CustomRegexLiteral, Literal},
             section::{Section, SectionKind},
             value::Value,
         },
@@ -22,6 +22,7 @@ mod test {
     fn generate() {
         let ini_literal = CustomRegexLiteral {
             regex: r"[^\[\]\n\r=;]+".into(),
+            option: CustomLiteralOption { trim_space: true },
         };
 
         let literal = Literal::Custom(ini_literal.clone());
@@ -37,7 +38,7 @@ mod test {
                 key: literal.clone(),
                 kind: KeyValueKind::Equal,
                 value: Value {
-                    any_string: Some(vec![any_string_literal]),
+                    any_string: Some(any_string_literal),
                     ..Default::default()
                 },
             },
@@ -51,7 +52,8 @@ mod test {
 
         let source = "
 [section]
-key = value
+key1 = value
+key2 = value
 ";
 
         let allocator = Bump::new();

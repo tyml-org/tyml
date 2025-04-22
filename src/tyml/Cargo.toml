@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tyml_diagnostic = { path = "../tyml_diagnostic/" }
+tyml_generator = { path = "../tyml_generator/" }
 tyml_grammar = { path = "../tyml_grammar/" }
 tyml_parser = { path = "../tyml_parser/" }
 tyml_source = { path = "../tyml_source/" }

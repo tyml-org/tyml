@@ -22,7 +22,7 @@ pub enum ValueTree<'section, 'value> {
         span: SourceCodeSpan,
     },
     Value {
-        value: Value<'value>,
+        value: ValidateValue<'value>,
         span: SourceCodeSpan,
     },
 }
@@ -38,12 +38,12 @@ impl ValueTree<'_, '_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'value> {
+pub enum ValidateValue<'value> {
     Int(i64),
     UnsignedInt(u64),
     Float(f64),
     String(Cow<'value, str>),
-    AnyString(Cow<'value, str>),
+    Bool(bool),
     None,
 }
 
@@ -145,11 +145,6 @@ pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub type_tree: &'tree TypeTree<'input, 'ty>,
     pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
     value_tree: ValueTree<'section, 'value>,
-    any_string_evaluator: Box<dyn AnyStringEvaluator>,
-}
-
-pub struct ValidateEvaluator {
-    pub any_string_evaluator_override: Option<Box<dyn AnyStringEvaluator>>,
 }
 
 impl<'input, 'ty, 'tree, 'map, 'section, 'value>
@@ -158,7 +153,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     pub fn new(
         tree: &'tree TypeTree<'input, 'ty>,
         named_type_map: &'map NamedTypeMap<'input, 'ty>,
-        validate_evaluator: ValidateEvaluator,
     ) -> Self {
         Self {
             type_tree: tree,
@@ -167,9 +161,6 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 elements: HashMap::new(),
                 span: Default::default(),
             },
-            any_string_evaluator: validate_evaluator
-                .any_string_evaluator_override
-                .unwrap_or(Box::new(StandardAnyStringEvaluator {}) as _),
         }
     }
 
@@ -249,8 +240,15 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             &allocator,
         );
 
+        let empty_merged_tree = MergedValueTree::Value {
+            value: ValidateValue::None,
+            span: SourceCodeSpan::UTF8Byte(0..0),
+        };
+
         let root_value_tree = match &merged_value_tree {
-            MergedValueTree::Section { elements, spans: _ } => elements.get("root").unwrap(),
+            MergedValueTree::Section { elements, spans: _ } => {
+                elements.get("root").unwrap_or(&empty_merged_tree)
+            }
             MergedValueTree::Array {
                 elements: _,
                 span: _,
@@ -415,7 +413,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     Some(std::vec![span.clone()])
                                 }
                                 MergedValueTree::Value { value, span } => match value {
-                                    Value::String(value) | Value::AnyString(value) => elements
+                                    ValidateValue::String(value) => elements
                                         .iter()
                                         .any(|element| element.value == value)
                                         .not()
@@ -526,19 +524,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         value_tree: &MergedValueTree<'section, 'value, 'temp>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
-        if let MergedValueTree::Value { value, span: _ } = value_tree {
-            if let Value::AnyString(value) = value {
-                if self.any_string_evaluator.validate_value_type(ty, value) {
-                    return true;
-                }
-            }
-        }
-
         match ty {
             Type::Int(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::Int(int) => attribute.validate(*int),
-                    Value::UnsignedInt(uint) => {
+                    ValidateValue::Int(int) => attribute.validate(*int),
+                    ValidateValue::UnsignedInt(uint) => {
                         *uint <= u64::MAX as _ && attribute.validate(*uint as _)
                     }
                     _ => false,
@@ -547,39 +537,46 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             },
             Type::UnsignedInt(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::UnsignedInt(uint) => attribute.validate(*uint),
-                    Value::Int(int) => *int >= 0 && attribute.validate(*int as _),
+                    ValidateValue::UnsignedInt(uint) => attribute.validate(*uint),
+                    ValidateValue::Int(int) => *int >= 0 && attribute.validate(*int as _),
                     _ => false,
                 },
                 _ => false,
             },
             Type::Float(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::Float(float) => attribute.validate(*float),
-                    Value::Int(int) => attribute.validate(*int as _),
-                    Value::UnsignedInt(uint) => attribute.validate(*uint as _),
+                    ValidateValue::Float(float) => attribute.validate(*float),
+                    ValidateValue::Int(int) => attribute.validate(*int as _),
+                    ValidateValue::UnsignedInt(uint) => attribute.validate(*uint as _),
+                    _ => false,
+                },
+                _ => false,
+            },
+            Type::Bool => match value_tree {
+                MergedValueTree::Value { value, span: _ } => match value {
+                    ValidateValue::Bool(_) => true,
                     _ => false,
                 },
                 _ => false,
             },
             Type::String(attribute) => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::String(string) => attribute.validate(&string),
+                    ValidateValue::String(string) => attribute.validate(&string),
                     _ => false,
                 },
                 _ => false,
             },
             Type::MaybeInt => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::Int(_) => true,
+                    ValidateValue::Int(_) => true,
                     _ => false,
                 },
                 _ => false,
             },
             Type::MaybeUnsignedInt => match value_tree {
                 MergedValueTree::Value { value, span: _ } => match value {
-                    Value::Int(_) => true,
-                    Value::UnsignedInt(_) => true,
+                    ValidateValue::Int(_) => true,
+                    ValidateValue::UnsignedInt(_) => true,
                     _ => false,
                 },
                 _ => false,
@@ -593,7 +590,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     }
                     NamedTypeTree::Enum { elements } => match value_tree {
                         MergedValueTree::Value { value, span: _ } => match value {
-                            Value::String(string) | Value::AnyString(string) => {
+                            ValidateValue::String(string) => {
                                 elements.iter().any(|element| element.value == string)
                             }
                             _ => false,
@@ -614,7 +611,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             Type::Optional(base_type) => {
                 if let MergedValueTree::Value { value, span: _ } = value_tree {
                     match value {
-                        Value::None => return true,
+                        ValidateValue::None => return true,
                         _ => {}
                     }
                 }
@@ -641,7 +638,7 @@ pub enum MergedValueTree<'section, 'value, 'temp> {
         span: SourceCodeSpan,
     },
     Value {
-        value: Value<'value>,
+        value: ValidateValue<'value>,
         span: SourceCodeSpan,
     },
 }

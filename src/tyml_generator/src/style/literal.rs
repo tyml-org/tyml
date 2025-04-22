@@ -1,5 +1,3 @@
-use extension_fn::extension_fn;
-
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
 
 #[derive(Debug, Clone)]
@@ -13,43 +11,22 @@ pub enum Literal {
 }
 
 impl Literal {
-    pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
+    pub fn register(
+        &self,
+        registry: &mut TokenizerRegistry,
+    ) -> (GeneratorTokenKind, Option<CustomLiteralOption>) {
         match self {
-            Literal::Normal(normal_literal) => normal_literal.register(registry),
-            Literal::String(string_literal) => string_literal.register(registry),
-            Literal::Float(float_literal) => float_literal.register(registry),
-            Literal::Binary(binary_literal) => binary_literal.register(registry),
-            Literal::Bool(bool_literal) => bool_literal.register(registry),
-            Literal::Custom(custom_regex_literal) => custom_regex_literal.regiter(registry),
+            Literal::Normal(normal_literal) => (normal_literal.register(registry), None),
+            Literal::String(string_literal) => (string_literal.register(registry), None),
+            Literal::Float(float_literal) => (float_literal.register(registry), None),
+            Literal::Binary(binary_literal) => (binary_literal.register(registry), None),
+            Literal::Bool(bool_literal) => (bool_literal.register(registry), None),
+            Literal::Custom(custom_regex_literal) => (
+                custom_regex_literal.regiter(registry),
+                Some(custom_regex_literal.option.clone()),
+            ),
         }
     }
-}
-
-#[extension_fn(<'item, I: Iterator<Item = &'item Literal>> I)]
-pub fn register(self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
-    let mut all_regex = Vec::new();
-
-    for literal in self {
-        let regex = match literal {
-            Literal::Normal(normal_literal) => normal_literal.build_regex(),
-            Literal::String(string_literal) => string_literal.build_regex(),
-            Literal::Float(float_literal) => float_literal.build_regex(),
-            Literal::Binary(binary_literal) => binary_literal.build_regex(),
-            Literal::Bool(bool_literal) => bool_literal.build_regx(),
-            Literal::Custom(custom_regex_literal) => custom_regex_literal.build_regex(),
-        };
-
-        all_regex.push(regex);
-    }
-
-    registry.register(GeneratorTokenizer::regex(
-        all_regex
-            .iter()
-            .map(|str| format!("({})", str))
-            .collect::<Vec<_>>()
-            .join("|")
-            .as_str(),
-    ))
 }
 
 #[derive(Debug, Clone)]
@@ -168,7 +145,7 @@ impl FloatLiteral {
         };
 
         format!(
-            r"{}{}(\.{})?{}{}",
+            r"{}{}+(\.{}+)?({})?{}",
             plus_minus, digit, digit, e_suffix, inf_nan
         )
     }
@@ -252,6 +229,7 @@ impl BoolLiteral {
 #[derive(Debug, Clone)]
 pub struct CustomRegexLiteral {
     pub regex: String,
+    pub option: CustomLiteralOption,
 }
 
 impl CustomRegexLiteral {
@@ -262,4 +240,9 @@ impl CustomRegexLiteral {
     pub fn regiter(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
         registry.register(GeneratorTokenizer::regex(self.regex.as_str()))
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomLiteralOption {
+    pub trim_space: bool,
 }

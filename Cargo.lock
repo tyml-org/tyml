@@ -384,6 +384,7 @@ dependencies = [
  "either",
  "hashbrown",
  "tyml_diagnostic",
+ "tyml_generator",
  "tyml_grammar",
  "tyml_parser",
  "tyml_source",
@@ -416,6 +417,7 @@ dependencies = [
  "either",
  "extension-fn",
  "regex",
+ "tyml_source",
  "tyml_validate",
 ]
 
