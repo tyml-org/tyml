@@ -99,7 +99,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         let value = match self.value.parse(lexer, errors) {
             Some(value) => Some(value),
             None => {
-                let error = recover_until_or_lf(lexer, &[], &NamedParserPart::VALUE);
+                let error = recover_until_or_lf(lexer, &[], &self.value);
                 errors.push(error);
 
                 None
@@ -120,15 +120,15 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 }
 
 impl ParserPart for KeyValueParser {
-    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        "expected.message.key_value".into()
+    fn parse_error_code(&self) -> usize {
+        0002
     }
 
-    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+    fn expected_format(&self) -> Option<std::borrow::Cow<'static, str>> {
         match self.parser_kind {
-            KeyValueKind::Colon => Some("expected.format.key_value_colon".into()),
-            KeyValueKind::Equal => Some("expected.format.key_value_equal".into()),
-            KeyValueKind::NoSeparator => Some("expected.format.key_value_none".into()),
+            KeyValueKind::Colon => Some("key: value".into()),
+            KeyValueKind::Equal => Some("key = value".into()),
+            KeyValueKind::NoSeparator => Some("key value".into()),
         }
     }
 }

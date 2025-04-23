@@ -304,5 +304,13 @@ port = 25565
                 );
             }
         }
+
+        for error in errors.iter() {
+            error.build(tyml.tyml().named_type_map()).print(
+                Lang::ja_JP,
+                &tyml.tyml_source,
+                &validate_target_source,
+            );
+        }
     }
 }

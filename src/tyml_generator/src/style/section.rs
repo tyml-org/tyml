@@ -195,29 +195,20 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 }
 
 impl ParserPart for SectionParser {
-    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        match self.kind {
-            SectionParserKind::Bracket {
-                bracket_left: _,
-                bracket_right: _,
-            } => "expected.message.bracket_section".into(),
-            SectionParserKind::MultiBracket {
-                bracket_left: _,
-                bracket_right: _,
-            } => "expected.message.multi_bracket_section".into(),
-        }
+    fn parse_error_code(&self) -> usize {
+        0003
     }
 
-    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+    fn expected_format(&self) -> Option<std::borrow::Cow<'static, str>> {
         match self.kind {
             SectionParserKind::Bracket {
                 bracket_left: _,
                 bracket_right: _,
-            } => Some("expected.format.bracket_section".into()),
+            } => Some("[section]".into()),
             SectionParserKind::MultiBracket {
                 bracket_left: _,
                 bracket_right: _,
-            } => Some("expected.format.multi_bracket_section".into()),
+            } => Some("[section1][section2]".into()),
         }
     }
 }

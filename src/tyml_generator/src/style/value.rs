@@ -145,11 +145,11 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
 }
 
 impl ParserPart for ValueParser {
-    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        "expected.message.value".into()
+    fn parse_error_code(&self) -> usize {
+        0004
     }
 
-    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+    fn expected_format(&self) -> Option<std::borrow::Cow<'static, str>> {
         None
     }
 }

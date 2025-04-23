@@ -1,5 +1,5 @@
 [parse_error]
-name = "%color:red{[SE%0] 構文エラー}"
+name = "%color:red{[SE%0] Tyml構文エラー}"
 [parse_error.0001]
 message = "要素定義の記述形式が正しくありません"
 label_0 = "不明なトークンです"
@@ -92,3 +92,35 @@ label_1 = "要素'%color:yellow{%0}'は型'%color:yellow{%1}'として定義さ�
 message = "要素'%color:yellow{%0}'に配列型'%color:yellow{%1}'ではない値が記述されています"
 label_0 = "ここで記述されている値の型が定義されているものと一致しません"
 label_1 = "要素'%color:yellow{%0}'は配列型'%color:yellow{%1}'として定義されています"
+
+[ml_parse_error]
+name = "%color:red{[GE%0] 構文エラー}"
+[ml_parse_error.0001]
+message = "全体としての記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "全体の記述形式である必要があります"
+note = "通常、このエラーはJsonのように再帰的に構造を持つべき部分で発生します"
+[ml_parse_error.0002]
+message = "キーと値の記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "キーと値は'%color:cyan{%0}'の形式です"
+[ml_parse_error.0003]
+message = "セクションの記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "セクションは'%color:cyan{%0}'の形式です"
+[ml_parse_error.0004]
+message = "値の記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "ここには値を記述する必要があります"
+[ml_parse_error.0005]
+message = "改行されていません"
+label_0 = "不明なトークンです"
+label_1 = "ここで改行する必要があります"
+[ml_parse_error.0006]
+message = "コロン'%color:yellow{:}'が記述されていません"
+label_0 = "コロンが必要です"
+label_1 = "キーと値の間にコロン'%color:cyan{:}'を記述してみてください"
+[ml_parse_error.0007]
+message = "等号'%color:yellow{=}'が記述されていません"
+label_0 = "等号が必要です"
+label_1 = "キーと値の間に等号'%color:cyan{=}'を記述してみてください"

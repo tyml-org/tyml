@@ -7,7 +7,7 @@ use super::ParserPart;
 #[derive(Debug)]
 pub struct GeneratedParseError {
     pub span: Range<usize>,
-    pub expected_message_key: Cow<'static, str>,
+    pub parse_error_code: usize,
     pub expected_format: Option<Cow<'static, str>>,
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn recover_until_or_lf<'input, P: ParserPart>(
 
     GeneratedParseError {
         span: anchor.elapsed(lexer),
-        expected_message_key: parser.expected_message_key(),
-        expected_format: parser.expected_format_key(),
+        parse_error_code: parser.parse_error_code(),
+        expected_format: parser.expected_format(),
     }
 }

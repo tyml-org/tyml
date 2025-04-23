@@ -40,41 +40,37 @@ pub trait AST<'input> {
 }
 
 pub trait ParserPart {
-    fn expected_message_key(&self) -> Cow<'static, str>;
+    fn parse_error_code(&self) -> usize;
 
-    fn expected_format_key(&self) -> Option<Cow<'static, str>>;
+    fn expected_format(&self) -> Option<Cow<'static, str>>;
 }
 
 pub struct NamedParserPart {
-    pub expected_message_key: &'static str,
-    pub expected_format_key: &'static str,
+    pub parse_error_code: usize,
+    pub expected_format: &'static str,
 }
 
 impl NamedParserPart {
     pub const LINE_FEED: Self = Self {
-        expected_message_key: "expected.message.line_feed",
-        expected_format_key: "expected.format.line_feed",
+        parse_error_code: 0005,
+        expected_format: "expected.format.line_feed",
     };
     pub const KEY_VALUE_COLON: Self = Self {
-        expected_message_key: "expected.message.colon_on_key_value",
-        expected_format_key: "expected.format.colon_on_key_value",
+        parse_error_code: 0006,
+        expected_format: "expected.format.colon_on_key_value",
     };
     pub const KEY_VALUE_EQUAL: Self = Self {
-        expected_message_key: "expected.message.equal_on_key_value",
-        expected_format_key: "expected.format.equal_on_key_value",
-    };
-    pub const VALUE: Self = Self {
-        expected_message_key: "expected.message.value",
-        expected_format_key: "expected.format.value",
+        parse_error_code: 0007,
+        expected_format: "expected.format.equal_on_key_value",
     };
 }
 
 impl ParserPart for NamedParserPart {
-    fn expected_message_key(&self) -> Cow<'static, str> {
-        self.expected_message_key.into()
+    fn parse_error_code(&self) -> usize {
+        self.parse_error_code
     }
 
-    fn expected_format_key(&self) -> Option<Cow<'static, str>> {
-        Some(self.expected_format_key.into())
+    fn expected_format(&self) -> Option<Cow<'static, str>> {
+        Some(self.expected_format.into())
     }
 }

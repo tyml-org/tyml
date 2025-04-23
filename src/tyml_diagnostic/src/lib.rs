@@ -5,6 +5,7 @@ use message::{get_text, get_text_optional, replace_message};
 use tyml_source::{SourceCode, SourceCodeSpan, ToUnicodeCharacterRange};
 use tyml_type::types::NamedTypeMap;
 
+pub mod generated_parse_error;
 pub mod message;
 pub mod parse_error;
 pub mod type_error;
@@ -71,6 +72,7 @@ pub enum MessageSection {
     ParseError,
     TypeError,
     ValidateError,
+    MLParseError,
 }
 
 impl MessageSection {
@@ -79,6 +81,7 @@ impl MessageSection {
             MessageSection::ParseError => "parse_error",
             MessageSection::TypeError => "type_error",
             MessageSection::ValidateError => "validate_error",
+            MessageSection::MLParseError => "ml_parse_error",
         }
     }
 }

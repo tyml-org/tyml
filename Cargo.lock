@@ -400,6 +400,7 @@ dependencies = [
  "regex",
  "resource",
  "toml",
+ "tyml_generator",
  "tyml_parser",
  "tyml_source",
  "tyml_type",

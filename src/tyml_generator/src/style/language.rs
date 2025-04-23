@@ -152,11 +152,11 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
 }
 
 impl ParserPart for LanguageParser {
-    fn expected_message_key(&self) -> std::borrow::Cow<'static, str> {
-        "expected.message.entire".into()
+    fn parse_error_code(&self) -> usize {
+        0001
     }
 
-    fn expected_format_key(&self) -> Option<std::borrow::Cow<'static, str>> {
+    fn expected_format(&self) -> Option<std::borrow::Cow<'static, str>> {
         None
     }
 }

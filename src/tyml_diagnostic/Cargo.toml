@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tyml_generator = { path = "../tyml_generator/" }
 tyml_parser = { path = "../tyml_parser/" }
 tyml_source = { path = "../tyml_source/" }
 tyml_type = { path = "../tyml_type/" }
