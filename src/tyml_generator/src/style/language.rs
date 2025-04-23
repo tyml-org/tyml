@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
@@ -171,7 +171,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (&'input str, Range<usize>),
+            (Cow<'input, str>, Range<usize>),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -181,16 +181,15 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                 for (section, key_values) in sections.iter() {
                     // stack this section
                     let stacked = if section.sections.is_empty() {
-                        section_name_stack.push(("unknown", section.span.clone()));
+                        section_name_stack.push(("unknown".into(), section.span.clone()));
 
                         1
                     } else {
-                        section_name_stack.extend(
-                            section
-                                .sections
-                                .iter()
-                                .map(|text| (text.text, text.span.clone())),
-                        );
+                        let literal_option = section.literal_option.clone().unwrap_or_default();
+
+                        section_name_stack.extend(section.sections.iter().map(|text| {
+                            (literal_option.resolve_escape(text.text), text.span.clone())
+                        }));
 
                         section.sections.len()
                     };

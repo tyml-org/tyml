@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
 use tyml_validate::validate::ValueTypeChecker;
@@ -44,6 +44,7 @@ pub enum SectionParserKind {
 #[derive(Debug)]
 pub struct SectionAST<'input> {
     pub sections: Vec<SpannedText<'input>>,
+    pub literal_option: Option<CustomLiteralOption>,
     /// Only section name part span
     pub span: Range<usize>,
 }
@@ -94,6 +95,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            literal_option: self.literal.1.clone(),
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -109,6 +111,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                     return Some(SectionAST {
                         sections: Vec::new(),
+                        literal_option: self.literal.1.clone(),
                         span: anchor.elapsed(lexer),
                     });
                 }
@@ -119,6 +122,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
+                    literal_option: self.literal.1.clone(),
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -146,6 +150,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                             return Some(SectionAST {
                                 sections: Vec::new(),
+                                literal_option: self.literal.1.clone(),
                                 span: anchor.elapsed(lexer),
                             });
                         }
@@ -159,6 +164,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            literal_option: self.literal.1.clone(),
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -167,6 +173,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
+                    literal_option: self.literal.1.clone(),
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -222,7 +229,7 @@ impl<'input> AST<'input> for SectionAST<'input> {
 
     fn take_value(
         &self,
-        _: &mut allocator_api2::vec::Vec<(&'input str, Range<usize>), &bumpalo::Bump>,
+        _: &mut allocator_api2::vec::Vec<(Cow<'input, str>, Range<usize>), &bumpalo::Bump>,
         _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
         unreachable!()

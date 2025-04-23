@@ -22,7 +22,7 @@ mod test {
     fn generate() {
         let ini_literal = CustomRegexLiteral {
             regex: r"[^\[\]\n\r=;]+".into(),
-            option: CustomLiteralOption { trim_space: true },
+            option: CustomLiteralOption { trim_space: true, allow_escape: true },
         };
 
         let literal = Literal::Custom(ini_literal.clone());

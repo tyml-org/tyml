@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{borrow::Cow, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use tyml_source::AsUtf8ByteRange;
@@ -162,7 +162,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (&'input str, Range<usize>),
+            (Cow<'input, str>, Range<usize>),
             &bumpalo::Bump,
         >,
         validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -245,7 +245,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
         validator.set_value(
             section_name_stack
                 .iter()
-                .map(|(name, span)| (*name, span.as_utf8_byte_range())),
+                .map(|(name, span)| (name.clone(), span.as_utf8_byte_range())),
             ValueTree::Value {
                 value,
                 span: self.value.span.as_utf8_byte_range(),

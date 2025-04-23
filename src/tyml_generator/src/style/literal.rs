@@ -1,3 +1,7 @@
+use std::{borrow::Cow, sync::LazyLock};
+
+use regex::Regex;
+
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
 
 #[derive(Debug, Clone)]
@@ -16,7 +20,16 @@ impl Literal {
         registry: &mut TokenizerRegistry,
     ) -> (GeneratorTokenKind, Option<CustomLiteralOption>) {
         match self {
-            Literal::Normal(normal_literal) => (normal_literal.register(registry), None),
+            Literal::Normal(normal_literal) => {
+                let custom_option = match normal_literal.allow_escape {
+                    true => Some(CustomLiteralOption {
+                        trim_space: false,
+                        allow_escape: true,
+                    }),
+                    false => None,
+                };
+                (normal_literal.register(registry), custom_option)
+            }
             Literal::String(string_literal) => (string_literal.register(registry), None),
             Literal::Float(float_literal) => (float_literal.register(registry), None),
             Literal::Binary(binary_literal) => (binary_literal.register(registry), None),
@@ -242,7 +255,37 @@ impl CustomRegexLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CustomLiteralOption {
     pub trim_space: bool,
+    pub allow_escape: bool,
+}
+
+impl CustomLiteralOption {
+    pub fn resolve_escape<'input>(&self, input: &'input str) -> Cow<'input, str> {
+        match self.allow_escape {
+            true => {
+                static NULL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\0").unwrap());
+                static TAB: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\t").unwrap());
+                static CR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\r").unwrap());
+                static LF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\n").unwrap());
+                static ESCAPE: LazyLock<Regex> =
+                    LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\(.)").unwrap());
+
+                let input = NULL.replace_all(input, "\0");
+                let input = TAB.replace_all(input.as_ref(), "\t");
+                let input = CR.replace_all(input.as_ref(), "\r");
+                let mut input = LF.replace_all(input.as_ref(), "\n");
+
+                for capture in ESCAPE.captures_iter(input.to_string().as_str()) {
+                    let regex = Regex::new(format!(r"(?<!\\){}", &capture[0]).as_str()).unwrap();
+
+                    input = regex.replace(&capture[0], &capture[1]).to_string().into();
+                }
+
+                input.to_string().into()
+            }
+            false => input.into(),
+        }
+    }
 }

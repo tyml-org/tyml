@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
 use tyml_source::AsUtf8ByteRange;
@@ -141,21 +141,23 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (&'input str, Range<usize>),
+            (Cow<'input, str>, Range<usize>),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        let trim_key = self
+        let literal_option = self
             .key_literl_option
             .as_ref()
-            .map(|option| option.trim_space)
-            .unwrap_or(false);
+            .map(|option| option.clone())
+            .unwrap_or_default();
 
-        let key_text = match trim_key {
+        let key_text = match literal_option.trim_space {
             true => self.key.text.trim(),
             false => self.key.text,
         };
+
+        let key_text = literal_option.resolve_escape(key_text);
 
         section_name_stack.push((key_text, self.key.span.clone()));
 
@@ -167,7 +169,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                 validator.set_value(
                     section_name_stack
                         .iter()
-                        .map(|(name, span)| (*name, span.as_utf8_byte_range())),
+                        .map(|(name, span)| (name.clone(), span.as_utf8_byte_range())),
                     ValueTree::Value {
                         value: ValidateValue::None,
                         span: self.span.as_utf8_byte_range(),
