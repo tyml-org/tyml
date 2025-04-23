@@ -12,7 +12,9 @@ mod test {
             Parser, ParserGenerator,
             key_value::{KeyValue, KeyValueKind},
             language::LanguageStyle,
-            literal::{CustomLiteralOption, CustomRegexLiteral, Literal},
+            literal::{
+                CustomLiteralOption, CustomRegexLiteral, EscapeOption, Literal, UnicodeFormatKind,
+            },
             section::{Section, SectionKind},
             value::Value,
         },
@@ -22,7 +24,13 @@ mod test {
     fn generate() {
         let ini_literal = CustomRegexLiteral {
             regex: r"[^\[\]\n\r=;]+".into(),
-            option: CustomLiteralOption { trim_space: true, allow_escape: true },
+            option: CustomLiteralOption {
+                trim_space: true,
+                escape: EscapeOption {
+                    allow_escape: true,
+                    unicode: UnicodeFormatKind::Normal,
+                },
+            },
         };
 
         let literal = Literal::Custom(ini_literal.clone());

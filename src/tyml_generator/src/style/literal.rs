@@ -1,6 +1,4 @@
-use std::{borrow::Cow, sync::LazyLock};
-
-use regex::Regex;
+use std::borrow::Cow;
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
 
@@ -20,16 +18,7 @@ impl Literal {
         registry: &mut TokenizerRegistry,
     ) -> (GeneratorTokenKind, Option<CustomLiteralOption>) {
         match self {
-            Literal::Normal(normal_literal) => {
-                let custom_option = match normal_literal.allow_escape {
-                    true => Some(CustomLiteralOption {
-                        trim_space: false,
-                        allow_escape: true,
-                    }),
-                    false => None,
-                };
-                (normal_literal.register(registry), custom_option)
-            }
+            Literal::Normal(normal_literal) => (normal_literal.register(registry), None),
             Literal::String(string_literal) => (string_literal.register(registry), None),
             Literal::Float(float_literal) => (float_literal.register(registry), None),
             Literal::Binary(binary_literal) => (binary_literal.register(registry), None),
@@ -45,7 +34,6 @@ impl Literal {
 #[derive(Debug, Clone)]
 pub struct NormalLiteral {
     pub allow_line: bool,
-    pub allow_escape: bool,
     pub symbol_regex: Option<String>,
 }
 
@@ -59,11 +47,7 @@ impl NormalLiteral {
         if let Some(symbol) = &self.symbol_regex {
             regex += format!("|({})", symbol).as_str();
         }
-        if self.allow_escape {
-            regex = format!(r"({})|[^\\]|\\.)+", regex);
-        } else {
-            regex += ")+";
-        }
+        regex += ")+";
 
         regex
     }
@@ -76,30 +60,69 @@ impl NormalLiteral {
 #[derive(Debug, Clone)]
 pub struct StringLiteral {
     pub quotes_kind: QuotesKind,
+    pub escape: EscapeOption,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EscapeOption {
     pub allow_escape: bool,
+    pub unicode: UnicodeFormatKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UnicodeFormatKind {
+    /// No unicode escape
+    #[default]
+    None,
+    /// \uFFFF
+    Normal,
+    /// \u{FFFF}
+    WithBrace,
 }
 
 impl StringLiteral {
     pub fn build_regex(&self) -> String {
+        let allow_escape = self.escape.allow_escape;
+        let unicode_format = match self.escape.unicode {
+            UnicodeFormatKind::None => "",
+            UnicodeFormatKind::Normal => r"|\\[uU][0-9A-Fa-f]{1,6}",
+            UnicodeFormatKind::WithBrace => r"|\\[uU]\{[0-9A-Fa-f]{1,6}\}",
+        };
+
         match self.quotes_kind {
-            QuotesKind::DoubleQuotes => match self.allow_escape {
-                true => r#""([^"\\]|\\.)*""#,
-                false => r#"".*""#,
+            QuotesKind::DoubleQuotes => match allow_escape {
+                true => format!(
+                    r#""(?:[^"\\\r\n]|\\([btnr0'"\\\n\r]|\r\n){})*""#,
+                    unicode_format
+                )
+                .into(),
+                false => r#"".*""#.into(),
             },
-            QuotesKind::TripleDoubleQuotes => match self.allow_escape {
-                true => r#""""([^"\\]|\\.|("|"")[^"])*""""#,
-                false => r#""""([^"]|("|"")[^"])*""""#,
+            QuotesKind::TripleDoubleQuotes => match allow_escape {
+                true => format!(
+                    r#""""(?:[^"\\\r\n]|\\([btnr0'"\\\n\r]|\r\n){}|"[^"]|""[^"])*""""#,
+                    unicode_format
+                )
+                .into(),
+                false => r#""""([^"]|("|"")[^"])*""""#.into(),
             },
-            QuotesKind::SingleQuote => match self.allow_escape {
-                true => r"'([^'\\]|\\.)*'",
-                false => r"'.*'",
+            QuotesKind::SingleQuote => match allow_escape {
+                true => format!(
+                    r#"'(?:[^'\\\r\n]|\\([btnr0'"\\\n\r]|\r\n){})*'"#,
+                    unicode_format
+                )
+                .into(),
+                false => r"'.*'".into(),
             },
-            QuotesKind::TripleQuotes => match self.allow_escape {
-                true => r"'''([^'\\]|\\.|('|'')[^'])*'''",
-                false => r"'''([^']|('|'')[^'])*'''",
+            QuotesKind::TripleQuotes => match allow_escape {
+                true => format!(
+                    r#"'''(?:[^'\\\r\n]|\\([btnr0'"\\\n\r]|\r\n){}|'[^']|''[^'])*'''"#,
+                    unicode_format
+                )
+                .into(),
+                false => r"'''([^']|('|'')[^'])*'''".into(),
             },
         }
-        .into()
     }
 
     pub fn register(&self, registry: &mut TokenizerRegistry) -> GeneratorTokenKind {
@@ -258,32 +281,64 @@ impl CustomRegexLiteral {
 #[derive(Debug, Clone, Default)]
 pub struct CustomLiteralOption {
     pub trim_space: bool,
-    pub allow_escape: bool,
+    pub escape: EscapeOption,
 }
 
 impl CustomLiteralOption {
     pub fn resolve_escape<'input>(&self, input: &'input str) -> Cow<'input, str> {
-        match self.allow_escape {
+        match self.escape.allow_escape {
             true => {
-                static NULL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\0").unwrap());
-                static TAB: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\t").unwrap());
-                static CR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\r").unwrap());
-                static LF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\n").unwrap());
-                static ESCAPE: LazyLock<Regex> =
-                    LazyLock::new(|| Regex::new(r"(\\\\|[^\\]|^)\\(.)").unwrap());
+                let mut new_string = String::new();
 
-                let input = NULL.replace_all(input, "\0");
-                let input = TAB.replace_all(input.as_ref(), "\t");
-                let input = CR.replace_all(input.as_ref(), "\r");
-                let mut input = LF.replace_all(input.as_ref(), "\n");
+                let mut prev = '\0';
+                let mut chars = input.chars();
+                loop {
+                    let Some(char) = chars.next() else { break };
 
-                for capture in ESCAPE.captures_iter(input.to_string().as_str()) {
-                    let regex = Regex::new(format!(r"(?<!\\){}", &capture[0]).as_str()).unwrap();
+                    if prev == '\\' {
+                        if char == 'u' || char == 'U' {
+                            let mut unicode = String::new();
 
-                    input = regex.replace(&capture[0], &capture[1]).to_string().into();
+                            for _ in 0..4 {
+                                let Some(char) = chars.next() else { break };
+
+                                unicode.push(char);
+                            }
+
+                            match u32::from_str_radix(unicode.as_str(), 16)
+                                .ok()
+                                .map(|code| char::from_u32(code))
+                                .flatten()
+                            {
+                                Some(char) => new_string.push(char),
+                                None => {
+                                    new_string.push('\\');
+                                    new_string.push(char);
+                                    new_string += unicode.as_str();
+                                }
+                            }
+                            continue;
+                        }
+
+                        let replace = match char {
+                            'b' => '\x08',
+                            't' => '\t',
+                            'n' => '\n',
+                            'r' => '\r',
+                            '0' => '\0',
+                            '\\' => '\\',
+                            _ => char,
+                        };
+                        new_string.push(replace);
+
+                        continue;
+                    }
+
+                    new_string.push(char);
+                    prev = char;
                 }
 
-                input.to_string().into()
+                input.into()
             }
             false => input.into(),
         }

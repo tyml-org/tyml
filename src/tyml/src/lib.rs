@@ -206,7 +206,10 @@ mod tests {
         style::{
             key_value::{KeyValue, KeyValueKind},
             language::LanguageStyle,
-            literal::{CustomLiteralOption, CustomRegexLiteral, FloatLiteral, InfNanKind, Literal},
+            literal::{
+                CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind,
+                Literal, UnicodeFormatKind,
+            },
             section::{Section, SectionKind},
             value::Value,
             Parser, ParserGenerator, AST,
@@ -240,7 +243,13 @@ port = 25565
 
         let ini_literal = CustomRegexLiteral {
             regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]+".into(),
-            option: CustomLiteralOption { trim_space: true, allow_escape: true },
+            option: CustomLiteralOption {
+                trim_space: true,
+                escape: EscapeOption {
+                    allow_escape: true,
+                    unicode: UnicodeFormatKind::Normal,
+                },
+            },
         };
 
         let literal = Literal::Custom(ini_literal.clone());
