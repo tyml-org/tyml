@@ -4,7 +4,7 @@ use allocator_api2::vec::Vec;
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
 
-use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
+use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 
 use super::{
     AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
@@ -82,6 +82,11 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
                     KeyValueKind::Equal => NamedParserPart::KEY_VALUE_EQUAL,
                     KeyValueKind::NoSeparator => unreachable!(),
                 };
+
+                // contains key span for error
+                lexer.back_to_anchor(GeneratorAnchor {
+                    byte_position: key.span.start,
+                });
 
                 let error = recover_until_or_lf(lexer, &[], &parser_part);
                 errors.push(error);

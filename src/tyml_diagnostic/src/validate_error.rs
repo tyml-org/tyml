@@ -51,7 +51,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                     .map(|required_in| DiagnosticLabel {
                         kind: SourceCodeKind::ValidateTraget,
                         span: required_in.clone(),
-                        color: Color::Red,
+                        color: Color::Yellow,
                         message_override: Some(0),
                     })
                     .chain(once(DiagnosticLabel {

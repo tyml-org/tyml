@@ -310,7 +310,7 @@ impl<'input, 'parse> Iterator for GeneratorLexer<'input, 'parse> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct GeneratorAnchor {
-    byte_position: usize,
+    pub byte_position: usize,
 }
 
 impl GeneratorAnchor {

@@ -3,6 +3,10 @@ use std::{fmt::Debug, mem::transmute, ops::Deref, sync::Arc};
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use tyml_diagnostic::DiagnosticBuilder;
+use tyml_generator::{
+    lexer::{GeneratorLexer, TokenizerRegistry},
+    style::{error::GeneratedParseError, language::LanguageStyle, Parser, ParserGenerator, AST},
+};
 use tyml_parser::{ast::Defines, error::ParseError, lexer::Lexer, parser::parse_defines};
 use tyml_source::SourceCode;
 use tyml_type::{
@@ -10,7 +14,7 @@ use tyml_type::{
     resolver::resolve_type,
     types::{NamedTypeMap, TypeTree},
 };
-use tyml_validate::validate::ValueTypeChecker;
+use tyml_validate::{error::TymlValueValidateError, validate::ValueTypeChecker};
 
 pub extern crate tyml_diagnostic;
 pub extern crate tyml_parser;
@@ -79,6 +83,103 @@ impl<State> TymlContext<State> {
     {
         self.tyml().has_error()
     }
+
+    pub fn ml_parse_and_validate(
+        &self,
+        ml_language_style: &LanguageStyle,
+        ml_source_code: &SourceCode,
+    ) -> TymlContext<Validated>
+    where
+        State: IParsed,
+    {
+        let mut registry = TokenizerRegistry::new();
+
+        let ml_parser = ml_language_style.generate(&mut registry);
+
+        registry.freeze();
+
+        let mut errors = Vec::new();
+        let allocator = Bump::new();
+
+        let mut lexer = GeneratorLexer::new(&ml_source_code.code, &registry, &allocator);
+
+        let ast = ml_parser.parse(&mut lexer, &mut errors).unwrap();
+
+        let mut validator = self.tyml().value_type_checker();
+
+        ast.take_value(&mut Vec::new_in(&allocator), &mut validator);
+
+        TymlContext {
+            state: Validated {
+                tyml: self.tyml().clone(),
+                ml_source_cdoe: ml_source_code.clone(),
+                ml_parse_error: Arc::new(errors),
+                ml_validate_error: Arc::new(validator.validate().err().unwrap_or_default()),
+            },
+            tyml_source: self.tyml_source.clone(),
+        }
+    }
+
+    pub fn ml_source_code(&self) -> &SourceCode
+    where
+        State: IValidated,
+    {
+        self.state.ml_source_code()
+    }
+
+    pub fn print_ml_parse_error(&self, lang: &str)
+    where
+        State: IValidated,
+    {
+        for error in self.ml_parse_error().iter() {
+            error.build(self.tyml().named_type_map()).print(
+                lang,
+                &self.tyml_source,
+                &self.state.ml_source_code(),
+            );
+        }
+    }
+
+    pub fn has_parse_error(&self) -> bool
+    where
+        State: IValidated,
+    {
+        !self.state.ml_parse_error().is_empty()
+    }
+
+    pub fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>>
+    where
+        State: IValidated,
+    {
+        self.state.ml_parse_error()
+    }
+
+    pub fn print_ml_validate_error(&self, lang: &str)
+    where
+        State: IValidated,
+    {
+        for error in self.ml_validate_error().iter() {
+            error.build(self.tyml().named_type_map()).print(
+                lang,
+                &self.tyml_source,
+                &self.state.ml_source_code(),
+            );
+        }
+    }
+
+    pub fn has_ml_validate_error(&self) -> bool
+    where
+        State: IValidated,
+    {
+        self.state.ml_validate_error().is_empty()
+    }
+
+    pub fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>>
+    where
+        State: IValidated,
+    {
+        self.state.ml_validate_error()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +188,14 @@ pub struct Initial {}
 #[derive(Debug, Clone)]
 pub struct Parsed {
     pub tyml: Tyml,
+}
+
+#[derive(Debug, Clone)]
+pub struct Validated {
+    pub tyml: Tyml,
+    pub ml_source_cdoe: SourceCode,
+    pub ml_parse_error: Arc<Vec<GeneratedParseError>>,
+    pub ml_validate_error: Arc<Vec<TymlValueValidateError>>,
 }
 
 pub trait IInitial {}
@@ -100,6 +209,34 @@ pub trait IParsed {
 impl IParsed for Parsed {
     fn tyml(&self) -> &Tyml {
         &self.tyml
+    }
+}
+
+impl IParsed for Validated {
+    fn tyml(&self) -> &Tyml {
+        &self.tyml
+    }
+}
+
+pub trait IValidated: IParsed {
+    fn ml_source_code(&self) -> &SourceCode;
+
+    fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>>;
+
+    fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>>;
+}
+
+impl IValidated for Validated {
+    fn ml_source_code(&self) -> &SourceCode {
+        &self.ml_source_cdoe
+    }
+
+    fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>> {
+        &self.ml_parse_error
+    }
+
+    fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>> {
+        &self.ml_validate_error
     }
 }
 
@@ -198,22 +335,16 @@ unsafe impl Sync for TymlInner {}
 #[cfg(test)]
 mod tests {
 
-    use allocator_api2::vec::Vec;
-    use bumpalo::Bump;
-    use tyml_diagnostic::{message::Lang, DiagnosticBuilder};
-    use tyml_generator::{
-        lexer::{GeneratorLexer, TokenizerRegistry},
-        style::{
-            key_value::{KeyValue, KeyValueKind},
-            language::LanguageStyle,
-            literal::{
-                CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind,
-                Literal, UnicodeFormatKind,
-            },
-            section::{Section, SectionKind},
-            value::Value,
-            Parser, ParserGenerator, AST,
+    use tyml_diagnostic::message::Lang;
+    use tyml_generator::style::{
+        key_value::{KeyValue, KeyValueKind},
+        language::LanguageStyle,
+        literal::{
+            CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind,
+            Literal, UnicodeFormatKind,
         },
+        section::{Section, SectionKind},
+        value::Value,
     };
     use tyml_source::SourceCode;
 
@@ -231,15 +362,13 @@ settings: {
         let ini_source = "
 [settings]
 ip = 192.168.1.8
-port = 25565
+port 25565
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
-        let validate_target_source =
-            SourceCode::new("test.ini".to_string(), ini_source.to_string());
+        let ml_source = SourceCode::new("test.ini".to_string(), ini_source.to_string());
 
         let tyml = TymlContext::new(tyml_source).parse();
-        let mut validator = tyml.tyml().value_type_checker();
 
         let ini_literal = CustomRegexLiteral {
             regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]+".into(),
@@ -277,40 +406,10 @@ port = 25565
             },
         };
 
-        let mut registry = TokenizerRegistry::new();
-
-        let ml_parser = language.generate(&mut registry);
-
-        registry.freeze();
-
-        let mut errors = Vec::new();
-
-        let allocator = Bump::new();
-
-        let mut lexer = GeneratorLexer::new(&validate_target_source.code, &registry, &allocator);
-
-        let ast = ml_parser.parse(&mut lexer, &mut errors).unwrap();
-
-        ast.take_value(&mut Vec::new_in(&allocator), &mut validator);
+        let tyml = tyml.ml_parse_and_validate(&language, &ml_source);
 
         tyml.print_tyml_error(Lang::ja_JP);
-
-        if let Err(errors) = validator.validate() {
-            for error in errors.iter() {
-                error.build(tyml.tyml().named_type_map()).print(
-                    Lang::ja_JP,
-                    &tyml.tyml_source,
-                    &validate_target_source,
-                );
-            }
-        }
-
-        for error in errors.iter() {
-            error.build(tyml.tyml().named_type_map()).print(
-                Lang::ja_JP,
-                &tyml.tyml_source,
-                &validate_target_source,
-            );
-        }
+        tyml.print_ml_parse_error(Lang::ja_JP);
+        tyml.print_ml_validate_error(Lang::ja_JP);
     }
 }
