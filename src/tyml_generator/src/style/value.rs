@@ -242,13 +242,19 @@ impl<'input> AST<'input> for ValueAST<'input> {
             }
         };
 
+        // take last section(maybe key)'s span
+        let span = match section_name_stack.last() {
+            Some((_, span)) => span.start..self.span.end,
+            None => self.span.clone(),
+        };
+
         validator.set_value(
             section_name_stack
                 .iter()
                 .map(|(name, span)| (name.clone(), span.as_utf8_byte_range())),
             ValueTree::Value {
                 value,
-                span: self.value.span.as_utf8_byte_range(),
+                span: span.as_utf8_byte_range(),
             },
         );
     }
