@@ -17,11 +17,13 @@ use tyml_type::{
 use tyml_validate::{error::TymlValueValidateError, validate::ValueTypeChecker};
 
 pub extern crate tyml_diagnostic;
+pub extern crate tyml_generator;
 pub extern crate tyml_parser;
+pub extern crate tyml_source;
 pub extern crate tyml_type;
 pub extern crate tyml_validate;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TymlContext<State = Initial> {
     state: State,
     pub tyml_source: SourceCode,
@@ -336,16 +338,7 @@ unsafe impl Sync for TymlInner {}
 mod tests {
 
     use tyml_diagnostic::message::Lang;
-    use tyml_generator::style::{
-        key_value::{KeyValue, KeyValueKind},
-        language::LanguageStyle,
-        literal::{
-            CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind,
-            Literal, UnicodeFormatKind,
-        },
-        section::{Section, SectionKind},
-        value::Value,
-    };
+    use tyml_generator::_ini_file_define;
     use tyml_source::SourceCode;
 
     use crate::TymlContext;
@@ -371,41 +364,7 @@ test = 100
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let ini_literal = CustomRegexLiteral {
-            regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]+".into(),
-            option: CustomLiteralOption {
-                trim_space: true,
-                escape: EscapeOption {
-                    allow_escape: true,
-                    unicode: UnicodeFormatKind::Normal,
-                },
-            },
-        };
-
-        let literal = Literal::Custom(ini_literal.clone());
-
-        let any_string_literal = Literal::Custom(ini_literal);
-
-        let language = LanguageStyle::Section {
-            section: Section {
-                literal: literal.clone(),
-                kind: SectionKind::Bracket,
-            },
-            key_value: KeyValue {
-                key: literal.clone(),
-                kind: KeyValueKind::Equal,
-                value: Value {
-                    float: Some(FloatLiteral {
-                        allow_e: true,
-                        inf_nan_kind: InfNanKind::Insensitive,
-                        allow_plus_minus: true,
-                        allow_under_line: true,
-                    }),
-                    any_string: Some(any_string_literal),
-                    ..Default::default()
-                },
-            },
-        };
+        let language = _ini_file_define();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source);
 

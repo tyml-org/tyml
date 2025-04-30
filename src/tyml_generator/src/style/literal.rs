@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 
+use serde::{Deserialize, Serialize};
+
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Literal {
     Normal(NormalLiteral),
     String(StringLiteral),
@@ -31,7 +33,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NormalLiteral {
     pub allow_line: bool,
     pub symbol_regex: Option<String>,
@@ -57,19 +59,19 @@ impl NormalLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StringLiteral {
     pub quotes_kind: QuotesKind,
     pub escape: EscapeOption,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EscapeOption {
     pub allow_escape: bool,
     pub unicode: UnicodeFormatKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum UnicodeFormatKind {
     /// No unicode escape
     #[default]
@@ -130,7 +132,7 @@ impl StringLiteral {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuotesKind {
     DoubleQuotes,
     TripleDoubleQuotes,
@@ -138,7 +140,7 @@ pub enum QuotesKind {
     TripleQuotes,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloatLiteral {
     pub allow_e: bool,
     pub inf_nan_kind: InfNanKind,
@@ -146,7 +148,7 @@ pub struct FloatLiteral {
     pub allow_under_line: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InfNanKind {
     None,
     CamelCase,
@@ -191,7 +193,7 @@ impl FloatLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryLiteral {
     pub allow_bit: bool,
     pub allow_oct: bool,
@@ -233,12 +235,12 @@ impl BinaryLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoolLiteral {
     pub kind: BoolKind,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum BoolKind {
     CamelCase,
     UpperCase,
@@ -262,7 +264,7 @@ impl BoolLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomRegexLiteral {
     pub regex: String,
     pub option: CustomLiteralOption,
@@ -278,7 +280,7 @@ impl CustomRegexLiteral {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CustomLiteralOption {
     pub trim_space: bool,
     pub escape: EscapeOption,

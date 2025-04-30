@@ -1,6 +1,6 @@
 pub mod language_server;
 
-use language_server::TymlLanguageServer;
+use language_server::GeneratedLanguageServer;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -8,7 +8,7 @@ use tower_lsp::{Client, LanguageServer};
 #[derive(Debug)]
 pub struct LSPBackend {
     pub client: Client,
-    pub tyml_language_server: TymlLanguageServer,
+    pub tyml_language_server: GeneratedLanguageServer,
 }
 
 #[tower_lsp::async_trait]

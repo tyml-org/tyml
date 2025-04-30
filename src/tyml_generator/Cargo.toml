@@ -13,3 +13,5 @@ allocator-api2 = "0.2.21"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 auto_enums = "0.8.7"
 derivative = "2.2.0"
+serde = { version = "1.0", features = ["derive"] }
+toml  = { version = "0.8", features = ["display"] }

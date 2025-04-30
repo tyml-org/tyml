@@ -1148,6 +1148,8 @@ dependencies = [
  "either",
  "extension-fn",
  "regex",
+ "serde",
+ "toml",
  "tyml_source",
  "tyml_validate",
 ]
@@ -1163,6 +1165,7 @@ dependencies = [
 name = "tyml_lsp"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "tokio",
  "tower-lsp",
  "tyml",

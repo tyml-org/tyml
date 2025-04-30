@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
+use serde::{Deserialize, Serialize};
 use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::GeneratorTokenKind;
@@ -12,7 +13,8 @@ use super::{
     section::{Section, SectionAST, SectionParser},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum LanguageStyle {
     Section {
         section: Section,

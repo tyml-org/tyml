@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
+use serde::{Deserialize, Serialize};
 use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
@@ -11,13 +12,13 @@ use super::{
     literal::{CustomLiteralOption, Literal},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Section {
     pub literal: Literal,
     pub kind: SectionKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SectionKind {
     /// [section]
     Bracket,

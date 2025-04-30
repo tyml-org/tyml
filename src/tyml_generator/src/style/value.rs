@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
+use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree};
 
@@ -15,7 +16,7 @@ use super::{
     },
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Value {
     pub string: Option<StringLiteral>,
     pub float: Option<FloatLiteral>,

@@ -1,0 +1,37 @@
+type = "Section"
+
+[section]
+kind = "Bracket"
+
+[section.literal.Custom]
+regex = '[^\[\]\n\r=;]+'
+
+[section.literal.Custom.option]
+trim_space = true
+
+[section.literal.Custom.option.escape]
+allow_escape = true
+unicode = "Normal"
+
+[key_value]
+kind = "Equal"
+
+[key_value.key.Custom]
+regex = '[^\[\]\n\r=;]+'
+
+[key_value.key.Custom.option]
+trim_space = true
+
+[key_value.key.Custom.option.escape]
+allow_escape = true
+unicode = "Normal"
+
+[key_value.value.any_string.Custom]
+regex = '[^\[\]\n\r=;]+'
+
+[key_value.value.any_string.Custom.option]
+trim_space = true
+
+[key_value.value.any_string.Custom.option.escape]
+allow_escape = true
+unicode = "Normal"

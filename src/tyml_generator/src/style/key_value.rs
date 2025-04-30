@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
+use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
 
@@ -13,14 +14,14 @@ use super::{
     value::{Value, ValueAST, ValueParser},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KeyValue {
     pub key: Literal,
     pub kind: KeyValueKind,
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyValueKind {
     /// key: value
     Colon,
