@@ -18,11 +18,11 @@ impl Lang {
     pub const en_US: &str = "en_US";
 }
 
-pub(crate) fn get_text(key: &str, lang: &str) -> String {
+pub fn get_text(key: &str, lang: &str) -> String {
     return get_text_optional(key, lang).unwrap();
 }
 
-pub(crate) fn get_text_optional(key: &str, lang: &str) -> Option<String> {
+pub fn get_text_optional(key: &str, lang: &str) -> Option<String> {
     let table = match lang {
         Lang::ja_JP => JA_JP.deref(),
         Lang::en_US => EN_US.deref(),
@@ -49,7 +49,7 @@ static COLOR_REGEX: LazyLock<Regex> =
 static COLOR_GROUP_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"%color:(\w+)\{((\\\}|[^\}])*)\}").unwrap());
 
-pub(crate) fn replace_message(
+pub fn replace_message(
     mut message: String,
     arguments: &Vec<String>,
     colored: bool,

@@ -4,28 +4,33 @@ use allocator_api2::vec::Vec;
 use serde::{Deserialize, Serialize};
 use tyml_validate::validate::ValueTypeChecker;
 
-use crate::lexer::GeneratorTokenKind;
+use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
 
 use super::{
     AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
+    comment::Comment,
     error::{GeneratedParseError, recover_until_or_lf},
     key_value::{KeyValue, KeyValueAST, KeyValueParser},
     section::{Section, SectionAST, SectionParser},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
 pub enum LanguageStyle {
-    Section {
-        section: Section,
-        key_value: KeyValue,
-    },
+    Section(SectionStyle),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SectionStyle {
+    pub section: Section,
+    pub key_value: KeyValue,
+    pub comments: std::vec::Vec<Comment>,
 }
 
 pub enum LanguageParser {
     Section {
         section: SectionParser,
         key_value: KeyValueParser,
+        comments: Vec<GeneratorTokenKind>,
     },
 }
 
@@ -40,9 +45,14 @@ pub enum LanguageAST<'input> {
 impl<'input> ParserGenerator<'input, LanguageAST<'input>, LanguageParser> for LanguageStyle {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> LanguageParser {
         match self {
-            LanguageStyle::Section { section, key_value } => LanguageParser::Section {
-                section: section.generate(registry),
-                key_value: key_value.generate(registry),
+            LanguageStyle::Section(section) => LanguageParser::Section {
+                section: section.section.generate(registry),
+                key_value: section.key_value.generate(registry),
+                comments: section
+                    .comments
+                    .iter()
+                    .map(|comment| registry.register(GeneratorTokenizer::Regex(comment.regex())))
+                    .collect(),
             },
         }
     }
@@ -62,59 +72,26 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
         let mut sections = Vec::new();
 
         match self {
-            LanguageParser::Section { section, key_value } => loop {
-                if lexer.is_reached_eof() {
-                    break;
-                }
-
-                lexer.skip_lf();
-
-                let section_ast = match section.parse(lexer, errors) {
-                    Some(section) => section,
-                    None => {
-                        let error =
-                            recover_until_or_lf(lexer, &[section.first_token_kind()], section);
-                        errors.push(error);
-
-                        continue;
-                    }
-                };
-
-                if !lexer.is_current_lf() {
-                    let error = recover_until_or_lf(
-                        lexer,
-                        &[GeneratorTokenKind::LineFeed],
-                        &NamedParserPart::LINE_FEED,
-                    );
-                    errors.push(error);
-                }
-                lexer.skip_lf();
-
-                let mut key_values = Vec::new();
+            LanguageParser::Section {
+                section,
+                key_value,
+                comments,
+            } => {
+                lexer.comments.extend(comments.iter().cloned());
 
                 loop {
                     if lexer.is_reached_eof() {
                         break;
                     }
 
-                    let key_value = match key_value.parse(lexer, errors) {
-                        Some(key_value) => key_value,
+                    lexer.skip_lf();
+
+                    let section_ast = match section.parse(lexer, errors) {
+                        Some(section) => section,
                         None => {
-                            // next token must be start of section
-                            if lexer.current_contains(section.first_token_kind()) {
-                                break;
-                            }
-
-                            let error = recover_until_or_lf(
-                                lexer,
-                                &[key_value.first_token_kind(), section.first_token_kind()],
-                                key_value,
-                            );
+                            let error =
+                                recover_until_or_lf(lexer, &[section.first_token_kind()], section);
                             errors.push(error);
-
-                            if lexer.current_contains(section.first_token_kind()) {
-                                break;
-                            }
 
                             continue;
                         }
@@ -130,11 +107,52 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                     }
                     lexer.skip_lf();
 
-                    key_values.push(key_value);
-                }
+                    let mut key_values = Vec::new();
 
-                sections.push((section_ast, key_values));
-            },
+                    loop {
+                        if lexer.is_reached_eof() {
+                            break;
+                        }
+
+                        let key_value = match key_value.parse(lexer, errors) {
+                            Some(key_value) => key_value,
+                            None => {
+                                // next token must be start of section
+                                if lexer.current_contains(section.first_token_kind()) {
+                                    break;
+                                }
+
+                                let error = recover_until_or_lf(
+                                    lexer,
+                                    &[key_value.first_token_kind(), section.first_token_kind()],
+                                    key_value,
+                                );
+                                errors.push(error);
+
+                                if lexer.current_contains(section.first_token_kind()) {
+                                    break;
+                                }
+
+                                continue;
+                            }
+                        };
+
+                        if !lexer.is_current_lf() && !lexer.is_reached_eof() {
+                            let error = recover_until_or_lf(
+                                lexer,
+                                &[GeneratorTokenKind::LineFeed],
+                                &NamedParserPart::LINE_FEED,
+                            );
+                            errors.push(error);
+                        }
+                        lexer.skip_lf();
+
+                        key_values.push(key_value);
+                    }
+
+                    sections.push((section_ast, key_values));
+                }
+            }
         }
 
         Some(LanguageAST::Section {
@@ -148,6 +166,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
             LanguageParser::Section {
                 section,
                 key_value: _,
+                comments: _,
             } => section.first_token_kind(),
         }
     }

@@ -356,7 +356,7 @@ settings: {
 [settings]
 ip = 192.168.1.8
 port = 25565
-test = 100
+test = v
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

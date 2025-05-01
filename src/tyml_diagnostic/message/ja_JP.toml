@@ -124,3 +124,6 @@ label_1 = "キーと値の間にコロン'%color:cyan{:}'を記述してみて�
 message = "等号'%color:yellow{=}'が記述されていません"
 label_0 = "等号が必要です"
 label_1 = "キーと値の間に等号'%color:cyan{=}'を記述してみてください"
+
+[lsp.message]
+tyml_file_error = "Tymlファイル'%0'を読み込めませんでした"

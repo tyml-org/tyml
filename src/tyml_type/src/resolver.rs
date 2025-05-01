@@ -128,7 +128,6 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
     ty: &'ast_allocator Bump,
 ) -> TypeTree<'input, 'ast_allocator> {
     match (&ast.ty, &ast.inline_type, &ast.default) {
-        (None, None, None) => unreachable!(),
         (None, None, Some(default)) => TypeTree::Leaf {
             ty: get_value_type(default, ty),
             span: ast.span.clone(),
@@ -196,8 +195,10 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 span: ast.span.clone(),
             }
         }
-        (Some(_), Some(_), None) => unreachable!(),
-        (Some(_), Some(_), Some(_)) => unreachable!(),
+        _ => TypeTree::Leaf {
+            ty: Type::Unknown,
+            span: ast.span.clone(),
+        },
     }
 }
 

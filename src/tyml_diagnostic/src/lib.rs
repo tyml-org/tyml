@@ -12,9 +12,9 @@ pub mod type_error;
 pub mod validate_error;
 
 pub struct TymlDiagnositcMessage {
-    pub(crate) section: MessageSection,
-    pub(crate) code: usize,
-    pub(crate) arguments: Vec<String>,
+    pub section: MessageSection,
+    pub code: usize,
+    pub arguments: Vec<String>,
 }
 
 impl TymlDiagnositcMessage {

@@ -1,4 +1,4 @@
-use std::{fmt::Debug, mem::swap, ops::Range, sync::Arc};
+use std::{collections::HashSet, fmt::Debug, mem::swap, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -144,7 +144,8 @@ impl Clone for TokenizerRegistry {
 
 pub struct GeneratorLexer<'input, 'parse> {
     source: &'input str,
-    tokenizers: Arc<Vec<GeneratorTokenizer>>,
+    pub tokenizers: Arc<Vec<GeneratorTokenizer>>,
+    pub comments: HashSet<GeneratorTokenKind>,
     current_byte_position: usize,
     current_token_cache: Option<GeneratorToken<'input, 'parse>>,
     pub ignore_whitespace: bool,
@@ -156,6 +157,7 @@ impl<'input, 'parse> GeneratorLexer<'input, 'parse> {
         Self {
             source,
             tokenizers: registry.get_registry(),
+            comments: HashSet::new(),
             current_byte_position: 0,
             current_token_cache: None,
             ignore_whitespace: true,
@@ -257,6 +259,10 @@ impl<'input, 'parse> Iterator for GeneratorLexer<'input, 'parse> {
             for (index, tokenizer) in self.tokenizers.iter().enumerate() {
                 let byte_length = tokenizer.tokenize(current_input);
 
+                if byte_length == 0 {
+                    continue;
+                }
+
                 if byte_length >= current_max_length {
                     if byte_length > current_max_length {
                         current_token_kinds.clear();
@@ -290,6 +296,14 @@ impl<'input, 'parse> Iterator for GeneratorLexer<'input, 'parse> {
 
                 if self.ignore_whitespace
                     && current_token_kinds.contains(&GeneratorTokenKind::Whitespace)
+                {
+                    continue;
+                }
+
+                // ignore comment token
+                if current_token_kinds
+                    .iter()
+                    .any(|kind| self.comments.contains(kind))
                 {
                     continue;
                 }

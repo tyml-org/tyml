@@ -2,18 +2,23 @@ use std::{
     fs::File,
     io::Read,
     ops::Range,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{
+        Arc, LazyLock, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use regex::Regex;
 use tower_lsp::{
     Client,
-    lsp_types::{Diagnostic, Position, Url},
+    lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Url},
 };
 use tyml::{
     TymlContext, Validated,
+    tyml_diagnostic::{DiagnosticBuilder, message::get_text},
     tyml_generator::_ini_file_define,
-    tyml_source::{SourceCode, SourceCodeSpan},
+    tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan},
+    tyml_type::types::NamedTypeMap,
 };
 
 type LSPRange = tower_lsp::lsp_types::Range;
@@ -21,16 +26,22 @@ type LSPRange = tower_lsp::lsp_types::Range;
 #[derive(Debug)]
 pub struct GeneratedLanguageServer {
     pub url: Url,
+    pub lang: &'static str,
     pub tyml: Mutex<Option<TymlContext<Validated>>>,
-    pub tyml_file_error: Mutex<Option<Range<usize>>>,
+    pub header_span: Mutex<Range<usize>>,
+    pub has_tyml_file_error: AtomicBool,
+    pub tyml_file_name: Mutex<String>,
 }
 
 impl GeneratedLanguageServer {
-    pub fn new(url: Url) -> Self {
+    pub fn new(url: Url, lang: &'static str) -> Self {
         Self {
             url,
+            lang,
             tyml: Mutex::new(None),
-            tyml_file_error: Mutex::new(None),
+            header_span: Mutex::new(0..0),
+            has_tyml_file_error: AtomicBool::new(false),
+            tyml_file_name: Mutex::new(String::new()),
         }
     }
 
@@ -44,11 +55,17 @@ impl GeneratedLanguageServer {
             LazyLock::new(|| Regex::new(r"\!tyml").unwrap());
 
         // header start must be until 64 bytes
-        let Some(header_matched) = TYML_HEADER_REGEX.find_iter(&source_code[..64]).next() else {
+        let Some(header_matched) = TYML_HEADER_REGEX
+            .find_iter(&source_code[..64.min(source_code.len())])
+            .next()
+        else {
             return Err(());
         };
 
-        let header_source = source_code[header_matched.end()..].lines().next().unwrap();
+        let header_source = source_code[header_matched.end()..]
+            .lines()
+            .next()
+            .unwrap_or(&source_code[header_matched.end()..]);
 
         let header = TymlHeader::parse(header_source);
 
@@ -58,11 +75,12 @@ impl GeneratedLanguageServer {
         let mut tyml_source = String::new();
         file.map(|mut file| file.read_to_string(&mut tyml_source));
 
-        let mut file_error_warning = None;
+        *self.header_span.lock().unwrap() =
+            header_matched.start()..(header_matched.end() + header_source.len());
+        *self.tyml_file_name.lock().unwrap() = header.tyml.clone();
 
         if !file_open_result {
-            file_error_warning =
-                Some(header_matched.start()..(header_matched.end() + header_source.len()));
+            self.has_tyml_file_error.store(true, Ordering::Release);
             tyml_source = "*: any".to_string();
         }
 
@@ -75,28 +93,76 @@ impl GeneratedLanguageServer {
 
         *self.tyml.lock().unwrap() = Some(tyml);
 
-        *self.tyml_file_error.lock().unwrap() = file_error_warning;
-
         Ok(())
     }
 
-    pub fn publish_analyzed_info(&self, client: &Client) {
+    pub async fn publish_analyzed_info(&self, client: &Client) {
         let tyml = self.tyml.lock().unwrap().clone().unwrap();
+        let header_span = self.header_span.lock().unwrap().clone();
 
-        let tyml_file_error = self.tyml_file_error.lock().unwrap().clone();
+        if self.has_tyml_file_error.load(Ordering::Acquire) {
+            let tyml_file_name = self.tyml_file_name.lock().unwrap().clone();
 
-        if let Some(error_span) = tyml_file_error {
-            client.publish_diagnostics(
-                self.url.clone(),
-                vec![Diagnostic {
-                    range: LSPRange::new(start, end),
-                    severity: todo!(),
-                    code: todo!(),
-                    message: todo!(),
-                }],
-                None,
-            );
+            client
+                .publish_diagnostics(
+                    self.url.clone(),
+                    vec![Diagnostic {
+                        range: header_span
+                            .as_utf8_byte_range()
+                            .to_lsp_span(&tyml.ml_source_code().code),
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        message: get_text("lsp.message.tyml_file_error", self.lang)
+                            .replace("%0", tyml_file_name.as_str()),
+                        ..Default::default()
+                    }],
+                    None,
+                )
+                .await;
         } else {
+            let mut diagnostics = Vec::new();
+            for error in tyml.ml_parse_error().iter() {
+                let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+
+                diagnostics.push(Diagnostic {
+                    range: diagnostic.labels[0]
+                        .span
+                        .to_lsp_span(&tyml.ml_source_code().code),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                    message: diagnostic.message.message(self.lang, false),
+                    ..Default::default()
+                });
+
+                diagnostics.push(Diagnostic {
+                    range: diagnostic.labels[1]
+                        .span
+                        .to_lsp_span(&tyml.ml_source_code().code),
+                    severity: Some(DiagnosticSeverity::HINT),
+                    code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                    message: diagnostic.message.label(1, self.lang, false).unwrap(),
+                    ..Default::default()
+                });
+            }
+
+            if diagnostics.is_empty() {
+                for error in tyml.ml_validate_error().iter() {
+                    let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+
+                    diagnostics.push(Diagnostic {
+                        range: diagnostic.labels[0]
+                            .span
+                            .to_lsp_span(&tyml.ml_source_code().code),
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                        message: diagnostic.message.message(self.lang, false),
+                        ..Default::default()
+                    });
+                }
+            }
+
+            client
+                .publish_diagnostics(self.url.clone(), diagnostics, None)
+                .await;
         }
     }
 }
@@ -108,12 +174,22 @@ trait ToLSPSpan {
 impl ToLSPSpan for SourceCodeSpan {
     fn to_lsp_span(&self, code: &str) -> LSPRange {
         match self {
-            SourceCodeSpan::UTF8Byte(range) => {
-                todo!()
-            }
-            SourceCodeSpan::UnicodeCharacter(range) => todo!(),
+            SourceCodeSpan::UTF8Byte(range) => LSPRange::new(
+                to_line_column(code, range.start),
+                to_line_column(code, range.end),
+            ),
+            SourceCodeSpan::UnicodeCharacter(range) => LSPRange::new(
+                to_line_column(code, charactor_to_byte(code, range.start)),
+                to_line_column(code, charactor_to_byte(code, range.end)),
+            ),
         }
     }
+}
+
+fn charactor_to_byte(code: &str, charactor: usize) -> usize {
+    code.char_indices()
+        .position(|(index, _)| index == charactor)
+        .unwrap_or(code.len())
 }
 
 fn to_line_column(code: &str, byte: usize) -> Position {
@@ -124,11 +200,7 @@ fn to_line_column(code: &str, byte: usize) -> Position {
     let mut last_line = "";
     for (line, line_matched) in LINE_REGEX.find_iter(code).enumerate() {
         if (line_matched.start()..line_matched.end()).contains(&byte) {
-            let byte_column = byte - line_matched.start();
-            let column = code[line_matched.start()..byte_column]
-                .chars()
-                .filter(|char| !char.is_whitespace())
-                .count();
+            let column = code[line_matched.start()..byte].chars().count();
 
             return Position::new((line + 1) as _, column as _);
         }
@@ -141,7 +213,7 @@ fn to_line_column(code: &str, byte: usize) -> Position {
         (last_line_index + 1) as _,
         last_line
             .chars()
-            .filter(|char| !char.is_whitespace())
+            .filter(|&char| char != '\n' && char != '\r')
             .count() as _,
     )
 }
@@ -158,7 +230,11 @@ impl TymlHeader {
         let second_source = &source[length..];
 
         match second_source.is_empty() {
-            true => {
+            true => Self {
+                style: None,
+                tyml: first_literal,
+            },
+            false => {
                 let second = Self::literal_tokenizer(second_source).0;
 
                 if second.is_empty() {
@@ -173,10 +249,6 @@ impl TymlHeader {
                     }
                 }
             }
-            false => Self {
-                style: None,
-                tyml: first_literal,
-            },
         }
     }
 

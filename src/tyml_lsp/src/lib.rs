@@ -7,11 +7,13 @@ use language_server::GeneratedLanguageServer;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
+use tyml::tyml_diagnostic::message::Lang;
+use tyml::Tyml;
 
 #[derive(Debug)]
 pub struct LSPBackend {
     pub client: Client,
-    pub tyml_language_servers: RwLock<HashMap<Url, GeneratedLanguageServer>>,
+    pub tyml_language_servers: RwLock<HashMap<Url, Arc<GeneratedLanguageServer>>>,
 }
 
 #[tower_lsp::async_trait]
@@ -39,25 +41,70 @@ impl LanguageServer for LSPBackend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let mut servers = self.tyml_language_servers.write().unwrap();
-        let server = servers
+        let server = self
+            .tyml_language_servers
+            .write()
+            .unwrap()
             .entry(params.text_document.uri.clone())
-            .or_insert_with(|| GeneratedLanguageServer::new());
+            .or_insert_with(|| {
+                Arc::new(GeneratedLanguageServer::new(
+                    params.text_document.uri.clone(),
+                    Lang::ja_JP,
+                ))
+            })
+            .clone();
 
-        let result = server
-            .on_change(
-                Arc::new(params.text_document.uri.to_string()),
-                Arc::new(params.text_document.text),
-            );
+        let result = server.on_change(
+            Arc::new(params.text_document.uri.to_string()),
+            Arc::new(params.text_document.text),
+        );
 
         if result.is_err() {
             return;
         }
 
-
+        server.publish_analyzed_info(&self.client).await;
     }
 
-    async fn did_change(&self, p: DidChangeTextDocumentParams) {
-        if let Some(change) = p.content_changes.into_iter().last() {}
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        if let Some(change) = params.content_changes.into_iter().last() {
+            let server = self
+                .tyml_language_servers
+                .write()
+                .unwrap()
+                .entry(params.text_document.uri.clone())
+                .or_insert_with(|| {
+                    Arc::new(GeneratedLanguageServer::new(
+                        params.text_document.uri.clone(),
+                        Lang::ja_JP,
+                    ))
+                })
+                .clone();
+
+            self.client
+                .log_message(MessageType::LOG, "1")
+                .await;
+
+            Tyml::parse(change.text.clone());
+
+            self.client
+                .log_message(MessageType::LOG, "2")
+                .await;
+
+            let result = server.on_change(
+                Arc::new(params.text_document.uri.to_string()),
+                Arc::new(change.text),
+            );
+
+            self.client
+                .log_message(MessageType::LOG, "3")
+                .await;
+
+            if result.is_err() {
+                return;
+            }
+
+            server.publish_analyzed_info(&self.client).await;
+        }
     }
 }

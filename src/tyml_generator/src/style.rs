@@ -13,6 +13,7 @@ pub mod language;
 pub mod literal;
 pub mod section;
 pub mod value;
+pub mod comment;
 
 pub trait ParserGenerator<'input, T: AST<'input>, P: Parser<'input, T>> {
     fn generate(&self, registry: &mut TokenizerRegistry) -> P;

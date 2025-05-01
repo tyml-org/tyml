@@ -1,6 +1,7 @@
 use style::{
+    comment::Comment,
     key_value::{KeyValue, KeyValueKind},
-    language::LanguageStyle,
+    language::{LanguageStyle, SectionStyle},
     literal::{
         CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind, Literal,
         UnicodeFormatKind,
@@ -28,7 +29,7 @@ pub fn _ini_file_define() -> LanguageStyle {
 
     let any_string_literal = Literal::Custom(ini_literal);
 
-    LanguageStyle::Section {
+    LanguageStyle::Section(SectionStyle {
         section: Section {
             literal: literal.clone(),
             kind: SectionKind::Bracket,
@@ -47,7 +48,8 @@ pub fn _ini_file_define() -> LanguageStyle {
                 ..Default::default()
             },
         },
-    }
+        comments: vec![Comment::Hash],
+    })
 }
 
 #[cfg(test)]
