@@ -73,10 +73,21 @@ impl TymlHeader {
         let second_source = &source[length..];
 
         match second_source.is_empty() {
-            true => Self {
-                style: Some(first_literal),
-                tyml: Self::literal_tokenizer(second_source).0,
-            },
+            true => {
+                let second = Self::literal_tokenizer(second_source).0;
+
+                if second.is_empty() {
+                    Self {
+                        style: None,
+                        tyml: first_literal,
+                    }
+                } else {
+                    Self {
+                        style: Some(first_literal),
+                        tyml: second,
+                    }
+                }
+            }
             false => Self {
                 style: None,
                 tyml: first_literal,
@@ -88,7 +99,19 @@ impl TymlHeader {
         let mut parsed_literal = String::new();
         let mut literal_length = 0;
         let mut prev_char = '\0';
-        let mut chars = input.chars();
+        let mut chars = input.chars().peekable();
+
+        // skip whitespace
+        loop {
+            let Some(&char) = chars.peek() else { break };
+
+            if char.is_whitespace() {
+                literal_length += char.len_utf8();
+                chars.next();
+            } else {
+                break;
+            }
+        }
 
         let string_literal = match input.chars().next() {
             Some('"') => true,
@@ -98,9 +121,10 @@ impl TymlHeader {
         // skip -> "
         if string_literal {
             chars.next();
+            literal_length += '"'.len_utf8();
         }
 
-        for char in input.chars() {
+        for char in chars {
             literal_length += char.len_utf8();
 
             if prev_char == '\\' {
@@ -116,7 +140,7 @@ impl TymlHeader {
                         break;
                     }
                 } else {
-                    if char == ';' || char == '\'' || char == '"' {
+                    if char == ';' || char == '\'' || char == '"' || char == ' ' || char == '　' {
                         break;
                     }
                 }

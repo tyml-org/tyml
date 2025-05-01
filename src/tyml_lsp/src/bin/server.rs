@@ -1,5 +1,7 @@
+use std::{collections::HashMap, sync::RwLock};
+
 use tower_lsp::{LspService, Server};
-use tyml_lsp::{LSPBackend, language_server::GeneratedLanguageServer};
+use tyml_lsp::LSPBackend;
 
 #[tokio::main]
 async fn main() {
@@ -8,7 +10,7 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| LSPBackend {
         client,
-        tyml_language_server: GeneratedLanguageServer::new(),
+        tyml_language_servers: RwLock::new(HashMap::new()),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
 }

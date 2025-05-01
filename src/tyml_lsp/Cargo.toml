@@ -3,6 +3,10 @@ name = "tyml_lsp"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "tyml-lsp-server"
+path = "src/bin/server.rs"
+
 [dependencies]
 tyml = { path = "../tyml/" }
 tower-lsp = "0.20.0"
