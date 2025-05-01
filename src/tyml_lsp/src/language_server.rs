@@ -1,27 +1,36 @@
 use std::{
     fs::File,
     io::Read,
+    ops::Range,
     sync::{Arc, LazyLock, Mutex},
 };
 
 use regex::Regex;
-use tyml::{TymlContext, Validated, tyml_generator::_ini_file_define, tyml_source::SourceCode};
+use tower_lsp::{
+    Client,
+    lsp_types::{Diagnostic, Position, Url},
+};
+use tyml::{
+    TymlContext, Validated,
+    tyml_generator::_ini_file_define,
+    tyml_source::{SourceCode, SourceCodeSpan},
+};
+
+type LSPRange = tower_lsp::lsp_types::Range;
 
 #[derive(Debug)]
 pub struct GeneratedLanguageServer {
+    pub url: Url,
     pub tyml: Mutex<Option<TymlContext<Validated>>>,
-}
-
-#[derive(Debug)]
-pub enum TymlLSError {
-    NotTyml,
-    TymlReadError(std::io::Error),
+    pub tyml_file_error: Mutex<Option<Range<usize>>>,
 }
 
 impl GeneratedLanguageServer {
-    pub fn new() -> Self {
+    pub fn new(url: Url) -> Self {
         Self {
+            url,
             tyml: Mutex::new(None),
+            tyml_file_error: Mutex::new(None),
         }
     }
 
@@ -29,24 +38,33 @@ impl GeneratedLanguageServer {
         &self,
         source_code_name: Arc<String>,
         source_code: Arc<String>,
-    ) -> Result<(), TymlLSError> {
+    ) -> Result<(), ()> {
         // !tyml is header of tyml
         static TYML_HEADER_REGEX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"\!tyml").unwrap());
 
         // header start must be until 64 bytes
         let Some(header_matched) = TYML_HEADER_REGEX.find_iter(&source_code[..64]).next() else {
-            return Err(TymlLSError::NotTyml);
+            return Err(());
         };
 
         let header_source = source_code[header_matched.end()..].lines().next().unwrap();
 
         let header = TymlHeader::parse(header_source);
 
-        let mut file = File::open(&header.tyml).map_err(|err| TymlLSError::TymlReadError(err))?;
+        let file = File::open(&header.tyml).ok();
+        let file_open_result = file.is_some();
+
         let mut tyml_source = String::new();
-        file.read_to_string(&mut tyml_source)
-            .map_err(|err| TymlLSError::TymlReadError(err))?;
+        file.map(|mut file| file.read_to_string(&mut tyml_source));
+
+        let mut file_error_warning = None;
+
+        if !file_open_result {
+            file_error_warning =
+                Some(header_matched.start()..(header_matched.end() + header_source.len()));
+            tyml_source = "*: any".to_string();
+        }
 
         let tyml = TymlContext::new(SourceCode::new(header.tyml.clone(), tyml_source)).parse();
 
@@ -57,8 +75,75 @@ impl GeneratedLanguageServer {
 
         *self.tyml.lock().unwrap() = Some(tyml);
 
+        *self.tyml_file_error.lock().unwrap() = file_error_warning;
+
         Ok(())
     }
+
+    pub fn publish_analyzed_info(&self, client: &Client) {
+        let tyml = self.tyml.lock().unwrap().clone().unwrap();
+
+        let tyml_file_error = self.tyml_file_error.lock().unwrap().clone();
+
+        if let Some(error_span) = tyml_file_error {
+            client.publish_diagnostics(
+                self.url.clone(),
+                vec![Diagnostic {
+                    range: LSPRange::new(start, end),
+                    severity: todo!(),
+                    code: todo!(),
+                    message: todo!(),
+                }],
+                None,
+            );
+        } else {
+        }
+    }
+}
+
+trait ToLSPSpan {
+    fn to_lsp_span(&self, code: &str) -> LSPRange;
+}
+
+impl ToLSPSpan for SourceCodeSpan {
+    fn to_lsp_span(&self, code: &str) -> LSPRange {
+        match self {
+            SourceCodeSpan::UTF8Byte(range) => {
+                todo!()
+            }
+            SourceCodeSpan::UnicodeCharacter(range) => todo!(),
+        }
+    }
+}
+
+fn to_line_column(code: &str, byte: usize) -> Position {
+    static LINE_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"[^\n\r]+(\n|\r|\r\n|$)").unwrap());
+
+    let mut last_line_index = 0;
+    let mut last_line = "";
+    for (line, line_matched) in LINE_REGEX.find_iter(code).enumerate() {
+        if (line_matched.start()..line_matched.end()).contains(&byte) {
+            let byte_column = byte - line_matched.start();
+            let column = code[line_matched.start()..byte_column]
+                .chars()
+                .filter(|char| !char.is_whitespace())
+                .count();
+
+            return Position::new((line + 1) as _, column as _);
+        }
+
+        last_line_index = line;
+        last_line = &code[line_matched.start()..line_matched.end()];
+    }
+
+    Position::new(
+        (last_line_index + 1) as _,
+        last_line
+            .chars()
+            .filter(|char| !char.is_whitespace())
+            .count() as _,
+    )
 }
 
 pub struct TymlHeader {

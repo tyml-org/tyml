@@ -44,12 +44,17 @@ impl LanguageServer for LSPBackend {
             .entry(params.text_document.uri.clone())
             .or_insert_with(|| GeneratedLanguageServer::new());
 
-        server
+        let result = server
             .on_change(
                 Arc::new(params.text_document.uri.to_string()),
                 Arc::new(params.text_document.text),
-            )
-            .unwrap();
+            );
+
+        if result.is_err() {
+            return;
+        }
+
+
     }
 
     async fn did_change(&self, p: DidChangeTextDocumentParams) {
