@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, collections::BTreeMap, ops::Range};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -38,6 +38,19 @@ pub trait AST<'input> {
         section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>), &Bump>,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     );
+
+    fn take_token(&self, tokens: &mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>);
+}
+
+pub enum ASTTokenKind {
+    Section,
+    Key,
+    TreeKey,
+    NumericValue,
+    InfNan,
+    StringValue,
+    BoolValue,
+    Comment,
 }
 
 pub trait ParserPart {

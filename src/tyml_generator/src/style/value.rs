@@ -8,7 +8,7 @@ use tyml_validate::validate::{ValidateValue, ValueTree};
 use crate::lexer::{GeneratorTokenKind, SpannedText};
 
 use super::{
-    AST, Parser, ParserGenerator, ParserPart,
+    AST, ASTTokenKind, Parser, ParserGenerator, ParserPart,
     error::GeneratedParseError,
     literal::{
         BinaryLiteral, BoolLiteral, CustomLiteralOption, FloatLiteral, Literal, QuotesKind,
@@ -258,5 +258,28 @@ impl<'input> AST<'input> for ValueAST<'input> {
                 span: span.as_utf8_byte_range(),
             },
         );
+    }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
+    ) {
+        let kind = match self.kind {
+            ValueASTKind::String => ASTTokenKind::StringValue,
+            ValueASTKind::Float => {
+                let lower = self.value.text.to_lowercase();
+
+                if lower.contains("inf") || lower.contains("nan") {
+                    ASTTokenKind::InfNan
+                } else {
+                    ASTTokenKind::NumericValue
+                }
+            }
+            ValueASTKind::Binary => ASTTokenKind::NumericValue,
+            ValueASTKind::Bool => ASTTokenKind::BoolValue,
+            ValueASTKind::AnyString => ASTTokenKind::StringValue,
+        };
+
+        tokens.insert(self.value.span.start, (kind, self.value.span.clone()));
     }
 }

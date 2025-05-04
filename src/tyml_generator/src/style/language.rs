@@ -228,4 +228,21 @@ impl<'input> AST<'input> for LanguageAST<'input> {
             }
         }
     }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
+    ) {
+        match self {
+            LanguageAST::Section { sections, span: _ } => {
+                for (section, key_values) in sections.iter() {
+                    section.take_token(tokens);
+
+                    for key_value in key_values.iter() {
+                        key_value.take_token(tokens);
+                    }
+                }
+            }
+        }
+    }
 }

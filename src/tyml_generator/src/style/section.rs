@@ -7,7 +7,7 @@ use tyml_validate::validate::ValueTypeChecker;
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 
 use super::{
-    AST, Parser, ParserGenerator, ParserPart,
+    AST, ASTTokenKind, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
     literal::{CustomLiteralOption, Literal},
 };
@@ -225,5 +225,17 @@ impl<'input> AST<'input> for SectionAST<'input> {
         _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
         unreachable!()
+    }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
+    ) {
+        for section in self.sections.iter() {
+            tokens.insert(
+                section.span.start,
+                (ASTTokenKind::Section, section.span.clone()),
+            );
+        }
     }
 }

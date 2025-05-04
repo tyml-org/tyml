@@ -1,11 +1,20 @@
-use std::{fmt::Debug, mem::transmute, ops::Deref, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt::Debug,
+    mem::transmute,
+    ops::{Deref, Range},
+    sync::Arc,
+};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use tyml_diagnostic::DiagnosticBuilder;
 use tyml_generator::{
     lexer::{GeneratorLexer, TokenizerRegistry},
-    style::{error::GeneratedParseError, language::LanguageStyle, Parser, ParserGenerator, AST},
+    style::{
+        error::GeneratedParseError, language::LanguageStyle, ASTTokenKind, Parser, ParserGenerator,
+        AST,
+    },
 };
 use tyml_parser::{ast::Defines, error::ParseError, lexer::Lexer, parser::parse_defines};
 use tyml_source::SourceCode;
@@ -90,6 +99,7 @@ impl<State> TymlContext<State> {
         &self,
         ml_language_style: &LanguageStyle,
         ml_source_code: &SourceCode,
+        tokens: Option<&mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>>,
     ) -> TymlContext<Validated>
     where
         State: IParsed,
@@ -106,6 +116,17 @@ impl<State> TymlContext<State> {
         let mut lexer = GeneratorLexer::new(&ml_source_code.code, &registry, &allocator);
 
         let ast = ml_parser.parse(&mut lexer, &mut errors).unwrap();
+
+        if let Some(tokens) = tokens {
+            ast.take_token(tokens);
+
+            for comment_span in lexer.comment_spans.iter() {
+                tokens.insert(
+                    comment_span.start,
+                    (ASTTokenKind::Comment, comment_span.clone()),
+                );
+            }
+        }
 
         let mut validator = self.tyml().value_type_checker();
 
@@ -366,7 +387,7 @@ test = v
 
         let language = _ini_file_define();
 
-        let tyml = tyml.ml_parse_and_validate(&language, &ml_source);
+        let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
 
         tyml.print_tyml_error(Lang::ja_JP);
         tyml.print_ml_parse_error(Lang::ja_JP);

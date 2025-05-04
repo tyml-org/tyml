@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs::File,
     io::Read,
     ops::Range,
@@ -11,12 +12,12 @@ use std::{
 use regex::Regex;
 use tower_lsp::{
     Client,
-    lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Url},
+    lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, SemanticTokenType, Url},
 };
 use tyml::{
     TymlContext, Validated,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
-    tyml_generator::_ini_file_define,
+    tyml_generator::{_ini_file_define, style::ASTTokenKind},
     tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan},
     tyml_type::types::NamedTypeMap,
 };
@@ -31,6 +32,7 @@ pub struct GeneratedLanguageServer {
     pub header_span: Mutex<Range<usize>>,
     pub has_tyml_file_error: AtomicBool,
     pub tyml_file_name: Mutex<String>,
+    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
 }
 
 impl GeneratedLanguageServer {
@@ -42,6 +44,7 @@ impl GeneratedLanguageServer {
             header_span: Mutex::new(0..0),
             has_tyml_file_error: AtomicBool::new(false),
             tyml_file_name: Mutex::new(String::new()),
+            tokens: Mutex::new(Arc::new(Vec::new())),
         }
     }
 
@@ -88,8 +91,29 @@ impl GeneratedLanguageServer {
 
         let language = _ini_file_define();
 
-        let tyml =
-            tyml.ml_parse_and_validate(&language, &SourceCode::new(source_code_name, source_code));
+        let mut tokens = BTreeMap::new();
+
+        let tyml = tyml.ml_parse_and_validate(
+            &language,
+            &SourceCode::new(source_code_name, source_code.clone()),
+            Some(&mut tokens),
+        );
+
+        let mut semantic_tokens = Vec::new();
+        for (kind, span) in tokens.values() {
+            let kind = match kind {
+                ASTTokenKind::Section => SemanticTokenType::TYPE,
+                ASTTokenKind::Key => SemanticTokenType::VARIABLE,
+                ASTTokenKind::TreeKey => SemanticTokenType::TYPE,
+                ASTTokenKind::NumericValue => SemanticTokenType::NUMBER,
+                ASTTokenKind::InfNan => SemanticTokenType::KEYWORD,
+                ASTTokenKind::StringValue => SemanticTokenType::STRING,
+                ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
+                ASTTokenKind::Comment => SemanticTokenType::COMMENT,
+            };
+            semantic_tokens.push((kind, span.as_utf8_byte_range().to_lsp_span(&source_code)));
+        }
+        *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
 
         *self.tyml.lock().unwrap() = Some(tyml);
 
@@ -194,7 +218,7 @@ fn charactor_to_byte(code: &str, charactor: usize) -> usize {
 
 fn to_line_column(code: &str, byte: usize) -> Position {
     static LINE_REGEX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"[^\n\r]+(\n|\r|\r\n|$)").unwrap());
+        LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r|\r\n|$)").unwrap());
 
     let mut last_line_index = 0;
     let mut last_line = "";

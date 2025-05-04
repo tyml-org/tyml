@@ -8,7 +8,7 @@ use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
 use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer, SpannedText};
 
 use super::{
-    AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
+    AST, ASTTokenKind, NamedParserPart, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
     literal::{CustomLiteralOption, Literal},
     value::{Value, ValueAST, ValueParser},
@@ -185,5 +185,20 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         }
 
         section_name_stack.pop().unwrap();
+    }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
+    ) {
+        // TODO : check value is tree
+        tokens.insert(
+            self.key.span.start,
+            (ASTTokenKind::Key, self.key.span.clone()),
+        );
+
+        if let Some(value) = &self.value {
+            value.take_token(tokens);
+        }
     }
 }

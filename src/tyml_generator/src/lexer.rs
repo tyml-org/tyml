@@ -143,10 +143,11 @@ impl Clone for TokenizerRegistry {
 }
 
 pub struct GeneratorLexer<'input, 'parse> {
-    pub source: &'input str,
-    pub tokenizers: Arc<Vec<GeneratorTokenizer>>,
+    source: &'input str,
+    tokenizers: Arc<Vec<GeneratorTokenizer>>,
     pub comments: HashSet<GeneratorTokenKind>,
-    pub current_byte_position: usize,
+    pub comment_spans: Vec<Range<usize>>,
+    current_byte_position: usize,
     current_token_cache: Option<GeneratorToken<'input, 'parse>>,
     pub ignore_whitespace: bool,
     allocator: &'parse Bump,
@@ -158,6 +159,7 @@ impl<'input, 'parse> GeneratorLexer<'input, 'parse> {
             source,
             tokenizers: registry.get_registry(),
             comments: HashSet::new(),
+            comment_spans: Vec::new(),
             current_byte_position: 0,
             current_token_cache: None,
             ignore_whitespace: true,
@@ -305,6 +307,9 @@ impl<'input, 'parse> Iterator for GeneratorLexer<'input, 'parse> {
                     .iter()
                     .any(|kind| self.comments.contains(kind))
                 {
+                    self.comment_spans
+                        .push(start_position..self.current_byte_position);
+
                     continue;
                 }
 
