@@ -23,7 +23,7 @@ pub(crate) fn recover_until_or_lf<'input, P: ParserPart>(
             break;
         }
 
-        if lexer.current().is_none() {
+        if lexer.is_reached_eof() {
             break;
         };
 

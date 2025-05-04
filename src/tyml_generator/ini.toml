@@ -1,37 +1,44 @@
-type = "Section"
+[Section]
+comments = ["Hash"]
 
-[section]
+[Section.section]
 kind = "Bracket"
 
-[section.literal.Custom]
-regex = '[^\[\]\n\r=;]+'
+[Section.section.literal.Custom]
+regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
 
-[section.literal.Custom.option]
+[Section.section.literal.Custom.option]
 trim_space = true
 
-[section.literal.Custom.option.escape]
+[Section.section.literal.Custom.option.escape]
 allow_escape = true
 unicode = "Normal"
 
-[key_value]
+[Section.key_value]
 kind = "Equal"
 
-[key_value.key.Custom]
-regex = '[^\[\]\n\r=;]+'
+[Section.key_value.key.Custom]
+regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
 
-[key_value.key.Custom.option]
+[Section.key_value.key.Custom.option]
 trim_space = true
 
-[key_value.key.Custom.option.escape]
+[Section.key_value.key.Custom.option.escape]
 allow_escape = true
 unicode = "Normal"
 
-[key_value.value.any_string.Custom]
-regex = '[^\[\]\n\r=;]+'
+[Section.key_value.value.float]
+allow_e = true
+inf_nan_kind = "Insensitive"
+allow_plus_minus = true
+allow_under_line = true
 
-[key_value.value.any_string.Custom.option]
+[Section.key_value.value.any_string.Custom]
+regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
+
+[Section.key_value.value.any_string.Custom.option]
 trim_space = true
 
-[key_value.value.any_string.Custom.option.escape]
+[Section.key_value.value.any_string.Custom.option.escape]
 allow_escape = true
 unicode = "Normal"

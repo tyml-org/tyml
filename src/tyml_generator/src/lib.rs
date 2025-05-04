@@ -15,7 +15,7 @@ pub mod style;
 
 pub fn _ini_file_define() -> LanguageStyle {
     let ini_literal = CustomRegexLiteral {
-        regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]+".into(),
+        regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*".into(),
         option: CustomLiteralOption {
             trim_space: true,
             escape: EscapeOption {
@@ -89,7 +89,7 @@ mod test {
         let source = "
 [section]
 key1 = value
-key2 = value
+kay2 = value
 ";
 
         let allocator = Bump::new();

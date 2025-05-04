@@ -114,6 +114,8 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                             break;
                         }
 
+                        lexer.skip_lf();
+
                         let key_value = match key_value.parse(lexer, errors) {
                             Some(key_value) => key_value,
                             None => {

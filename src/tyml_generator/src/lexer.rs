@@ -143,10 +143,10 @@ impl Clone for TokenizerRegistry {
 }
 
 pub struct GeneratorLexer<'input, 'parse> {
-    source: &'input str,
+    pub source: &'input str,
     pub tokenizers: Arc<Vec<GeneratorTokenizer>>,
     pub comments: HashSet<GeneratorTokenKind>,
-    current_byte_position: usize,
+    pub current_byte_position: usize,
     current_token_cache: Option<GeneratorToken<'input, 'parse>>,
     pub ignore_whitespace: bool,
     allocator: &'parse Bump,
