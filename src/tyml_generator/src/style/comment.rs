@@ -9,7 +9,7 @@ pub enum Comment {
 impl Comment {
     pub fn regex(&self) -> Regex {
         match self {
-            Comment::Hash => Regex::new(r"#[^\n\r]+").unwrap(),
+            Comment::Hash => Regex::new(r"^#[^\n\r]*").unwrap(),
         }
     }
 }

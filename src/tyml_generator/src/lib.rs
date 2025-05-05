@@ -87,10 +87,11 @@ mod test {
         registry.freeze();
 
         let source = "
+#
 [section]
 key1 = value
 kay2 = value
-";
+#";
 
         let allocator = Bump::new();
 

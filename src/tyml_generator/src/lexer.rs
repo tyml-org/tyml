@@ -217,8 +217,8 @@ impl<'input, 'parse> GeneratorLexer<'input, 'parse> {
         self.current_token_cache = None;
     }
 
-    pub fn is_reached_eof(&self) -> bool {
-        self.current_byte_position >= self.source.len()
+    pub fn is_reached_eof(&mut self) -> bool {
+        self.current().is_none()
     }
 
     pub fn is_current_lf(&mut self) -> bool {
