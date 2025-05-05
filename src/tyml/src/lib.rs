@@ -135,7 +135,7 @@ impl<State> TymlContext<State> {
         TymlContext {
             state: Validated {
                 tyml: self.tyml().clone(),
-                ml_source_cdoe: ml_source_code.clone(),
+                ml_source_code: ml_source_code.clone(),
                 ml_parse_error: Arc::new(errors),
                 ml_validate_error: Arc::new(validator.validate().err().unwrap_or_default()),
             },
@@ -216,7 +216,7 @@ pub struct Parsed {
 #[derive(Debug, Clone)]
 pub struct Validated {
     pub tyml: Tyml,
-    pub ml_source_cdoe: SourceCode,
+    pub ml_source_code: SourceCode,
     pub ml_parse_error: Arc<Vec<GeneratedParseError>>,
     pub ml_validate_error: Arc<Vec<TymlValueValidateError>>,
 }
@@ -251,7 +251,7 @@ pub trait IValidated: IParsed {
 
 impl IValidated for Validated {
     fn ml_source_code(&self) -> &SourceCode {
-        &self.ml_source_cdoe
+        &self.ml_source_code
     }
 
     fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>> {

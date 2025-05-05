@@ -216,10 +216,10 @@ fn charactor_to_byte(code: &str, charactor: usize) -> usize {
         .unwrap_or(code.len())
 }
 
-fn to_line_column(code: &str, byte: usize) -> Position {
-    static LINE_REGEX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r|\r\n|$)").unwrap());
+static LINE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r|\r\n|$)").unwrap());
 
+fn to_line_column(code: &str, byte: usize) -> Position {
     let mut last_line_index = 0;
     let mut last_line = "";
     for (line, line_matched) in LINE_REGEX.find_iter(code).enumerate() {
@@ -240,6 +240,29 @@ fn to_line_column(code: &str, byte: usize) -> Position {
             .filter(|&char| char != '\n' && char != '\r')
             .count() as _,
     )
+}
+
+pub trait ToBytePosition {
+    fn to_byte_position(&self, code: &str) -> usize;
+}
+
+impl ToBytePosition for Position {
+    fn to_byte_position(&self, code: &str) -> usize {
+        for (line, line_matched) in LINE_REGEX.find_iter(code).enumerate() {
+            if (line + 1) as u32 == self.line {
+                let column_byte = line_matched
+                    .as_str()
+                    .char_indices()
+                    .nth(self.character as _)
+                    .map(|(position, _)| position)
+                    .unwrap_or(line_matched.len());
+
+                return line_matched.start() + column_byte;
+            }
+        }
+
+        code.len()
+    }
 }
 
 pub struct TymlHeader {

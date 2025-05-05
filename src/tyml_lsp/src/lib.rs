@@ -58,6 +58,13 @@ impl LanguageServer for LSPBackend {
                         },
                     ),
                 ),
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec![".".to_string()]),
+                    resolve_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                    all_commit_characters: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -153,5 +160,13 @@ impl LanguageServer for LSPBackend {
             result_id: None,
             data: tokens,
         })))
+    }
+
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        todo!()
+    }
+
+    async fn completion_resolve(&self, params: CompletionItem) -> Result<CompletionItem> {
+        Ok(params)
     }
 }
