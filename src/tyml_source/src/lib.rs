@@ -65,3 +65,25 @@ impl ToUnicodeCharacterRange for SourceCodeSpan {
         }
     }
 }
+
+pub trait ToByteSpan {
+    fn to_byte_span(&self, code: &str) -> Range<usize>;
+}
+
+impl ToByteSpan for SourceCodeSpan {
+    fn to_byte_span(&self, code: &str) -> Range<usize> {
+        match self {
+            SourceCodeSpan::UTF8Byte(range) => range.clone(),
+            SourceCodeSpan::UnicodeCharacter(range) => {
+                character_to_byte(code, range.start)..character_to_byte(code, range.end)
+            }
+        }
+    }
+}
+
+fn character_to_byte(code: &str, character: usize) -> usize {
+    code.char_indices()
+        .nth(character)
+        .map(|(position, _)| position)
+        .unwrap_or(code.len())
+}

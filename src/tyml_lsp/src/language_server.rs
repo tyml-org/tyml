@@ -12,7 +12,10 @@ use std::{
 use regex::Regex;
 use tower_lsp::{
     Client,
-    lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, SemanticTokenType, Url},
+    lsp_types::{
+        CompletionItem, Diagnostic, DiagnosticSeverity, NumberOrString, Position,
+        SemanticTokenType, Url,
+    },
 };
 use tyml::{
     TymlContext, Validated,
@@ -189,6 +192,10 @@ impl GeneratedLanguageServer {
                 .await;
         }
     }
+
+    pub fn provide_completion(&self) -> Vec<CompletionItem> {
+        let mut completions = Vec::new();
+    }
 }
 
 trait ToLSPSpan {
@@ -203,17 +210,11 @@ impl ToLSPSpan for SourceCodeSpan {
                 to_line_column(code, range.end),
             ),
             SourceCodeSpan::UnicodeCharacter(range) => LSPRange::new(
-                to_line_column(code, charactor_to_byte(code, range.start)),
-                to_line_column(code, charactor_to_byte(code, range.end)),
+                to_line_column(code, character_to_byte(code, range.start)),
+                to_line_column(code, character_to_byte(code, range.end)),
             ),
         }
     }
-}
-
-fn charactor_to_byte(code: &str, charactor: usize) -> usize {
-    code.char_indices()
-        .position(|(index, _)| index == charactor)
-        .unwrap_or(code.len())
 }
 
 static LINE_REGEX: LazyLock<Regex> =
@@ -263,6 +264,13 @@ impl ToBytePosition for Position {
 
         code.len()
     }
+}
+
+fn character_to_byte(code: &str, character: usize) -> usize {
+    code.char_indices()
+        .nth(character)
+        .map(|(position, _)| position)
+        .unwrap_or(code.len())
 }
 
 pub struct TymlHeader {

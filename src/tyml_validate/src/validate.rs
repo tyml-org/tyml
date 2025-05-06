@@ -6,7 +6,7 @@ use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
 use tyml_parser::ast::Spanned;
-use tyml_source::SourceCodeSpan;
+use tyml_source::{SourceCodeSpan, ToByteSpan};
 use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
 use crate::error::TymlValueValidateError;
@@ -654,6 +654,96 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 self.validate_type(&base_type, value_tree, section_name_stack)
             }
             Type::Unknown => true,
+        }
+    }
+
+    pub fn provide_completion(
+        &self,
+        code: &str,
+        byte_position: usize,
+        completions: &mut Vec<(String, String)>,
+    ) {
+        if let Some(MergedValueTree::Section {
+            elements,
+            name_spans: _,
+            define_spans: _,
+        }) = &self.merged_value_tree
+        {
+            self.provide_completion_recursive(
+                &self.type_tree,
+                elements.get("root").unwrap(),
+                code,
+                byte_position,
+                completions,
+            );
+        }
+    }
+
+    fn provide_completion_recursive(
+        &self,
+        type_tree: &TypeTree,
+        merged_value_tree: &MergedValueTree,
+        code: &str,
+        byte_position: usize,
+        completions: &mut Vec<(String, String)>,
+    ) {
+        if let TypeTree::Leaf { ty, span: _ } = type_tree {
+            match ty {
+                Type::Named(name_id) => {
+                    let type_tree = match self.named_type_map.get_type(*name_id).unwrap() {
+                        NamedTypeTree::Struct { tree } => todo!(),
+                        NamedTypeTree::Enum { elements } => todo!(),
+                    };
+                }
+            }
+        }
+
+        let TypeTree::Node {
+            node,
+            any_node,
+            span,
+        } = type_tree
+        else {
+            return;
+        };
+
+        let MergedValueTree::Section {
+            elements,
+            name_spans: _,
+            define_spans: _,
+        } = merged_value_tree
+        else {
+            return;
+        };
+
+        for (element_name, element) in elements.iter() {
+            let MergedValueTree::Section {
+                elements: _,
+                name_spans: _,
+                define_spans,
+            } = element
+            else {
+                continue;
+            };
+
+            for span in define_spans.iter() {
+                if span.to_byte_span(code).contains(&byte_position) {
+                    let type_tree = match node.get(element_name.as_ref()) {
+                        Some(tree) => tree,
+                        None => todo!(),
+                    };
+
+                    self.provide_completion_recursive(
+                        type_tree,
+                        merged_value_tree,
+                        code,
+                        byte_position,
+                        completions,
+                    );
+
+                    return;
+                }
+            }
         }
     }
 }
