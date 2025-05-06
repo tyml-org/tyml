@@ -132,12 +132,18 @@ impl<State> TymlContext<State> {
 
         ast.take_value(&mut Vec::new_in(&allocator), &mut validator);
 
+        let ml_validate_error = validator.validate().err().unwrap_or_default();
+
+        let validator =
+            ValidatorHolder::new(self.tyml().clone(), ml_source_code.clone(), validator);
+
         TymlContext {
             state: Validated {
                 tyml: self.tyml().clone(),
                 ml_source_code: ml_source_code.clone(),
+                validator,
                 ml_parse_error: Arc::new(errors),
-                ml_validate_error: Arc::new(validator.validate().err().unwrap_or_default()),
+                ml_validate_error: Arc::new(ml_validate_error),
             },
             tyml_source: self.tyml_source.clone(),
         }
@@ -148,6 +154,13 @@ impl<State> TymlContext<State> {
         State: IValidated,
     {
         self.state.ml_source_code()
+    }
+
+    pub fn validator(&self) -> &ValueTypeChecker
+    where
+        State: IValidated,
+    {
+        &self.state.validator()
     }
 
     pub fn print_ml_parse_error(&self, lang: &str)
@@ -217,6 +230,7 @@ pub struct Parsed {
 pub struct Validated {
     pub tyml: Tyml,
     pub ml_source_code: SourceCode,
+    pub validator: ValidatorHolder,
     pub ml_parse_error: Arc<Vec<GeneratedParseError>>,
     pub ml_validate_error: Arc<Vec<TymlValueValidateError>>,
 }
@@ -244,6 +258,8 @@ impl IParsed for Validated {
 pub trait IValidated: IParsed {
     fn ml_source_code(&self) -> &SourceCode;
 
+    fn validator(&self) -> &ValueTypeChecker;
+
     fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>>;
 
     fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>>;
@@ -254,12 +270,44 @@ impl IValidated for Validated {
         &self.ml_source_code
     }
 
+    fn validator(&self) -> &ValueTypeChecker {
+        self.validator.validator().as_ref()
+    }
+
     fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>> {
         &self.ml_parse_error
     }
 
     fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>> {
         &self.ml_validate_error
+    }
+}
+
+/// validator contains part of tyml and ml_source_code
+#[derive(Debug, Clone)]
+#[allow(unused)]
+pub struct ValidatorHolder {
+    tyml: Tyml,
+    ml_source_code: SourceCode,
+    validator: Arc<ValueTypeChecker<'static, 'static, 'static, 'static, 'static, 'static>>,
+}
+
+unsafe impl Send for ValidatorHolder {}
+unsafe impl Sync for ValidatorHolder {}
+
+impl ValidatorHolder {
+    pub fn new(tyml: Tyml, ml_source_code: SourceCode, validator: ValueTypeChecker) -> Self {
+        Self {
+            tyml,
+            ml_source_code,
+            validator: unsafe { transmute(Arc::new(validator)) },
+        }
+    }
+
+    pub fn validator<'this>(
+        &'this self,
+    ) -> &'this Arc<ValueTypeChecker<'this, 'this, 'this, 'this, 'this, 'this>> {
+        &self.validator
     }
 }
 

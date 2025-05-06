@@ -147,7 +147,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>),
+            (Cow<'input, str>, Range<usize>, Range<usize>),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -165,7 +165,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
 
         let key_text = literal_option.resolve_escape(key_text);
 
-        section_name_stack.push((key_text, self.key.span.clone()));
+        section_name_stack.push((key_text, self.key.span.clone(), self.span.clone()));
 
         match &self.value {
             Some(value) => {
@@ -175,7 +175,13 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                 validator.set_value(
                     section_name_stack
                         .iter()
-                        .map(|(name, span)| (name.clone(), span.as_utf8_byte_range())),
+                        .map(|(name, name_span, define_span)| {
+                            (
+                                name.clone(),
+                                name_span.as_utf8_byte_range(),
+                                define_span.as_utf8_byte_range(),
+                            )
+                        }),
                     ValueTree::Value {
                         value: ValidateValue::None,
                         span: self.span.as_utf8_byte_range(),

@@ -221,7 +221,10 @@ impl<'input> AST<'input> for SectionAST<'input> {
 
     fn take_value(
         &self,
-        _: &mut allocator_api2::vec::Vec<(Cow<'input, str>, Range<usize>), &bumpalo::Bump>,
+        _: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>),
+            &bumpalo::Bump,
+        >,
         _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
         unreachable!()

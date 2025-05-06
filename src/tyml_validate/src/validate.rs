@@ -15,7 +15,8 @@ use crate::error::TymlValueValidateError;
 pub enum ValueTree<'section, 'value> {
     Section {
         elements: HashMap<Cow<'section, str>, Vec<ValueTree<'section, 'value>>>,
-        span: SourceCodeSpan,
+        name_span: SourceCodeSpan,
+        define_span: SourceCodeSpan,
     },
     Array {
         elements: Vec<Self>,
@@ -30,7 +31,11 @@ pub enum ValueTree<'section, 'value> {
 impl ValueTree<'_, '_> {
     pub fn span(&self) -> &SourceCodeSpan {
         match self {
-            ValueTree::Section { elements: _, span } => span,
+            ValueTree::Section {
+                elements: _,
+                name_span: _,
+                define_span,
+            } => define_span,
             ValueTree::Array { elements: _, span } => span,
             ValueTree::Value { value: _, span } => span,
         }
@@ -141,10 +146,12 @@ impl AnyStringEvaluator for StandardAnyStringEvaluator {
     }
 }
 
+#[derive(Debug)]
 pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub type_tree: &'tree TypeTree<'input, 'ty>,
     pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
     value_tree: ValueTree<'section, 'value>,
+    merged_value_tree: Option<MergedValueTree<'section, 'value>>,
 }
 
 impl<'input, 'ty, 'tree, 'map, 'section, 'value>
@@ -159,19 +166,32 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             named_type_map,
             value_tree: ValueTree::Section {
                 elements: HashMap::new(),
-                span: Default::default(),
+                name_span: Default::default(),
+                define_span: Default::default(),
             },
+            merged_value_tree: None,
         }
     }
 
     pub fn set_value(
         &mut self,
-        sections: impl Iterator<Item = (impl Into<Cow<'section, str>>, SourceCodeSpan)>,
+        sections: impl Iterator<
+            Item = (
+                impl Into<Cow<'section, str>>,
+                SourceCodeSpan,
+                SourceCodeSpan,
+            ),
+        >,
         value: ValueTree<'section, 'value>,
     ) {
-        let root_section = [(Cow::Borrowed("root"), self.value_tree.span().clone())];
+        let root_section = [(
+            Cow::Borrowed("root"),
+            self.value_tree.span().clone(),
+            self.value_tree.span().clone(),
+        )];
         // Iterator<(Into<Cow>, Span)> => Iterator<(Cow, Span)>
-        let sections = sections.map(|(section, span)| (section.into(), span));
+        let sections = sections
+            .map(|(section, name_span, define_span)| (section.into(), name_span, define_span));
 
         // add root section on the head of sections iterator
         let mut sections = root_section.into_iter().chain(sections).peekable();
@@ -179,8 +199,13 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
         loop {
             value_tree = match value_tree {
-                ValueTree::Section { elements, span: _ } => {
-                    let (current_section, current_section_span) = sections.next().unwrap();
+                ValueTree::Section {
+                    elements,
+                    name_span: _,
+                    define_span: _,
+                } => {
+                    let (current_section, current_section_name_span, current_section_define_span) =
+                        sections.next().unwrap();
 
                     let element_branches =
                         elements.entry(current_section.into()).or_insert(Vec::new());
@@ -188,9 +213,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     // search same section that already exists
                     let next_branch_position =
                         element_branches.iter_mut().position(|branch| match branch {
-                            ValueTree::Section { elements: _, span } => {
-                                span == &current_section_span
-                            }
+                            ValueTree::Section {
+                                elements: _,
+                                name_span,
+                                define_span: _,
+                            } => name_span == &current_section_name_span,
                             ValueTree::Array {
                                 elements: _,
                                 span: _,
@@ -203,7 +230,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         None => {
                             element_branches.push(ValueTree::Section {
                                 elements: HashMap::new(),
-                                span: current_section_span,
+                                name_span: current_section_name_span,
+                                define_span: current_section_define_span,
                             });
                             element_branches.last_mut().unwrap()
                         }
@@ -229,7 +257,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         }
     }
 
-    pub fn validate(&self) -> Result<(), Vec<TymlValueValidateError>> {
+    pub fn validate(&mut self) -> Result<(), Vec<TymlValueValidateError>> {
         let mut errors = Vec::new();
 
         let allocator = Bump::new();
@@ -246,9 +274,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         };
 
         let root_value_tree = match &merged_value_tree {
-            MergedValueTree::Section { elements, spans: _ } => {
-                elements.get("root").unwrap_or(&empty_merged_tree)
-            }
+            MergedValueTree::Section {
+                elements,
+                name_spans: _,
+                define_spans: _,
+            } => elements.get("root").unwrap_or(&empty_merged_tree),
             MergedValueTree::Array {
                 elements: _,
                 span: _,
@@ -263,6 +293,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             &mut Vec::new_in(&allocator),
         );
 
+        self.merged_value_tree = Some(merged_value_tree);
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -274,7 +306,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         &self,
         errors: &mut Option<&mut Vec<TymlValueValidateError>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
-        value_tree: &MergedValueTree<'section, 'value, 'temp>,
+        value_tree: &MergedValueTree<'section, 'value>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
         match type_tree {
@@ -285,7 +317,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             } => match value_tree {
                 MergedValueTree::Section {
                     elements,
-                    spans: value_tree_section_spans,
+                    name_spans: _,
+                    define_spans: value_tree_section_spans,
                 } => {
                     for (element_name, element_type) in node.iter() {
                         match elements.get(*element_name) {
@@ -406,9 +439,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         }
                         NamedTypeTree::Enum { elements } => {
                             let found_error_spans = match value_tree {
-                                MergedValueTree::Section { elements: _, spans } => {
-                                    Some(spans.iter().cloned().collect())
-                                }
+                                MergedValueTree::Section {
+                                    elements: _,
+                                    name_spans: _,
+                                    define_spans: spans,
+                                } => Some(spans.iter().cloned().collect()),
                                 MergedValueTree::Array { elements: _, span } => {
                                     Some(std::vec![span.clone()])
                                 }
@@ -521,7 +556,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     fn validate_type<'temp>(
         &self,
         ty: &Type,
-        value_tree: &MergedValueTree<'section, 'value, 'temp>,
+        value_tree: &MergedValueTree<'section, 'value>,
         section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
     ) -> bool {
         match ty {
@@ -623,18 +658,16 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     }
 }
 
-pub enum MergedValueTree<'section, 'value, 'temp> {
+#[derive(Debug)]
+pub enum MergedValueTree<'section, 'value> {
     Section {
-        elements: HashMap<
-            Cow<'section, str>,
-            MergedValueTree<'section, 'value, 'temp>,
-            DefaultHashBuilder,
-            &'temp Bump,
-        >,
-        spans: Vec<SourceCodeSpan, &'temp Bump>,
+        elements:
+            HashMap<Cow<'section, str>, MergedValueTree<'section, 'value>, DefaultHashBuilder>,
+        name_spans: Vec<SourceCodeSpan>,
+        define_spans: Vec<SourceCodeSpan>,
     },
     Array {
-        elements: Vec<Self, &'temp Bump>,
+        elements: Vec<Self>,
         span: SourceCodeSpan,
     },
     Value {
@@ -643,11 +676,15 @@ pub enum MergedValueTree<'section, 'value, 'temp> {
     },
 }
 
-impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
+impl<'section, 'value> MergedValueTree<'section, 'value> {
     #[auto_enum(Iterator)]
     pub fn spans(&self) -> impl Iterator<Item = &SourceCodeSpan> {
         match self {
-            MergedValueTree::Section { elements: _, spans } => spans.iter(),
+            MergedValueTree::Section {
+                elements: _,
+                name_spans: _,
+                define_spans,
+            } => define_spans.iter(),
             MergedValueTree::Array { elements: _, span } => std::iter::once(span),
             MergedValueTree::Value { value: _, span } => std::iter::once(span),
         }
@@ -656,11 +693,12 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
     fn merge_and_collect_duplicated(
         value_tree: &ValueTree<'section, 'value>,
         errors: &mut Vec<TymlValueValidateError>,
-        allocator: &'temp Bump,
+        allocator: &Bump,
     ) -> Self {
         let mut new_tree = MergedValueTree::Section {
-            elements: HashMap::new_in(allocator),
-            spans: Vec::new_in(allocator),
+            elements: HashMap::new(),
+            name_spans: Vec::new(),
+            define_spans: Vec::new(),
         };
 
         Self::merge_inner_recursive(
@@ -669,7 +707,6 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
             errors,
             &mut allocator_api2::vec::Vec::new_in(allocator),
             false,
-            allocator,
         );
 
         new_tree
@@ -679,30 +716,37 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
         new_tree: &mut Self,
         value_tree: &'tree ValueTree<'section, 'value>,
         errors: &mut Vec<TymlValueValidateError>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'tree str, &'temp Bump>,
+        section_name_stack: &mut allocator_api2::vec::Vec<&'tree str, &Bump>,
         is_init_merge: bool,
-        allocator: &'temp Bump,
     ) {
         match new_tree {
             MergedValueTree::Section {
                 elements: new_elements,
-                spans,
+                name_spans: spans,
+                define_spans,
             } => match value_tree {
-                ValueTree::Section { elements, span } => {
+                ValueTree::Section {
+                    elements,
+                    name_span: span,
+                    define_span,
+                } => {
                     spans.push(span.clone());
+                    define_spans.push(define_span.clone());
 
                     for (element_name, element_values) in elements.iter() {
                         if let Some(first_value) = element_values.first() {
                             let mut new_tree = match first_value {
                                 ValueTree::Section {
                                     elements: _,
-                                    span: _,
+                                    name_span: _,
+                                    define_span: _,
                                 } => MergedValueTree::Section {
-                                    elements: HashMap::new_in(allocator),
-                                    spans: Vec::new_in(allocator),
+                                    elements: HashMap::new(),
+                                    name_spans: Vec::new(),
+                                    define_spans: Vec::new(),
                                 },
                                 ValueTree::Array { elements, span } => MergedValueTree::Array {
-                                    elements: Vec::with_capacity_in(elements.len(), allocator),
+                                    elements: Vec::with_capacity(elements.len()),
                                     span: span.clone(),
                                 },
                                 ValueTree::Value { value, span } => MergedValueTree::Value {
@@ -722,7 +766,6 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
                                     errors,
                                     section_name_stack,
                                     is_init_merge,
-                                    allocator,
                                 );
                             }
 
@@ -762,13 +805,15 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
                             let mut new_tree = match element {
                                 ValueTree::Section {
                                     elements: _,
-                                    span: _,
+                                    name_span: _,
+                                    define_span: _,
                                 } => MergedValueTree::Section {
-                                    elements: HashMap::new_in(allocator),
-                                    spans: Vec::new_in(allocator),
+                                    elements: HashMap::new(),
+                                    name_spans: Vec::new(),
+                                    define_spans: Vec::new(),
                                 },
                                 ValueTree::Array { elements: _, span } => MergedValueTree::Array {
-                                    elements: Vec::new_in(allocator),
+                                    elements: Vec::new(),
                                     span: span.clone(),
                                 },
                                 ValueTree::Value { value, span } => MergedValueTree::Value {
@@ -785,7 +830,6 @@ impl<'section, 'value, 'temp> MergedValueTree<'section, 'value, 'temp> {
                                 errors,
                                 section_name_stack,
                                 true,
-                                allocator,
                             );
 
                             section_name_stack.pop().unwrap();

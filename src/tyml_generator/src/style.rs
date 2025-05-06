@@ -35,7 +35,7 @@ pub trait AST<'input> {
 
     fn take_value(
         &self,
-        section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>), &Bump>,
+        section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>), &Bump>,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     );
 
