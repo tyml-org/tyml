@@ -12,3 +12,4 @@ tyml = { path = "../tyml/" }
 tower-lsp = "0.20.0"
 tokio = { version = "1.44.2", features = ["full"] }
 regex = "1.11.1"
+extension-fn = "1.2.0"

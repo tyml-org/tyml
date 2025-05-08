@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+use extension_fn::extension_fn;
 use regex::Regex;
 use tower_lsp::{
     Client,
@@ -21,8 +22,9 @@ use tyml::{
     TymlContext, Validated,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
     tyml_generator::{_ini_file_define, style::ASTTokenKind},
-    tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan},
-    tyml_type::types::NamedTypeMap,
+    tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan, ToByteSpan},
+    tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
+    tyml_validate::validate::{MergedValueTree, ValueTypeChecker},
 };
 
 type LSPRange = tower_lsp::lsp_types::Range;
@@ -363,5 +365,162 @@ impl TymlHeader {
         }
 
         (parsed_literal, literal_length)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Completion {
+    pub kind: CompletionKind,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionKind {
+    EnumValue,
+    SectionName,
+    Section,
+}
+
+#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
+pub fn provide_completion(
+    &self,
+    code: &str,
+    byte_position: usize,
+    completions: &mut Vec<Completion>,
+) {
+    if let Some(MergedValueTree::Section {
+        elements,
+        name_spans: _,
+        define_spans: _,
+    }) = &self.merged_value_tree
+    {
+        self.provide_completion_recursive_for_type_tree(
+            &self.type_tree,
+            elements.get("root").unwrap(),
+            code,
+            byte_position,
+            completions,
+        );
+    }
+}
+
+#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
+fn provide_completion_recursive_for_type(
+    &self,
+    ty: &Type,
+    merged_value_tree: &MergedValueTree,
+    code: &str,
+    byte_position: usize,
+    completions: &mut Vec<Completion>,
+) {
+    match ty {
+        Type::Named(name_id) => match self.named_type_map.get_type(*name_id).unwrap() {
+            NamedTypeTree::Struct { tree } => {
+                return self.provide_completion_recursive_for_type_tree(
+                    tree,
+                    merged_value_tree,
+                    code,
+                    byte_position,
+                    completions,
+                );
+            }
+            NamedTypeTree::Enum { elements: _ } => return, // TODO : enum completion
+        },
+        Type::Or(types) => {
+            for ty in types.iter() {
+                self.provide_completion_recursive_for_type(
+                    ty,
+                    merged_value_tree,
+                    code,
+                    byte_position,
+                    completions,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
+fn provide_completion_recursive_for_type_tree(
+    &self,
+    type_tree: &TypeTree,
+    merged_value_tree: &MergedValueTree,
+    code: &str,
+    byte_position: usize,
+    completions: &mut Vec<Completion>,
+) {
+    match type_tree {
+        TypeTree::Node {
+            node,
+            any_node,
+            span,
+        } => {
+            let MergedValueTree::Section {
+                elements,
+                name_spans: _,
+                define_spans: _,
+            } = merged_value_tree
+            else {
+                return;
+            };
+
+            for (element_name, element) in elements.iter() {
+                let Some(type_tree) = node
+                    .get(element_name.as_ref())
+                    .or(any_node.as_ref().map(|boxed| boxed.as_ref()))
+                else {
+                    continue;
+                };
+
+                match element {
+                    MergedValueTree::Section {
+                        elements,
+                        name_spans,
+                        define_spans,
+                    } => {
+                        let cursor_in_spans = define_spans
+                            .iter()
+                            .any(|span| span.to_byte_span(code).contains(&byte_position));
+
+                        if cursor_in_spans {
+                            let Some(merged_value_tree) = elements.get(element_name.as_ref())
+                            else {
+                                continue;
+                            };
+
+                            return self.provide_completion_recursive_for_type_tree(
+                                type_tree,
+                                merged_value_tree,
+                                code,
+                                byte_position,
+                                completions,
+                            );
+                        }
+                    }
+                    MergedValueTree::Array { elements, span } => {
+                        if span.to_byte_span(code).contains(&byte_position) {
+                            return self.provide_completion_recursive_for_type_tree(
+                                type_tree,
+                                element,
+                                code,
+                                byte_position,
+                                completions,
+                            );
+                        }
+                    }
+                    MergedValueTree::Value { value, span } => {}
+                }
+            }
+        }
+        TypeTree::Leaf { ty, span: _ } => {
+            self.provide_completion_recursive_for_type(
+                ty,
+                merged_value_tree,
+                code,
+                byte_position,
+                completions,
+            );
+        }
     }
 }
