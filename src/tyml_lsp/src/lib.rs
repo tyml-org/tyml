@@ -139,7 +139,7 @@ impl LanguageServer for LSPBackend {
         }
 
         let mut tokens = Vec::new();
-        let mut prev_line = 1;
+        let mut prev_line = 0;
         let mut prev_column = 0;
         for (kind, span) in semantic_tokens.iter() {
             if span.start.line != prev_line {

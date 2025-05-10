@@ -178,6 +178,13 @@ impl GeneratedLanguageServer {
             if diagnostics.is_empty() {
                 for error in tyml.ml_validate_error().iter() {
                     let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+                    debug_log(format!("byte : {:?}", &diagnostic.labels[0].span));
+                    debug_log(format!(
+                        "lsp : {:?}",
+                        diagnostic.labels[0]
+                            .span
+                            .to_lsp_span(&tyml.ml_source_code().code)
+                    ));
 
                     diagnostics.push(Diagnostic {
                         range: diagnostic.labels[0]
@@ -268,7 +275,7 @@ fn to_line_column(code: &str, byte: usize) -> Position {
         if (line_matched.start()..line_matched.end()).contains(&byte) {
             let column = code[line_matched.start()..byte].chars().count();
 
-            return Position::new((line + 1) as _, column as _);
+            return Position::new(line as _, column as _);
         }
 
         last_line_index = line;
@@ -276,7 +283,7 @@ fn to_line_column(code: &str, byte: usize) -> Position {
     }
 
     Position::new(
-        (last_line_index + 1) as _,
+        last_line_index as _,
         last_line
             .chars()
             .filter(|&char| char != '\n' && char != '\r')
