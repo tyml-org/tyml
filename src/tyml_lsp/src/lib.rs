@@ -1,14 +1,18 @@
 pub mod language_server;
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::ops::Deref;
+use std::sync::{Arc, LazyLock, RwLock};
 
 use language_server::GeneratedLanguageServer;
+use tokio::runtime::Runtime;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 use tyml::Tyml;
 use tyml::tyml_diagnostic::message::Lang;
+
+pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
 
 #[derive(Debug)]
 pub struct LSPBackend {
@@ -75,6 +79,7 @@ impl LanguageServer for LSPBackend {
         self.client
             .log_message(MessageType::INFO, "TYML LSP server initialized!")
             .await;
+        *CLIENT_COPY.write().unwrap() = Some(self.client.clone());
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -163,10 +168,41 @@ impl LanguageServer for LSPBackend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        todo!()
+        let server = self.get_server(params.text_document_position.text_document.uri);
+
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!(
+                    "{:?}",
+                    server.provide_completion(params.text_document_position.position.clone())
+                ),
+            )
+            .await;
+
+        Ok(server
+            .provide_completion(params.text_document_position.position)
+            .map(|completions| CompletionResponse::Array(completions)))
     }
 
     async fn completion_resolve(&self, params: CompletionItem) -> Result<CompletionItem> {
         Ok(params)
     }
+}
+
+static CLIENT_COPY: LazyLock<RwLock<Option<Client>>> = LazyLock::new(|| RwLock::new(None));
+
+pub(crate) fn debug_log<T: ToString + Send + 'static>(log: T) {
+    RUNTIME.spawn(async move {
+        let client = {
+            CLIENT_COPY
+                .read()
+                .as_ref()
+                .unwrap()
+                .deref()
+                .clone()
+                .unwrap()
+        };
+        client.log_message(MessageType::LOG, log.to_string()).await
+    });
 }

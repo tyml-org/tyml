@@ -6,7 +6,7 @@ use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
 use tyml_parser::ast::Spanned;
-use tyml_source::{SourceCodeSpan, ToByteSpan};
+use tyml_source::SourceCodeSpan;
 use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
 use crate::error::TymlValueValidateError;
