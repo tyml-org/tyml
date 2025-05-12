@@ -163,7 +163,7 @@ impl Diagnostic {
 
         builder
             .finish()
-            .print(sources([
+            .eprint(sources([
                 (tyml_source.name.deref().clone(), tyml_source.code.as_str()),
                 (
                     validate_target_source.name.deref().clone(),

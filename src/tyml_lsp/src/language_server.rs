@@ -36,6 +36,7 @@ pub struct GeneratedLanguageServer {
     pub lang: &'static str,
     pub tyml: Mutex<Option<(TymlContext<Validated>, TymlHeader)>>,
     pub has_tyml_file_error: AtomicBool,
+    pub style_not_found: AtomicBool,
     pub tyml_file_name: Mutex<String>,
     pub tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
 }
@@ -47,6 +48,7 @@ impl GeneratedLanguageServer {
             lang,
             tyml: Mutex::new(None),
             has_tyml_file_error: AtomicBool::new(false),
+            style_not_found: AtomicBool::new(false),
             tyml_file_name: Mutex::new(String::new()),
             tokens: Mutex::new(Arc::new(Vec::new())),
         }
@@ -98,7 +100,21 @@ impl GeneratedLanguageServer {
         ))
         .parse();
 
-        let language = STYLE_REGISTRY.resolve("ini").unwrap();
+        let url = self.url.to_string();
+        let style_fall_back = url.split(".").last().unwrap_or("");
+        let style = header
+            .style
+            .as_ref()
+            .map(|style| style.as_ref().map(|style| style.as_str()).ok())
+            .flatten()
+            .unwrap_or(style_fall_back);
+
+        let language = STYLE_REGISTRY
+            .resolve(style)
+            .unwrap_or(STYLE_REGISTRY.resolve("").unwrap());
+
+        self.style_not_found
+            .store(STYLE_REGISTRY.resolve(style).is_none(), Ordering::Release);
 
         let mut tokens = BTreeMap::new();
 
@@ -132,7 +148,9 @@ impl GeneratedLanguageServer {
     pub async fn publish_analyzed_info(&self, client: &Client) {
         let (tyml, header) = self.tyml.lock().unwrap().clone().unwrap();
 
-        if self.has_tyml_file_error.load(Ordering::Acquire) {
+        if self.has_tyml_file_error.load(Ordering::Acquire)
+            || self.style_not_found.load(Ordering::Acquire)
+        {
             let tyml_file_name = self.tyml_file_name.lock().unwrap().clone();
 
             if let Some(Err(error)) = header.style {
@@ -145,7 +163,7 @@ impl GeneratedLanguageServer {
                                 .as_utf8_byte_range()
                                 .to_lsp_span(&tyml.ml_source_code().code),
                             severity: Some(DiagnosticSeverity::WARNING),
-                            message: get_text("lsp.message.tyml_var_lookup_error", self.lang)
+                            message: get_text("lsp.message.header_var_lookup_error", self.lang)
                                 .replace("%0", &error.var_name),
                             ..Default::default()
                         }],
@@ -162,8 +180,25 @@ impl GeneratedLanguageServer {
                                 .as_utf8_byte_range()
                                 .to_lsp_span(&tyml.ml_source_code().code),
                             severity: Some(DiagnosticSeverity::WARNING),
-                            message: get_text("lsp.message.tyml_var_lookup_error", self.lang)
+                            message: get_text("lsp.message.header_var_lookup_error", self.lang)
                                 .replace("%0", &error.var_name),
+                            ..Default::default()
+                        }],
+                        None,
+                    )
+                    .await;
+            } else if self.style_not_found.load(Ordering::Relaxed) {
+                client
+                    .publish_diagnostics(
+                        self.url.clone(),
+                        vec![Diagnostic {
+                            range: header
+                                .span
+                                .as_utf8_byte_range()
+                                .to_lsp_span(&tyml.ml_source_code().code),
+                            severity: Some(DiagnosticSeverity::WARNING),
+                            message: get_text("lsp.message.style_not_found", self.lang)
+                                .replace("%0", header.style.unwrap().unwrap().as_str()),
                             ..Default::default()
                         }],
                         None,

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use either::Either;
@@ -32,6 +34,7 @@ pub fn resolve_type<'input, 'ast_allocator>(
 
     let root_tree = resolve_defines_type(
         ast,
+        None,
         name_env,
         &mut named_type_map,
         &mut errors,
@@ -44,6 +47,7 @@ pub fn resolve_type<'input, 'ast_allocator>(
 
 fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     ast: &Defines<'input, 'ast_allocator>,
+    tree_span: Option<Range<usize>>,
     name_env: &'env NameEnvironment<'env, 'input>,
     named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
@@ -82,6 +86,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     TypeDefine::Struct(struct_define) => {
                         let tree = resolve_defines_type(
                             &struct_define.defines,
+                            Some(struct_define.span.clone()),
                             name_env,
                             named_type_map,
                             errors,
@@ -115,7 +120,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     TypeTree::Node {
         node,
         any_node,
-        span: ast.span.clone(),
+        span: tree_span.unwrap_or(ast.span.clone()),
     }
 }
 
@@ -132,12 +137,24 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             ty: get_value_type(default, ty),
             span: ast.span.clone(),
         },
-        (None, Some(inline), None) => {
-            resolve_defines_type(inline.defines, name_env, named_type_map, errors, env, ty)
-        }
-        (None, Some(inline), Some(_)) => {
-            resolve_defines_type(inline.defines, name_env, named_type_map, errors, env, ty)
-        }
+        (None, Some(inline), None) => resolve_defines_type(
+            inline.defines,
+            Some(inline.span.clone()),
+            name_env,
+            named_type_map,
+            errors,
+            env,
+            ty,
+        ),
+        (None, Some(inline), Some(_)) => resolve_defines_type(
+            inline.defines,
+            Some(inline.span.clone()),
+            name_env,
+            named_type_map,
+            errors,
+            env,
+            ty,
+        ),
         (Some(element_type), None, None) => {
             let ty = resolve_or_type(
                 &element_type.type_info,

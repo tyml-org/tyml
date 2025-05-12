@@ -3,6 +3,10 @@ name = "tyml"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "tyml"
+path = "src/bin/tyml.rs"
+
 [dependencies]
 tyml_diagnostic = { path = "../tyml_diagnostic/" }
 tyml_generator = { path = "../tyml_generator/" }

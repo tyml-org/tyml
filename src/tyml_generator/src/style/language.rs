@@ -2,7 +2,8 @@ use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
 use serde::{Deserialize, Serialize};
-use tyml_validate::validate::ValueTypeChecker;
+use tyml_source::AsUtf8ByteRange;
+use tyml_validate::validate::{ValueTree, ValueTypeChecker};
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
 
@@ -17,6 +18,7 @@ use super::{
 #[derive(Debug, Serialize, Deserialize)]
 pub enum LanguageStyle {
     Section(SectionStyle),
+    Empty,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,12 +34,18 @@ pub enum LanguageParser {
         key_value: KeyValueParser,
         comments: Vec<GeneratorTokenKind>,
     },
+    Empty {
+        empty_lexer: GeneratorTokenKind,
+    },
 }
 
 #[derive(Debug)]
 pub enum LanguageAST<'input> {
     Section {
         sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>, Range<usize>)>,
+        span: Range<usize>,
+    },
+    Empty {
         span: Range<usize>,
     },
 }
@@ -54,6 +62,9 @@ impl<'input> ParserGenerator<'input, LanguageAST<'input>, LanguageParser> for La
                     .map(|comment| registry.register(GeneratorTokenizer::Regex(comment.regex())))
                     .collect(),
             },
+            LanguageStyle::Empty => LanguageParser::Empty {
+                empty_lexer: registry.register(GeneratorTokenizer::regex(".*")),
+            },
         }
     }
 }
@@ -69,24 +80,24 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
     {
         let anchor = lexer.cast_anchor();
 
-        let mut sections = Vec::new();
-
         match self {
             LanguageParser::Section {
                 section,
                 key_value,
                 comments,
             } => {
+                let mut sections = Vec::new();
+
                 lexer.comments.extend(comments.iter().cloned());
 
                 loop {
                     let anchor = lexer.cast_anchor();
 
+                    lexer.skip_lf();
+
                     if lexer.is_reached_eof() {
                         break;
                     }
-
-                    lexer.skip_lf();
 
                     let section_ast = match section.parse(lexer, errors) {
                         Some(section) => section,
@@ -156,13 +167,20 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
 
                     sections.push((section_ast, key_values, anchor.elapsed(lexer)));
                 }
+
+                Some(LanguageAST::Section {
+                    sections,
+                    span: anchor.elapsed(lexer),
+                })
+            }
+            LanguageParser::Empty { empty_lexer: _ } => {
+                lexer.next();
+
+                Some(LanguageAST::Empty {
+                    span: anchor.elapsed(lexer),
+                })
             }
         }
-
-        Some(LanguageAST::Section {
-            sections,
-            span: anchor.elapsed(lexer),
-        })
     }
 
     fn first_token_kind(&self) -> crate::lexer::GeneratorTokenKind {
@@ -172,6 +190,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 key_value: _,
                 comments: _,
             } => section.first_token_kind(),
+            LanguageParser::Empty { empty_lexer } => *empty_lexer,
         }
     }
 }
@@ -190,6 +209,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
     fn span(&self) -> Range<usize> {
         match self {
             LanguageAST::Section { sections: _, span } => span.clone(),
+            LanguageAST::Empty { span } => span.clone(),
         }
     }
 
@@ -201,6 +221,17 @@ impl<'input> AST<'input> for LanguageAST<'input> {
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
+        if let ValueTree::Section {
+            elements: _,
+            name_span,
+            define_span,
+        } = &mut validator.value_tree
+        {
+            // set root span
+            *name_span = self.span().as_utf8_byte_range();
+            *define_span = self.span().as_utf8_byte_range();
+        }
+
         match self {
             LanguageAST::Section { sections, span: _ } => {
                 for (section, key_values, span) in sections.iter() {
@@ -236,6 +267,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                     }
                 }
             }
+            LanguageAST::Empty { span: _ } => {}
         }
     }
 
@@ -253,6 +285,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                     }
                 }
             }
+            LanguageAST::Empty { span: _ } => {}
         }
     }
 }

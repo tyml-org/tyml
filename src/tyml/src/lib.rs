@@ -178,7 +178,7 @@ impl<State> TymlContext<State> {
         }
     }
 
-    pub fn has_parse_error(&self) -> bool
+    pub fn has_ml_parse_error(&self) -> bool
     where
         State: IValidated,
     {
@@ -209,7 +209,7 @@ impl<State> TymlContext<State> {
     where
         State: IValidated,
     {
-        self.state.ml_validate_error().is_empty()
+        !self.state.ml_validate_error().is_empty()
     }
 
     pub fn ml_validate_error(&self) -> &Arc<Vec<TymlValueValidateError>>
@@ -435,12 +435,12 @@ test = v
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let language = STYLE_REGISTRY.resolve("ini").unwrap();
+        let language = STYLE_REGISTRY.resolve("").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
 
-        tyml.print_tyml_error(Lang::ja_JP);
-        tyml.print_ml_parse_error(Lang::ja_JP);
-        tyml.print_ml_validate_error(Lang::ja_JP);
+        tyml.print_tyml_error(Lang::system());
+        tyml.print_ml_parse_error(Lang::system());
+        tyml.print_ml_validate_error(Lang::system());
     }
 }

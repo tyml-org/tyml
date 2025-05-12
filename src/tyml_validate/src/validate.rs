@@ -408,17 +408,37 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 }
                 MergedValueTree::Array { elements: _, span }
                 | MergedValueTree::Value { value: _, span } => {
+                    let is_empty_value = match value_tree {
+                        MergedValueTree::Value { value, span: _ } => value == &ValidateValue::None,
+                        _ => false,
+                    };
+
                     if let Some(errors) = errors {
-                        let error = TymlValueValidateError::NotTreeValue {
-                            found: span.clone(),
-                            path: section_name_stack
-                                .iter()
-                                .map(|name| name.to_string())
-                                .collect::<Vec<_>>()
-                                .join("."),
-                            tyml_span: tyml_span.clone(),
-                        };
-                        errors.push(error);
+                        if is_empty_value {
+                            let error = TymlValueValidateError::NoValueFound {
+                                required: Spanned::new(
+                                    section_name_stack
+                                        .iter()
+                                        .map(|name| name.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("."),
+                                    type_tree.span(),
+                                ),
+                                required_in: vec![span.clone()],
+                            };
+                            errors.push(error);
+                        } else {
+                            let error = TymlValueValidateError::NotTreeValue {
+                                found: span.clone(),
+                                path: section_name_stack
+                                    .iter()
+                                    .map(|name| name.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("."),
+                                tyml_span: tyml_span.clone(),
+                            };
+                            errors.push(error);
+                        }
                     } else {
                         return false;
                     }

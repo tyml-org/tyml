@@ -26,7 +26,7 @@ impl LSPBackend {
             .write()
             .unwrap()
             .entry(url.clone())
-            .or_insert_with(|| Arc::new(GeneratedLanguageServer::new(url, Lang::ja_JP)))
+            .or_insert_with(|| Arc::new(GeneratedLanguageServer::new(url, Lang::system())))
             .clone()
     }
 }
@@ -63,7 +63,7 @@ impl LanguageServer for LSPBackend {
                     ),
                 ),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![".".to_string()]),
+                    trigger_characters: Some(vec![".".to_string(), "[".to_string()]),
                     resolve_provider: Some(true),
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,

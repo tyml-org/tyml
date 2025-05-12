@@ -3,6 +3,7 @@ use std::{ops::Deref, sync::LazyLock};
 use ariadne::{Color, Fmt};
 use regex::Regex;
 use resource::resource_str;
+use sys_locale::get_locale;
 use toml::{Table, Value};
 
 static JA_JP: LazyLock<Table> =
@@ -16,10 +17,23 @@ pub struct Lang {}
 impl Lang {
     pub const ja_JP: &str = "ja_JP";
     pub const en_US: &str = "en_US";
+
+    pub fn system() -> &'static str {
+        let locale = get_locale()
+            .unwrap_or(Lang::en_US.to_string())
+            .replace("-", "_");
+
+        if locale.contains(Lang::ja_JP) {
+            Lang::ja_JP
+        } else {
+            Lang::en_US
+        }
+    }
 }
 
 pub fn get_text(key: &str, lang: &str) -> String {
-    return get_text_optional(key, lang).unwrap();
+    return get_text_optional(key, lang)
+        .unwrap_or_else(|| panic!("No message found! lang: {}, key: {}", lang, key));
 }
 
 pub fn get_text_optional(key: &str, lang: &str) -> Option<String> {
@@ -49,11 +63,7 @@ static COLOR_REGEX: LazyLock<Regex> =
 static COLOR_GROUP_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"%color:(\w+)\{((\\\}|[^\}])*)\}").unwrap());
 
-pub fn replace_message(
-    mut message: String,
-    arguments: &Vec<String>,
-    colored: bool,
-) -> String {
+pub fn replace_message(mut message: String, arguments: &Vec<String>, colored: bool) -> String {
     for (index, replace) in arguments.iter().enumerate() {
         message = message.replace(format!("%{}", index).as_str(), replace.as_str());
     }
