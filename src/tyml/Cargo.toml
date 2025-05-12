@@ -15,3 +15,5 @@ bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
 either = "1.13.0"
 hashbrown = "0.15.2"
+shellexpand = "3.1.1"
+regex = "1.11.1"

@@ -170,16 +170,6 @@ impl LanguageServer for LSPBackend {
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let server = self.get_server(params.text_document_position.text_document.uri);
 
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!(
-                    "{:?}",
-                    server.provide_completion(params.text_document_position.position.clone())
-                ),
-            )
-            .await;
-
         Ok(server
             .provide_completion(params.text_document_position.position)
             .map(|completions| CompletionResponse::Array(completions)))
@@ -192,6 +182,7 @@ impl LanguageServer for LSPBackend {
 
 static CLIENT_COPY: LazyLock<RwLock<Option<Client>>> = LazyLock::new(|| RwLock::new(None));
 
+#[allow(unused)]
 pub(crate) fn debug_log<T: ToString + Send + 'static>(log: T) {
     RUNTIME.spawn(async move {
         let client = {

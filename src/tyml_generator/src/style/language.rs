@@ -37,7 +37,7 @@ pub enum LanguageParser {
 #[derive(Debug)]
 pub enum LanguageAST<'input> {
     Section {
-        sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>)>,
+        sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>, Range<usize>)>,
         span: Range<usize>,
     },
 }
@@ -80,6 +80,8 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 lexer.comments.extend(comments.iter().cloned());
 
                 loop {
+                    let anchor = lexer.cast_anchor();
+
                     if lexer.is_reached_eof() {
                         break;
                     }
@@ -152,7 +154,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                         key_values.push(key_value);
                     }
 
-                    sections.push((section_ast, key_values));
+                    sections.push((section_ast, key_values, anchor.elapsed(lexer)));
                 }
             }
         }
@@ -200,8 +202,8 @@ impl<'input> AST<'input> for LanguageAST<'input> {
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
         match self {
-            LanguageAST::Section { sections, span } => {
-                for (section, key_values) in sections.iter() {
+            LanguageAST::Section { sections, span: _ } => {
+                for (section, key_values, span) in sections.iter() {
                     // stack this section
                     let stacked = if section.sections.is_empty() {
                         section_name_stack.push((
@@ -243,7 +245,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
     ) {
         match self {
             LanguageAST::Section { sections, span: _ } => {
-                for (section, key_values) in sections.iter() {
+                for (section, key_values, _) in sections.iter() {
                     section.take_token(tokens);
 
                     for key_value in key_values.iter() {

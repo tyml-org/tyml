@@ -1,3 +1,5 @@
+pub mod header;
+
 use std::{
     collections::BTreeMap,
     fmt::Debug,
@@ -407,7 +409,7 @@ unsafe impl Sync for TymlInner {}
 mod tests {
 
     use tyml_diagnostic::message::Lang;
-    use tyml_generator::_ini_file_define;
+    use tyml_generator::registry::STYLE_REGISTRY;
     use tyml_source::SourceCode;
 
     use crate::TymlContext;
@@ -433,7 +435,7 @@ test = v
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let language = _ini_file_define();
+        let language = STYLE_REGISTRY.resolve("ini").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
 

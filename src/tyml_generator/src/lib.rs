@@ -1,75 +1,25 @@
-use style::{
-    comment::Comment,
-    key_value::{KeyValue, KeyValueKind},
-    language::{LanguageStyle, SectionStyle},
-    literal::{
-        CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind, Literal,
-        UnicodeFormatKind,
-    },
-    section::{Section, SectionKind},
-    value::Value,
-};
-
 pub mod lexer;
+pub mod registry;
 pub mod style;
-
-pub fn _ini_file_define() -> LanguageStyle {
-    let ini_literal = CustomRegexLiteral {
-        regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*".into(),
-        option: CustomLiteralOption {
-            trim_space: true,
-            escape: EscapeOption {
-                allow_escape: true,
-                unicode: UnicodeFormatKind::Normal,
-            },
-        },
-    };
-
-    let literal = Literal::Custom(ini_literal.clone());
-
-    let any_string_literal = Literal::Custom(ini_literal);
-
-    LanguageStyle::Section(SectionStyle {
-        section: Section {
-            literal: literal.clone(),
-            kind: SectionKind::Bracket,
-        },
-        key_value: KeyValue {
-            key: literal.clone(),
-            kind: KeyValueKind::Equal,
-            value: Value {
-                float: Some(FloatLiteral {
-                    allow_e: true,
-                    inf_nan_kind: InfNanKind::Insensitive,
-                    allow_plus_minus: true,
-                    allow_under_line: true,
-                }),
-                any_string: Some(any_string_literal),
-                ..Default::default()
-            },
-        },
-        comments: vec![Comment::Hash],
-    })
-}
 
 #[cfg(test)]
 mod test {
-    use std::{fs::OpenOptions, io::Write};
+    use std::{fs::OpenOptions, io::Write, ops::Deref};
 
     use allocator_api2::vec::Vec;
     use bumpalo::Bump;
 
     use crate::{
-        _ini_file_define,
         lexer::{GeneratorLexer, TokenizerRegistry},
+        registry::STYLE_REGISTRY,
         style::{Parser, ParserGenerator},
     };
 
     #[test]
     fn generate() {
-        let language = _ini_file_define();
+        let language = STYLE_REGISTRY.resolve("ini").unwrap();
 
-        let toml = toml::to_string_pretty(&language).unwrap();
+        let toml = toml::to_string_pretty(language.deref()).unwrap();
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)

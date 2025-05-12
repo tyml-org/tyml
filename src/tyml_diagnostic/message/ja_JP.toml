@@ -1,5 +1,5 @@
 [parse_error]
-name = "%color:red{[SE%0] Tyml構文エラー}"
+name = "%color:red{[SE%0] TYML構文エラー}"
 [parse_error.0001]
 message = "要素定義の記述形式が正しくありません"
 label_0 = "不明なトークンです"
@@ -126,4 +126,5 @@ label_0 = "等号が必要です"
 label_1 = "キーと値の間に等号'%color:cyan{=}'を記述してみてください"
 
 [lsp.message]
-tyml_file_error = "Tymlファイル'%0'を読み込めませんでした"
+tyml_var_lookup_error = "指定された環境変数'%0'を解決できません"
+tyml_file_error = "TYMLファイル'%0'を読み込めませんでした"
