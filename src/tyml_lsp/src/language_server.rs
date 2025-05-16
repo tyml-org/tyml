@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs::File,
     io::Read,
-    ops::{Deref, Range, RangeInclusive},
+    ops::{Range, RangeInclusive},
     sync::{
         Arc, LazyLock, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -27,6 +27,8 @@ use tyml::{
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
     tyml_validate::validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
 };
+
+use crate::debug_log;
 
 type LSPRange = tower_lsp::lsp_types::Range;
 
@@ -990,14 +992,23 @@ fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
     let mut result = Vec::new();
 
     if let Some(merged_value_tree) = &self.merged_value_tree {
-        goto_define_recursive(
-            &self.type_tree,
-            &self.named_type_map,
-            merged_value_tree,
-            position,
-            code,
-            &mut result,
-        );
+        if let MergedValueTree::Section {
+            elements,
+            name_spans: _,
+            define_spans: _,
+        } = merged_value_tree
+        {
+            if let Some(root_tree) = elements.get("root") {
+                goto_define_recursive(
+                    &self.type_tree,
+                    &self.named_type_map,
+                    root_tree,
+                    position,
+                    code,
+                    &mut result,
+                );
+            }
+        }
     }
 
     result
@@ -1026,11 +1037,20 @@ fn goto_define_recursive(
                 return;
             };
 
+            debug_log(format!("position : {}", position));
+            for span in name_spans.iter() {
+                debug_log(format!("span : {:?}", span));
+            }
+            for span in define_spans.iter() {
+                debug_log(format!("dspan : {:?}", span));
+            }
+
             if name_spans
                 .iter()
                 .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
             {
                 result.push(span.clone());
+                return;
             }
 
             if !define_spans

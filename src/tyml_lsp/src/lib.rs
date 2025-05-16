@@ -236,7 +236,34 @@ impl LanguageServer for LSPBackend {
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        todo!()
+        let server = self.get_server(params.text_document_position_params.text_document.uri);
+
+        match server {
+            Either::Left(server) => {
+                let (defined_url, defines) =
+                    server.goto_define(params.text_document_position_params.position);
+
+                let defined_url = Url::parse(format!("file://{}", defined_url).as_str()).unwrap();
+
+                match defines.len() {
+                    0 => Ok(None),
+                    1 => Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                        uri: defined_url,
+                        range: defines[0],
+                    }))),
+                    _ => Ok(Some(GotoDefinitionResponse::Array(
+                        defines
+                            .into_iter()
+                            .map(|range| Location {
+                                uri: defined_url.clone(),
+                                range,
+                            })
+                            .collect(),
+                    ))),
+                }
+            }
+            Either::Right(_) => todo!(),
+        }
     }
 }
 

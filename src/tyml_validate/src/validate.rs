@@ -222,7 +222,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                     // search same section that already exists
                     let next_branch_position =
-                        element_branches.iter_mut().position(|branch| match branch {
+                        element_branches.iter().position(|branch| match branch {
                             ValueTree::Section {
                                 elements: _,
                                 name_span,
@@ -847,10 +847,10 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
             } => match value_tree {
                 ValueTree::Section {
                     elements,
-                    name_span: span,
+                    name_span,
                     define_span,
                 } => {
-                    spans.push(span.clone());
+                    spans.push(name_span.clone());
                     define_spans.push(define_span.clone());
 
                     for (element_name, element_values) in elements.iter() {
