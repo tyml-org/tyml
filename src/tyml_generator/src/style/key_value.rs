@@ -184,6 +184,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                         }),
                     ValueTree::Value {
                         value: ValidateValue::None,
+                        key_span: self.key.span.as_utf8_byte_range(),
                         span: self.span.as_utf8_byte_range(),
                     },
                 );

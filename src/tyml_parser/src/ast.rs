@@ -169,6 +169,7 @@ pub enum TypeDefine<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct StructDefine<'input, 'allocator> {
+    pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
     pub defines: &'allocator Defines<'input, 'allocator>,
     pub span: Range<usize>,
@@ -176,6 +177,7 @@ pub struct StructDefine<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct EnumDefine<'input, 'allocator> {
+    pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
     pub elements: Vec<Literal<'input>, &'allocator Bump>,
     pub span: Range<usize>,

@@ -8,7 +8,7 @@ mod tests {
     bnf_rules! {
         #[generate_code = false]
 
-        source             ::= [ "!tyml" ] defines
+        source             ::= defines
 
         defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
         define             ::= element_define | type_define

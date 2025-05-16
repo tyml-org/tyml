@@ -20,10 +20,12 @@ pub enum ValueTree<'section, 'value> {
     },
     Array {
         elements: Vec<Self>,
+        key_span: SourceCodeSpan,
         span: SourceCodeSpan,
     },
     Value {
         value: ValidateValue<'value>,
+        key_span: SourceCodeSpan,
         span: SourceCodeSpan,
     },
 }
@@ -36,8 +38,16 @@ impl ValueTree<'_, '_> {
                 name_span: _,
                 define_span,
             } => define_span,
-            ValueTree::Array { elements: _, span } => span,
-            ValueTree::Value { value: _, span } => span,
+            ValueTree::Array {
+                elements: _,
+                key_span: _,
+                span,
+            } => span,
+            ValueTree::Value {
+                value: _,
+                key_span: _,
+                span,
+            } => span,
         }
     }
 }
@@ -220,9 +230,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                             } => name_span == &current_section_name_span,
                             ValueTree::Array {
                                 elements: _,
+                                key_span: _,
                                 span: _,
                             } => false,
-                            ValueTree::Value { value: _, span: _ } => false,
+                            ValueTree::Value {
+                                value: _,
+                                key_span: _,
+                                span: _,
+                            } => false,
                         });
 
                     let matched_section_branch = match next_branch_position {
@@ -247,9 +262,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 }
                 ValueTree::Array {
                     elements: _,
+                    key_span: _,
                     span: _,
                 }
-                | ValueTree::Value { value: _, span: _ } => {
+                | ValueTree::Value {
+                    value: _,
+                    key_span: _,
+                    span: _,
+                } => {
                     // It is unreachable, because the value has been validated in up layer section.
                     unreachable!()
                 }
@@ -270,6 +290,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
         let empty_merged_tree = MergedValueTree::Value {
             value: ValidateValue::None,
+            key_span: SourceCodeSpan::UTF8Byte(0..0),
             span: SourceCodeSpan::UTF8Byte(0..0),
         };
 
@@ -281,9 +302,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             } => elements.get("root").unwrap_or(&empty_merged_tree),
             MergedValueTree::Array {
                 elements: _,
+                key_span: _,
                 span: _,
             } => unreachable!(),
-            MergedValueTree::Value { value: _, span: _ } => unreachable!(),
+            MergedValueTree::Value {
+                value: _,
+                key_span: _,
+                span: _,
+            } => unreachable!(),
         };
 
         self.validate_tree(
@@ -406,10 +432,22 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         }
                     }
                 }
-                MergedValueTree::Array { elements: _, span }
-                | MergedValueTree::Value { value: _, span } => {
+                MergedValueTree::Array {
+                    elements: _,
+                    key_span: _,
+                    span,
+                }
+                | MergedValueTree::Value {
+                    value: _,
+                    key_span: _,
+                    span,
+                } => {
                     let is_empty_value = match value_tree {
-                        MergedValueTree::Value { value, span: _ } => value == &ValidateValue::None,
+                        MergedValueTree::Value {
+                            value,
+                            key_span: _,
+                            span: _,
+                        } => value == &ValidateValue::None,
                         _ => false,
                     };
 
@@ -464,10 +502,16 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     name_spans: _,
                                     define_spans: spans,
                                 } => Some(spans.iter().cloned().collect()),
-                                MergedValueTree::Array { elements: _, span } => {
-                                    Some(std::vec![span.clone()])
-                                }
-                                MergedValueTree::Value { value, span } => match value {
+                                MergedValueTree::Array {
+                                    elements: _,
+                                    key_span: _,
+                                    span,
+                                } => Some(std::vec![span.clone()]),
+                                MergedValueTree::Value {
+                                    value,
+                                    key_span: _,
+                                    span,
+                                } => match value {
                                     ValidateValue::String(value) => elements
                                         .iter()
                                         .any(|element| element.value == value)
@@ -500,7 +544,12 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     }
                 }
                 Type::Array(base_type) => {
-                    if let MergedValueTree::Array { elements, span: _ } = value_tree {
+                    if let MergedValueTree::Array {
+                        elements,
+                        key_span: _,
+                        span: _,
+                    } = value_tree
+                    {
                         for element in elements.iter() {
                             if self.validate_type(&base_type, element, section_name_stack) {
                                 continue;
@@ -581,7 +630,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     ) -> bool {
         match ty {
             Type::Int(attribute) => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::Int(int) => attribute.validate(*int),
                     ValidateValue::UnsignedInt(uint) => {
                         *uint <= u64::MAX as _ && attribute.validate(*uint as _)
@@ -591,7 +644,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 _ => false,
             },
             Type::UnsignedInt(attribute) => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::UnsignedInt(uint) => attribute.validate(*uint),
                     ValidateValue::Int(int) => *int >= 0 && attribute.validate(*int as _),
                     _ => false,
@@ -599,7 +656,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 _ => false,
             },
             Type::Float(attribute) => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::Float(float) => attribute.validate(*float),
                     ValidateValue::Int(int) => attribute.validate(*int as _),
                     ValidateValue::UnsignedInt(uint) => attribute.validate(*uint as _),
@@ -608,28 +669,44 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 _ => false,
             },
             Type::Bool => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::Bool(_) => true,
                     _ => false,
                 },
                 _ => false,
             },
             Type::String(attribute) => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::String(string) => attribute.validate(&string),
                     _ => false,
                 },
                 _ => false,
             },
             Type::MaybeInt => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::Int(_) => true,
                     _ => false,
                 },
                 _ => false,
             },
             Type::MaybeUnsignedInt => match value_tree {
-                MergedValueTree::Value { value, span: _ } => match value {
+                MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } => match value {
                     ValidateValue::Int(_) => true,
                     ValidateValue::UnsignedInt(_) => true,
                     _ => false,
@@ -644,7 +721,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         self.validate_tree(&mut None, tree, value_tree, section_name_stack)
                     }
                     NamedTypeTree::Enum { elements } => match value_tree {
-                        MergedValueTree::Value { value, span: _ } => match value {
+                        MergedValueTree::Value {
+                            value,
+                            key_span: _,
+                            span: _,
+                        } => match value {
                             ValidateValue::String(string) => {
                                 elements.iter().any(|element| element.value == string)
                             }
@@ -658,13 +739,22 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 .iter()
                 .any(|ty| self.validate_type(ty, value_tree, section_name_stack)),
             Type::Array(ty) => match value_tree {
-                MergedValueTree::Array { elements, span: _ } => elements
+                MergedValueTree::Array {
+                    elements,
+                    key_span: _,
+                    span: _,
+                } => elements
                     .iter()
                     .all(|element| self.validate_type(&ty, element, section_name_stack)),
                 _ => false,
             },
             Type::Optional(base_type) => {
-                if let MergedValueTree::Value { value, span: _ } = value_tree {
+                if let MergedValueTree::Value {
+                    value,
+                    key_span: _,
+                    span: _,
+                } = value_tree
+                {
                     match value {
                         ValidateValue::None => return true,
                         _ => {}
@@ -688,10 +778,12 @@ pub enum MergedValueTree<'section, 'value> {
     },
     Array {
         elements: Vec<Self>,
+        key_span: SourceCodeSpan,
         span: SourceCodeSpan,
     },
     Value {
         value: ValidateValue<'value>,
+        key_span: SourceCodeSpan,
         span: SourceCodeSpan,
     },
 }
@@ -705,8 +797,16 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                 name_spans: _,
                 define_spans,
             } => define_spans.iter(),
-            MergedValueTree::Array { elements: _, span } => std::iter::once(span),
-            MergedValueTree::Value { value: _, span } => std::iter::once(span),
+            MergedValueTree::Array {
+                elements: _,
+                key_span: _,
+                span,
+            } => std::iter::once(span),
+            MergedValueTree::Value {
+                value: _,
+                key_span: _,
+                span,
+            } => std::iter::once(span),
         }
     }
 
@@ -765,12 +865,22 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                                     name_spans: Vec::new(),
                                     define_spans: Vec::new(),
                                 },
-                                ValueTree::Array { elements, span } => MergedValueTree::Array {
+                                ValueTree::Array {
+                                    elements,
+                                    key_span,
+                                    span,
+                                } => MergedValueTree::Array {
                                     elements: Vec::with_capacity(elements.len()),
+                                    key_span: key_span.clone(),
                                     span: span.clone(),
                                 },
-                                ValueTree::Value { value, span } => MergedValueTree::Value {
+                                ValueTree::Value {
+                                    value,
+                                    key_span,
+                                    span,
+                                } => MergedValueTree::Value {
                                     value: value.clone(),
+                                    key_span: key_span.clone(),
                                     span: span.clone(),
                                 },
                             };
@@ -797,10 +907,12 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                 }
                 ValueTree::Value {
                     value: _,
+                    key_span: _,
                     span: duplicated,
                 }
                 | ValueTree::Array {
                     elements: _,
+                    key_span: _,
                     span: duplicated,
                 } => {
                     let error = TymlValueValidateError::DuplicatedValue {
@@ -817,10 +929,16 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
             },
             MergedValueTree::Array {
                 elements: new_elements,
+                key_span: _,
                 span,
             } => {
                 if is_init_merge {
-                    if let ValueTree::Array { elements, span: _ } = value_tree {
+                    if let ValueTree::Array {
+                        elements,
+                        key_span: _,
+                        span: _,
+                    } = value_tree
+                    {
                         for element in elements.iter() {
                             let mut new_tree = match element {
                                 ValueTree::Section {
@@ -832,12 +950,22 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                                     name_spans: Vec::new(),
                                     define_spans: Vec::new(),
                                 },
-                                ValueTree::Array { elements: _, span } => MergedValueTree::Array {
+                                ValueTree::Array {
+                                    elements: _,
+                                    key_span,
+                                    span,
+                                } => MergedValueTree::Array {
                                     elements: Vec::new(),
+                                    key_span: key_span.clone(),
                                     span: span.clone(),
                                 },
-                                ValueTree::Value { value, span } => MergedValueTree::Value {
+                                ValueTree::Value {
+                                    value,
+                                    key_span,
+                                    span,
+                                } => MergedValueTree::Value {
                                     value: value.clone(),
+                                    key_span: key_span.clone(),
                                     span: span.clone(),
                                 },
                             };
@@ -872,9 +1000,18 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                     errors.push(error);
                 }
             }
-            MergedValueTree::Value { value: _, span } => {
+            MergedValueTree::Value {
+                value: _,
+                key_span: _,
+                span,
+            } => {
                 if is_init_merge {
-                    if let ValueTree::Value { value: _, span: _ } = value_tree {
+                    if let ValueTree::Value {
+                        value: _,
+                        key_span: _,
+                        span: _,
+                    } = value_tree
+                    {
                     } else {
                         unreachable!()
                     };

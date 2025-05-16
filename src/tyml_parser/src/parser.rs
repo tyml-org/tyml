@@ -494,7 +494,7 @@ fn parse_struct_define<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::Type {
         return None;
     }
-    lexer.next();
+    let keyword = lexer.next().unwrap();
 
     let name = match lexer.current().get_kind() {
         TokenKind::Literal => lexer.next().unwrap().into_literal(),
@@ -549,6 +549,7 @@ fn parse_struct_define<'input, 'allocator>(
     lexer.next();
 
     Some(StructDefine {
+        keyword_span: keyword.span,
         name,
         defines,
         span: anchor.elapsed(lexer),
@@ -565,7 +566,7 @@ fn parse_enum_define<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::Enum {
         return None;
     }
-    lexer.next();
+    let keyword = lexer.next().unwrap();
 
     let name = match lexer.current().get_kind() {
         TokenKind::Literal => lexer.next().unwrap().into_literal(),
@@ -670,6 +671,7 @@ fn parse_enum_define<'input, 'allocator>(
     lexer.next();
 
     Some(EnumDefine {
+        keyword_span: keyword.span,
         name,
         elements,
         span: anchor.elapsed(lexer),

@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs::File,
     io::Read,
-    ops::{Range, RangeInclusive},
+    ops::{Deref, Range, RangeInclusive},
     sync::{
         Arc, LazyLock, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -25,7 +25,7 @@ use tyml::{
     tyml_generator::{registry::STYLE_REGISTRY, style::ASTTokenKind},
     tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan, ToByteSpan},
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
-    tyml_validate::validate::{MergedValueTree, ValueTypeChecker},
+    tyml_validate::validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
 };
 
 type LSPRange = tower_lsp::lsp_types::Range;
@@ -127,8 +127,8 @@ impl GeneratedLanguageServer {
         let mut semantic_tokens = Vec::new();
         for (kind, span) in tokens.values() {
             let kind = match kind {
-                ASTTokenKind::Section => SemanticTokenType::TYPE,
-                ASTTokenKind::Key => SemanticTokenType::VARIABLE,
+                ASTTokenKind::Section => SemanticTokenType::STRUCT,
+                ASTTokenKind::Key => SemanticTokenType::PROPERTY,
                 ASTTokenKind::TreeKey => SemanticTokenType::TYPE,
                 ASTTokenKind::NumericValue => SemanticTokenType::NUMBER,
                 ASTTokenKind::InfNan => SemanticTokenType::KEYWORD,
@@ -234,7 +234,7 @@ impl GeneratedLanguageServer {
                     severity: Some(DiagnosticSeverity::ERROR),
                     code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                     message: format!(
-                        "{} {}\n{}",
+                        "{}: {}\n{}",
                         diagnostic.message.section_name(self.lang, false),
                         diagnostic.message.message(self.lang, false),
                         diagnostic.message.label(1, self.lang, false).unwrap(),
@@ -254,7 +254,7 @@ impl GeneratedLanguageServer {
                         severity: Some(DiagnosticSeverity::ERROR),
                         code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                         message: format!(
-                            "{} {}\n{}",
+                            "{}: {}\n{}",
                             diagnostic.message.section_name(self.lang, false),
                             diagnostic.message.message(self.lang, false),
                             diagnostic.message.label(0, self.lang, false).unwrap()
@@ -308,33 +308,59 @@ impl GeneratedLanguageServer {
                 .collect(),
         )
     }
+
+    pub fn goto_define(&self, position: Position) -> (String, Vec<LSPRange>) {
+        let Some((tyml, header)) = self.tyml.lock().unwrap().as_ref().cloned() else {
+            return (String::new(), Vec::new());
+        };
+
+        let byte_position = position.to_byte_position(&tyml.ml_source_code().code);
+
+        let defines = tyml
+            .validator()
+            .goto_define(byte_position, &tyml.ml_source_code().code);
+
+        let defines = defines
+            .into_iter()
+            .map(|range| {
+                range
+                    .as_utf8_byte_range()
+                    .to_lsp_span(&tyml.ml_source_code().code)
+            })
+            .collect();
+
+        (header.tyml.unwrap_or_default(), defines)
+    }
 }
 
 #[derive(Debug)]
 pub struct TymlLanguageServer {
-    url: Url,
-    lang: &'static str,
-    tyml: Mutex<TymlContext<Parsed>>,
-    tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
+    pub url: Url,
+    pub lang: &'static str,
+    pub tyml: Mutex<Option<TymlContext<Parsed>>>,
+    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
 }
 
 impl TymlLanguageServer {
-    pub fn new(url: Url, lang: &'static str, source_code: SourceCode) -> Self {
+    pub fn new(url: Url, lang: &'static str) -> Self {
         Self {
             url,
             lang,
-            tyml: Mutex::new(TymlContext::new(source_code).parse()),
+            tyml: Mutex::new(None),
             tokens: Mutex::new(Arc::new(Vec::new())),
         }
     }
 
-    pub fn on_change(&self, code: String, name: String) {
-        let old_tyml = { self.tyml.lock().unwrap().clone() };
-
-        let (tyml, changed) = if code.as_str() != old_tyml.tyml_source.code.as_str() {
-            (TymlContext::new(SourceCode::new(name, code)).parse(), true)
-        } else {
-            (old_tyml, false)
+    pub fn on_change(&self, name: String, code: String) {
+        let (tyml, changed) = match self.tyml.lock().unwrap().clone() {
+            Some(old_tyml) => {
+                if code.as_str() != old_tyml.tyml_source.code.as_str() {
+                    (TymlContext::new(SourceCode::new(name, code)).parse(), true)
+                } else {
+                    (old_tyml, false)
+                }
+            }
+            None => (TymlContext::new(SourceCode::new(name, code)).parse(), true),
         };
 
         if changed {
@@ -354,11 +380,13 @@ impl TymlLanguageServer {
             *self.tokens.lock().unwrap() = Arc::new(tokens);
         }
 
-        *self.tyml.lock().unwrap() = tyml;
+        *self.tyml.lock().unwrap() = Some(tyml);
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
-        let tyml = { self.tyml.lock().unwrap().clone() };
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return;
+        };
 
         let mut diagnostics = Vec::new();
         for error in tyml.tyml().parse_errors() {
@@ -371,10 +399,9 @@ impl TymlLanguageServer {
                 severity: Some(DiagnosticSeverity::ERROR),
                 code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                 message: format!(
-                    "{} {}\n{}",
+                    "{}: {}",
                     diagnostic.message.section_name(self.lang, false),
                     diagnostic.message.message(self.lang, false),
-                    diagnostic.message.label(1, self.lang, false).unwrap(),
                 ),
                 ..Default::default()
             });
@@ -391,10 +418,9 @@ impl TymlLanguageServer {
                     severity: Some(DiagnosticSeverity::ERROR),
                     code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                     message: format!(
-                        "{} {}\n{}",
+                        "{}: {}",
                         diagnostic.message.section_name(self.lang, false),
                         diagnostic.message.message(self.lang, false),
-                        diagnostic.message.label(1, self.lang, false).unwrap(),
                     ),
                     ..Default::default()
                 });
@@ -407,7 +433,9 @@ impl TymlLanguageServer {
     }
 
     pub fn provide_completion(&self, position: Position) -> Option<Vec<CompletionItem>> {
-        let tyml = { self.tyml.lock().unwrap().clone() };
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return None;
+        };
 
         let byte_position = position.to_byte_position(&tyml.tyml_source.code);
 
@@ -559,7 +587,7 @@ mod tyml_semantic_tokens {
             match define {
                 Define::Element(element_define) => {
                     let span = element_define.node.span();
-                    tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+                    tokens.insert(span.start, (SemanticTokenType::PROPERTY, span));
 
                     if let Some(ty) = &element_define.ty {
                         collect_tokens_for_element_type(ty, tokens);
@@ -625,11 +653,17 @@ mod tyml_semantic_tokens {
                 let span = struct_define.name.span.clone();
                 tokens.insert(span.start, (SemanticTokenType::TYPE, span));
 
+                let span = struct_define.keyword_span.clone();
+                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+
                 collect_tokens_for_defines(&struct_define.defines, tokens);
             }
             TypeDefine::Enum(enum_define) => {
                 let span = enum_define.name.span.clone();
                 tokens.insert(span.start, (SemanticTokenType::TYPE, span));
+
+                let span = enum_define.keyword_span.clone();
+                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
 
                 for element in enum_define.elements.iter() {
                     let span = element.span.clone();
@@ -889,7 +923,11 @@ fn provide_completion_recursive_for_type_tree(
                             );
                         }
                     }
-                    MergedValueTree::Array { elements: _, span } => {
+                    MergedValueTree::Array {
+                        elements: _,
+                        key_span: _,
+                        span,
+                    } => {
                         if span
                             .to_byte_span(code)
                             .to_inclusive()
@@ -904,7 +942,11 @@ fn provide_completion_recursive_for_type_tree(
                             );
                         }
                     }
-                    MergedValueTree::Value { value: _, span } => {
+                    MergedValueTree::Value {
+                        value: _,
+                        key_span: _,
+                        span,
+                    } => {
                         if span
                             .to_byte_span(code)
                             .to_inclusive()
@@ -940,5 +982,159 @@ fn provide_completion_recursive_for_type_tree(
                 completions,
             );
         }
+    }
+}
+
+#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
+fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
+    let mut result = Vec::new();
+
+    if let Some(merged_value_tree) = &self.merged_value_tree {
+        goto_define_recursive(
+            &self.type_tree,
+            &self.named_type_map,
+            merged_value_tree,
+            position,
+            code,
+            &mut result,
+        );
+    }
+
+    result
+}
+
+fn goto_define_recursive(
+    type_tree: &TypeTree,
+    named_type_map: &NamedTypeMap,
+    merged_value_tree: &MergedValueTree,
+    position: usize,
+    code: &str,
+    result: &mut Vec<Range<usize>>,
+) {
+    match type_tree {
+        TypeTree::Node {
+            node,
+            any_node,
+            span,
+        } => {
+            let MergedValueTree::Section {
+                elements,
+                name_spans,
+                define_spans,
+            } = merged_value_tree
+            else {
+                return;
+            };
+
+            if name_spans
+                .iter()
+                .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
+            {
+                result.push(span.clone());
+            }
+
+            if !define_spans
+                .iter()
+                .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
+            {
+                return;
+            }
+
+            for (element_name, element) in elements.iter() {
+                let Some(type_tree) = node.get(element_name.as_ref()).or(any_node.as_deref())
+                else {
+                    continue;
+                };
+
+                goto_define_recursive(type_tree, named_type_map, element, position, code, result);
+            }
+        }
+        TypeTree::Leaf {
+            ty,
+            span: define_span,
+        } => {
+            if let MergedValueTree::Value {
+                value,
+                key_span,
+                span,
+            } = merged_value_tree
+            {
+                if !span.to_byte_span(code).to_inclusive().contains(&position) {
+                    return;
+                }
+
+                if key_span
+                    .to_byte_span(code)
+                    .to_inclusive()
+                    .contains(&position)
+                {
+                    result.push(define_span.clone());
+                    return;
+                }
+
+                // goto enum define
+                let ValidateValue::String(value) = value else {
+                    return;
+                };
+
+                find_enum_define(ty, named_type_map, value.as_ref(), result);
+            } else if let MergedValueTree::Array {
+                elements,
+                key_span,
+                span,
+            } = merged_value_tree
+            {
+                if !span.to_byte_span(code).to_inclusive().contains(&position) {
+                    return;
+                }
+
+                if key_span
+                    .to_byte_span(code)
+                    .to_inclusive()
+                    .contains(&position)
+                {
+                    result.push(define_span.clone());
+                    return;
+                }
+
+                for element in elements.iter() {
+                    goto_define_recursive(
+                        type_tree,
+                        named_type_map,
+                        element,
+                        position,
+                        code,
+                        result,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn find_enum_define(
+    ty: &Type,
+    named_type_map: &NamedTypeMap,
+    value: &str,
+    result: &mut Vec<Range<usize>>,
+) {
+    match ty {
+        Type::Named(name_id) => {
+            if let NamedTypeTree::Enum { elements } = named_type_map.get_type(*name_id).unwrap() {
+                for element in elements.iter() {
+                    if element.value == value {
+                        result.push(element.span.clone());
+                    }
+                }
+            }
+        }
+        Type::Or(types) => {
+            for ty in types.iter() {
+                find_enum_define(ty, named_type_map, value, result);
+            }
+        }
+        Type::Array(base) => find_enum_define(base, named_type_map, value, result),
+        Type::Optional(base) => find_enum_define(base, named_type_map, value, result),
+        _ => return,
     }
 }

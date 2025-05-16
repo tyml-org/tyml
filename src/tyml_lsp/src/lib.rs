@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, LazyLock, RwLock};
 
+use either::Either;
 use language_server::{GeneratedLanguageServer, TymlLanguageServer};
 use tokio::runtime::Runtime;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-use tyml::Tyml;
 use tyml::tyml_diagnostic::message::Lang;
 
 pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
@@ -22,13 +22,29 @@ pub struct LSPBackend {
 }
 
 impl LSPBackend {
-    fn get_server(&self, url: Url) -> Arc<GeneratedLanguageServer> {
-        self.generated_language_servers
-            .write()
-            .unwrap()
-            .entry(url.clone())
-            .or_insert_with(|| Arc::new(GeneratedLanguageServer::new(url, Lang::system())))
-            .clone()
+    fn get_server(
+        &self,
+        url: Url,
+    ) -> Either<Arc<GeneratedLanguageServer>, Arc<TymlLanguageServer>> {
+        if let Some("tyml") = url.as_str().split(".").last() {
+            Either::Right(
+                self.tyml_language_servers
+                    .write()
+                    .unwrap()
+                    .entry(url.clone())
+                    .or_insert_with(|| Arc::new(TymlLanguageServer::new(url, Lang::system())))
+                    .clone(),
+            )
+        } else {
+            Either::Left(
+                self.generated_language_servers
+                    .write()
+                    .unwrap()
+                    .entry(url.clone())
+                    .or_insert_with(|| Arc::new(GeneratedLanguageServer::new(url, Lang::system())))
+                    .clone(),
+            )
+        }
     }
 }
 
@@ -36,8 +52,10 @@ static TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
     SemanticTokenType::FUNCTION,
     SemanticTokenType::VARIABLE,
+    SemanticTokenType::PROPERTY,
     SemanticTokenType::STRING,
     SemanticTokenType::NUMBER,
+    SemanticTokenType::STRUCT,
     SemanticTokenType::TYPE,
     SemanticTokenType::COMMENT,
 ];
@@ -70,6 +88,7 @@ impl LanguageServer for LSPBackend {
                     all_commit_characters: None,
                     ..Default::default()
                 }),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -90,40 +109,65 @@ impl LanguageServer for LSPBackend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let server = self.get_server(params.text_document.uri.clone());
 
-        let result = server.on_change(
-            Arc::new(params.text_document.uri.to_string()),
-            Arc::new(params.text_document.text),
-        );
+        self.client
+            .log_message(MessageType::LOG, "Starting analyze...")
+            .await;
 
-        if result.is_err() {
-            return;
+        match server {
+            Either::Left(server) => {
+                let result = server.on_change(
+                    Arc::new(params.text_document.uri.to_string()),
+                    Arc::new(params.text_document.text),
+                );
+
+                if result.is_err() {
+                    return;
+                }
+
+                server.publish_diagnostics(&self.client).await;
+            }
+            Either::Right(server) => {
+                server.on_change(
+                    params.text_document.uri.to_string(),
+                    params.text_document.text,
+                );
+
+                server.publish_diagnostics(&self.client).await;
+            }
         }
 
-        server.publish_diagnostics(&self.client).await;
+        self.client.log_message(MessageType::LOG, "Analyzed!").await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(change) = params.content_changes.into_iter().last() {
             let server = self.get_server(params.text_document.uri.clone());
 
-            self.client.log_message(MessageType::LOG, "1").await;
+            self.client
+                .log_message(MessageType::LOG, "Starting analyze...")
+                .await;
 
-            Tyml::parse(change.text.clone());
+            match server {
+                Either::Left(server) => {
+                    let result = server.on_change(
+                        Arc::new(params.text_document.uri.to_string()),
+                        Arc::new(change.text),
+                    );
 
-            self.client.log_message(MessageType::LOG, "2").await;
+                    if result.is_err() {
+                        return;
+                    }
 
-            let result = server.on_change(
-                Arc::new(params.text_document.uri.to_string()),
-                Arc::new(change.text),
-            );
+                    server.publish_diagnostics(&self.client).await;
+                }
+                Either::Right(server) => {
+                    server.on_change(params.text_document.uri.to_string(), change.text);
 
-            self.client.log_message(MessageType::LOG, "3").await;
-
-            if result.is_err() {
-                return;
+                    server.publish_diagnostics(&self.client).await;
+                }
             }
 
-            server.publish_diagnostics(&self.client).await;
+            self.client.log_message(MessageType::LOG, "Analyzed!").await;
         }
     }
 
@@ -133,7 +177,10 @@ impl LanguageServer for LSPBackend {
     ) -> Result<Option<SemanticTokensResult>> {
         let server = self.get_server(params.text_document.uri.clone());
 
-        let semantic_tokens = server.tokens.lock().unwrap().clone();
+        let semantic_tokens = match server {
+            Either::Left(server) => server.tokens.lock().unwrap().clone(),
+            Either::Right(server) => server.tokens.lock().unwrap().clone(),
+        };
 
         if semantic_tokens.is_empty() {
             return Ok(None);
@@ -171,13 +218,25 @@ impl LanguageServer for LSPBackend {
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let server = self.get_server(params.text_document_position.text_document.uri);
 
-        Ok(server
-            .provide_completion(params.text_document_position.position)
-            .map(|completions| CompletionResponse::Array(completions)))
+        match server {
+            Either::Left(server) => Ok(server
+                .provide_completion(params.text_document_position.position)
+                .map(|completions| CompletionResponse::Array(completions))),
+            Either::Right(server) => Ok(server
+                .provide_completion(params.text_document_position.position)
+                .map(|completions| CompletionResponse::Array(completions))),
+        }
     }
 
     async fn completion_resolve(&self, params: CompletionItem) -> Result<CompletionItem> {
         Ok(params)
+    }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        todo!()
     }
 }
 

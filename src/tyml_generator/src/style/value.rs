@@ -244,8 +244,8 @@ impl<'input> AST<'input> for ValueAST<'input> {
         };
 
         // take last section(maybe key)'s span
-        let span = match section_name_stack.last() {
-            Some((_, span, _)) => span.start..self.span.end,
+        let key_span = match section_name_stack.last() {
+            Some((_, span, _)) => span.clone(),
             None => self.span.clone(),
         };
 
@@ -261,7 +261,8 @@ impl<'input> AST<'input> for ValueAST<'input> {
                 }),
             ValueTree::Value {
                 value,
-                span: span.as_utf8_byte_range(),
+                key_span: key_span.as_utf8_byte_range(),
+                span: (key_span.start..self.span.end).as_utf8_byte_range(),
             },
         );
     }
