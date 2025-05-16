@@ -7,6 +7,8 @@ use extension_fn::extension_fn;
 
 use crate::lexer::Token;
 
+pub extern crate either;
+
 pub trait AST: Debug {
     fn span(&self) -> Range<usize>;
 }

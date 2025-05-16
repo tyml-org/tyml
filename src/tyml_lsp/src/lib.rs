@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, LazyLock, RwLock};
 
-use language_server::GeneratedLanguageServer;
+use language_server::{GeneratedLanguageServer, TymlLanguageServer};
 use tokio::runtime::Runtime;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -17,12 +17,13 @@ pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap()
 #[derive(Debug)]
 pub struct LSPBackend {
     pub client: Client,
-    pub tyml_language_servers: RwLock<HashMap<Url, Arc<GeneratedLanguageServer>>>,
+    pub generated_language_servers: RwLock<HashMap<Url, Arc<GeneratedLanguageServer>>>,
+    pub tyml_language_servers: RwLock<HashMap<Url, Arc<TymlLanguageServer>>>,
 }
 
 impl LSPBackend {
     fn get_server(&self, url: Url) -> Arc<GeneratedLanguageServer> {
-        self.tyml_language_servers
+        self.generated_language_servers
             .write()
             .unwrap()
             .entry(url.clone())
@@ -98,7 +99,7 @@ impl LanguageServer for LSPBackend {
             return;
         }
 
-        server.publish_analyzed_info(&self.client).await;
+        server.publish_diagnostics(&self.client).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -122,7 +123,7 @@ impl LanguageServer for LSPBackend {
                 return;
             }
 
-            server.publish_analyzed_info(&self.client).await;
+            server.publish_diagnostics(&self.client).await;
         }
     }
 

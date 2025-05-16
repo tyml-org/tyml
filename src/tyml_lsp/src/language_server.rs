@@ -19,7 +19,7 @@ use tower_lsp::{
     },
 };
 use tyml::{
-    TymlContext, Validated,
+    Parsed, TymlContext, Validated,
     header::TymlHeader,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
     tyml_generator::{registry::STYLE_REGISTRY, style::ASTTokenKind},
@@ -145,7 +145,7 @@ impl GeneratedLanguageServer {
         Ok(())
     }
 
-    pub async fn publish_analyzed_info(&self, client: &Client) {
+    pub async fn publish_diagnostics(&self, client: &Client) {
         let (tyml, header) = self.tyml.lock().unwrap().clone().unwrap();
 
         if self.has_tyml_file_error.load(Ordering::Acquire)
@@ -234,7 +234,8 @@ impl GeneratedLanguageServer {
                     severity: Some(DiagnosticSeverity::ERROR),
                     code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                     message: format!(
-                        "{}\n{}",
+                        "{} {}\n{}",
+                        diagnostic.message.section_name(self.lang, false),
                         diagnostic.message.message(self.lang, false),
                         diagnostic.message.label(1, self.lang, false).unwrap(),
                     ),
@@ -253,7 +254,8 @@ impl GeneratedLanguageServer {
                         severity: Some(DiagnosticSeverity::ERROR),
                         code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                         message: format!(
-                            "{}\n{}",
+                            "{} {}\n{}",
+                            diagnostic.message.section_name(self.lang, false),
                             diagnostic.message.message(self.lang, false),
                             diagnostic.message.label(0, self.lang, false).unwrap()
                         ),
@@ -305,6 +307,336 @@ impl GeneratedLanguageServer {
                 })
                 .collect(),
         )
+    }
+}
+
+#[derive(Debug)]
+pub struct TymlLanguageServer {
+    url: Url,
+    lang: &'static str,
+    tyml: Mutex<TymlContext<Parsed>>,
+    tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
+}
+
+impl TymlLanguageServer {
+    pub fn new(url: Url, lang: &'static str, source_code: SourceCode) -> Self {
+        Self {
+            url,
+            lang,
+            tyml: Mutex::new(TymlContext::new(source_code).parse()),
+            tokens: Mutex::new(Arc::new(Vec::new())),
+        }
+    }
+
+    pub fn on_change(&self, code: String, name: String) {
+        let old_tyml = { self.tyml.lock().unwrap().clone() };
+
+        let (tyml, changed) = if code.as_str() != old_tyml.tyml_source.code.as_str() {
+            (TymlContext::new(SourceCode::new(name, code)).parse(), true)
+        } else {
+            (old_tyml, false)
+        };
+
+        if changed {
+            let mut tokens = BTreeMap::new();
+            tyml_semantic_tokens::collect_tokens_for_defines(&tyml.tyml().ast(), &mut tokens);
+
+            let tokens = tokens
+                .into_values()
+                .map(|(token_type, span)| {
+                    (
+                        token_type,
+                        span.as_utf8_byte_range()
+                            .to_lsp_span(&tyml.tyml_source.code),
+                    )
+                })
+                .collect();
+            *self.tokens.lock().unwrap() = Arc::new(tokens);
+        }
+
+        *self.tyml.lock().unwrap() = tyml;
+    }
+
+    pub async fn publish_diagnostics(&self, client: &Client) {
+        let tyml = { self.tyml.lock().unwrap().clone() };
+
+        let mut diagnostics = Vec::new();
+        for error in tyml.tyml().parse_errors() {
+            let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+
+            diagnostics.push(Diagnostic {
+                range: diagnostic.labels[0]
+                    .span
+                    .to_lsp_span(&tyml.tyml_source.code),
+                severity: Some(DiagnosticSeverity::ERROR),
+                code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                message: format!(
+                    "{} {}\n{}",
+                    diagnostic.message.section_name(self.lang, false),
+                    diagnostic.message.message(self.lang, false),
+                    diagnostic.message.label(1, self.lang, false).unwrap(),
+                ),
+                ..Default::default()
+            });
+        }
+
+        if diagnostics.is_empty() {
+            for error in tyml.tyml().type_errors() {
+                let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+
+                diagnostics.push(Diagnostic {
+                    range: diagnostic.labels[0]
+                        .span
+                        .to_lsp_span(&tyml.tyml_source.code),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                    message: format!(
+                        "{} {}\n{}",
+                        diagnostic.message.section_name(self.lang, false),
+                        diagnostic.message.message(self.lang, false),
+                        diagnostic.message.label(1, self.lang, false).unwrap(),
+                    ),
+                    ..Default::default()
+                });
+            }
+        }
+
+        client
+            .publish_diagnostics(self.url.clone(), diagnostics, None)
+            .await;
+    }
+
+    pub fn provide_completion(&self, position: Position) -> Option<Vec<CompletionItem>> {
+        let tyml = { self.tyml.lock().unwrap().clone() };
+
+        let byte_position = position.to_byte_position(&tyml.tyml_source.code);
+
+        let non_whitespace_byte_position = tyml.tyml_source.code[..byte_position]
+            .char_indices()
+            .rev()
+            .find_map(|(i, ch)| {
+                if ch.is_whitespace() {
+                    None
+                } else {
+                    Some(i + ch.len_utf8())
+                }
+            })
+            .unwrap_or(0);
+
+        let ast = tyml.tyml().ast();
+
+        let mut completions = Vec::new();
+        if on_type_tag::is_position_on_type_tag_for_defines(
+            ast,
+            non_whitespace_byte_position,
+            &mut Vec::new(),
+            &mut completions,
+        ) {
+            Some(
+                completions
+                    .into_iter()
+                    .map(|(name, kind)| CompletionItem {
+                        label: name.to_string(),
+                        kind: Some(kind),
+                        ..Default::default()
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        }
+    }
+}
+
+mod on_type_tag {
+    use std::mem::swap;
+
+    use tower_lsp::lsp_types::CompletionItemKind;
+    use tyml::tyml_parser::ast::{AST, Define, Defines, ElementInlineType, TypeDefine};
+
+    use super::ToInclusive;
+
+    pub fn is_position_on_type_tag_for_defines<'input>(
+        ast: &Defines<'input, '_>,
+        position: usize,
+        names: &mut Vec<(&'input str, CompletionItemKind)>,
+        completions: &mut Vec<(&'input str, CompletionItemKind)>,
+    ) -> bool {
+        if !ast.span.to_inclusive().contains(&position) {
+            return false;
+        }
+
+        // collect type names, first
+        for define in ast.defines.iter() {
+            if let Define::Type(type_define) = define {
+                let (name, kind) = match type_define {
+                    TypeDefine::Struct(struct_define) => {
+                        (struct_define.name.value, CompletionItemKind::STRUCT)
+                    }
+                    TypeDefine::Enum(enum_define) => {
+                        (enum_define.name.value, CompletionItemKind::ENUM)
+                    }
+                };
+                names.push((name, kind));
+            }
+        }
+
+        for define in ast.defines.iter() {
+            if is_position_on_type_tag_for_define(define, position, names, completions) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn is_position_on_type_tag_for_define<'input>(
+        ast: &Define<'input, '_>,
+        position: usize,
+        names: &mut Vec<(&'input str, CompletionItemKind)>,
+        completions: &mut Vec<(&'input str, CompletionItemKind)>,
+    ) -> bool {
+        if !ast.span().to_inclusive().contains(&position) {
+            return false;
+        }
+
+        match ast {
+            Define::Element(element_define) => {
+                if let Some(_) = &element_define.ty {
+                    swap(names, completions);
+                    true
+                } else if let Some(inline_type) = &element_define.inline_type {
+                    is_position_on_type_tag_for_element_inline_type(
+                        inline_type,
+                        position,
+                        names,
+                        completions,
+                    )
+                } else {
+                    swap(names, completions);
+                    true
+                }
+            }
+            Define::Type(type_define) => match type_define {
+                TypeDefine::Struct(struct_define) => is_position_on_type_tag_for_defines(
+                    &struct_define.defines,
+                    position,
+                    names,
+                    completions,
+                ),
+                TypeDefine::Enum(_) => false,
+            },
+        }
+    }
+
+    fn is_position_on_type_tag_for_element_inline_type<'input>(
+        ast: &ElementInlineType<'input, '_>,
+        position: usize,
+        names: &mut Vec<(&'input str, CompletionItemKind)>,
+        completions: &mut Vec<(&'input str, CompletionItemKind)>,
+    ) -> bool {
+        if !ast.span.to_inclusive().contains(&position) {
+            return false;
+        }
+
+        is_position_on_type_tag_for_defines(&ast.defines, position, names, completions)
+    }
+}
+
+mod tyml_semantic_tokens {
+    use std::{collections::BTreeMap, ops::Range};
+
+    use tower_lsp::lsp_types::SemanticTokenType;
+    use tyml::tyml_parser::ast::{
+        AST, Define, Defines, ElementType, OrType, TypeDefine, ValueLiteral, either::Either,
+    };
+
+    pub fn collect_tokens_for_defines(
+        ast: &Defines,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        for define in ast.defines.iter() {
+            match define {
+                Define::Element(element_define) => {
+                    let span = element_define.node.span();
+                    tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+
+                    if let Some(ty) = &element_define.ty {
+                        collect_tokens_for_element_type(ty, tokens);
+                    }
+                    if let Some(inline_type) = &element_define.inline_type {
+                        collect_tokens_for_defines(&inline_type.defines, tokens);
+                    }
+                    if let Some(default_value) = &element_define.default {
+                        let token = match &default_value.value {
+                            ValueLiteral::String(literal) => {
+                                (SemanticTokenType::STRING, literal.span.clone())
+                            }
+                            ValueLiteral::Float(literal) => {
+                                (SemanticTokenType::NUMBER, literal.span())
+                            }
+                            ValueLiteral::Binary(literal) => {
+                                (SemanticTokenType::NUMBER, literal.span())
+                            }
+                            ValueLiteral::Null(literal) => {
+                                (SemanticTokenType::KEYWORD, literal.span.clone())
+                            }
+                        };
+                        tokens.insert(token.1.start, token);
+                    }
+                }
+                Define::Type(type_define) => {
+                    collect_tokens_for_type_define(type_define, tokens);
+                }
+            }
+        }
+    }
+
+    pub fn collect_tokens_for_element_type(
+        ast: &ElementType,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        collect_tokens_for_or_type(&ast.type_info, tokens);
+    }
+
+    pub fn collect_tokens_for_or_type(
+        ast: &OrType,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        for ty in ast.or_types.iter() {
+            match &ty.ty {
+                Either::Left(named_type) => {
+                    let span = named_type.name.span.clone();
+                    tokens.insert(span.start, (SemanticTokenType::TYPE, span));
+                }
+                Either::Right(array_type) => {
+                    collect_tokens_for_or_type(&array_type.base, tokens);
+                }
+            }
+        }
+    }
+
+    pub fn collect_tokens_for_type_define(
+        ast: &TypeDefine,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        match ast {
+            TypeDefine::Struct(struct_define) => {
+                let span = struct_define.name.span.clone();
+                tokens.insert(span.start, (SemanticTokenType::TYPE, span));
+
+                collect_tokens_for_defines(&struct_define.defines, tokens);
+            }
+            TypeDefine::Enum(enum_define) => {
+                let span = enum_define.name.span.clone();
+                tokens.insert(span.start, (SemanticTokenType::TYPE, span));
+
+                for element in enum_define.elements.iter() {
+                    let span = element.span.clone();
+                    tokens.insert(span.start, (SemanticTokenType::STRING, span));
+                }
+            }
+        }
     }
 }
 
