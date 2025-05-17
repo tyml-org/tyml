@@ -134,6 +134,8 @@ impl<State> TymlContext<State> {
 
         ast.take_value(&mut Vec::new_in(&allocator), &mut validator);
 
+        dbg!(&validator.value_tree);
+
         let ml_validate_error = validator.validate().err().unwrap_or_default();
 
         let validator =
