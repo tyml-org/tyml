@@ -91,13 +91,13 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 lexer.comments.extend(comments.iter().cloned());
 
                 loop {
-                    let anchor = lexer.cast_anchor();
-
                     lexer.skip_lf();
 
                     if lexer.is_reached_eof() {
                         break;
                     }
+
+                    let anchor = lexer.cast_anchor();
 
                     let section_ast = match section.parse(lexer, errors) {
                         Some(section) => section,
@@ -248,7 +248,6 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                         let literal_option = section.literal_option.clone().unwrap_or_default();
 
                         section_name_stack.extend(section.sections.iter().map(|text| {
-                            dbg!(text);
                             (
                                 literal_option.resolve_escape(text.text),
                                 text.span.clone(),

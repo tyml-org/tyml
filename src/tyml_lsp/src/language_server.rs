@@ -1,12 +1,7 @@
 use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::Read,
-    ops::{Range, RangeInclusive},
-    sync::{
-        Arc, LazyLock, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    any::Any, collections::BTreeMap, fs::File, io::Read, ops::{Range, RangeInclusive}, sync::{
+        atomic::{AtomicBool, Ordering}, Arc, LazyLock, Mutex
+    }
 };
 
 use extension_fn::extension_fn;
@@ -27,8 +22,6 @@ use tyml::{
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
     tyml_validate::validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
 };
-
-use crate::debug_log;
 
 type LSPRange = tower_lsp::lsp_types::Range;
 
@@ -327,7 +320,7 @@ impl GeneratedLanguageServer {
             .map(|range| {
                 range
                     .as_utf8_byte_range()
-                    .to_lsp_span(&tyml.ml_source_code().code)
+                    .to_lsp_span(&tyml.tyml_source.code)
             })
             .collect();
 
@@ -475,6 +468,18 @@ impl TymlLanguageServer {
         } else {
             None
         }
+    }
+
+    pub fn goto_define(&self, position: Position) -> Option<LSPRange> {
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return None;
+        };
+
+        let byte_position = position.to_byte_position(&tyml.tyml_source.code);
+
+
+
+        todo!()
     }
 }
 
@@ -1006,6 +1011,7 @@ fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
                     position,
                     code,
                     &mut result,
+                    true,
                 );
             }
         }
@@ -1021,6 +1027,7 @@ fn goto_define_recursive(
     position: usize,
     code: &str,
     result: &mut Vec<Range<usize>>,
+    is_root: bool,
 ) {
     match type_tree {
         TypeTree::Node {
@@ -1037,20 +1044,14 @@ fn goto_define_recursive(
                 return;
             };
 
-            debug_log(format!("position : {}", position));
-            for span in name_spans.iter() {
-                debug_log(format!("span : {:?}", span));
-            }
-            for span in define_spans.iter() {
-                debug_log(format!("dspan : {:?}", span));
-            }
-
-            if name_spans
-                .iter()
-                .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
-            {
-                result.push(span.clone());
-                return;
+            if !is_root {
+                if name_spans
+                    .iter()
+                    .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
+                {
+                    result.push(span.clone());
+                    return;
+                }
             }
 
             if !define_spans
@@ -1066,7 +1067,15 @@ fn goto_define_recursive(
                     continue;
                 };
 
-                goto_define_recursive(type_tree, named_type_map, element, position, code, result);
+                goto_define_recursive(
+                    type_tree,
+                    named_type_map,
+                    element,
+                    position,
+                    code,
+                    result,
+                    false,
+                );
             }
         }
         TypeTree::Leaf {
@@ -1125,6 +1134,7 @@ fn goto_define_recursive(
                         position,
                         code,
                         result,
+                        false,
                     );
                 }
             }
