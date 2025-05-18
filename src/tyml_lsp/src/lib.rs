@@ -89,6 +89,8 @@ impl LanguageServer for LSPBackend {
                     ..Default::default()
                 }),
                 definition_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -262,7 +264,68 @@ impl LanguageServer for LSPBackend {
                     ))),
                 }
             }
-            Either::Right(_) => todo!(),
+            Either::Right(server) => Ok(server
+                .goto_define(params.text_document_position_params.position)
+                .map(|range| {
+                    GotoDefinitionResponse::Scalar(Location {
+                        uri: server.url.clone(),
+                        range,
+                    })
+                })),
+        }
+    }
+
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let server = self.get_server(params.text_document_position.text_document.uri);
+
+        match server {
+            Either::Left(_) => Ok(None),
+            Either::Right(server) => {
+                let users = server.get_references(params.text_document_position.position);
+
+                if users.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(
+                        users
+                            .into_iter()
+                            .map(|range| Location {
+                                uri: server.url.clone(),
+                                range,
+                            })
+                            .collect(),
+                    ))
+                }
+            }
+        }
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let server = self.get_server(params.text_document_position.text_document.uri);
+
+        match server {
+            Either::Left(_) => Ok(None),
+            Either::Right(server) => {
+                let references = server.get_references(params.text_document_position.position);
+
+                let mut changes = HashMap::new();
+                changes.insert(
+                    server.url.clone(),
+                    references
+                        .into_iter()
+                        .map(|range| TextEdit {
+                            range,
+                            new_text: params.new_name.clone(),
+                        })
+                        .collect(),
+                );
+
+                Ok(Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    document_changes: None,
+                    change_annotations: None,
+                }))
+            }
         }
     }
 }

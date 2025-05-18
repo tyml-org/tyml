@@ -337,29 +337,39 @@ pub enum NamedTypeTree<'input, 'ty> {
 
 #[derive(Debug)]
 pub struct NamedTypeMap<'input, 'ty> {
-    map: HashMap<
+    ty: &'ty Bump,
+    pub map: HashMap<
         NameID,
         (&'input str, Range<usize>, NamedTypeTree<'input, 'ty>),
         DefaultHashBuilder,
         &'ty Bump,
     >,
+    // for lsp
+    pub use_link_map: HashMap<NameID, Vec<Range<usize>, &'ty Bump>, DefaultHashBuilder, &'ty Bump>,
 }
 
 impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
     pub fn new(ty: &'ty Bump) -> Self {
         Self {
+            ty,
             map: HashMap::new_in(ty),
+            use_link_map: HashMap::new_in(ty),
         }
     }
 
-    pub fn link(
+    pub fn register(
         &mut self,
         name_id: NameID,
         name: &'input str,
         name_span: Range<usize>,
         type_tree: NamedTypeTree<'input, 'ty>,
     ) {
-        self.map.insert(name_id, (name, name_span, type_tree));
+        self.map
+            .insert(name_id, (name, name_span.clone(), type_tree));
+        self.use_link_map
+            .entry(name_id)
+            .or_insert_with(|| Vec::new_in(self.ty))
+            .push(name_span);
     }
 
     pub fn get_name(&self, name_id: NameID) -> Option<&'input str> {
@@ -372,5 +382,14 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
 
     pub fn get_type(&self, name_id: NameID) -> Option<&NamedTypeTree<'input, 'ty>> {
         self.map.get(&name_id).map(|(_, _, ty)| ty)
+    }
+
+    pub fn link(&mut self, name_id: NameID, user_range: Range<usize>) {
+        let users = self
+            .use_link_map
+            .entry(name_id)
+            .or_insert_with(|| Vec::new_in(self.ty));
+
+        users.push(user_range);
     }
 }

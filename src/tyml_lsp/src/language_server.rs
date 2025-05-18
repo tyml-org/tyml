@@ -1,7 +1,12 @@
 use std::{
-    any::Any, collections::BTreeMap, fs::File, io::Read, ops::{Range, RangeInclusive}, sync::{
-        atomic::{AtomicBool, Ordering}, Arc, LazyLock, Mutex
-    }
+    collections::BTreeMap,
+    fs::File,
+    io::Read,
+    ops::{Range, RangeInclusive},
+    sync::{
+        Arc, LazyLock, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use extension_fn::extension_fn;
@@ -477,9 +482,61 @@ impl TymlLanguageServer {
 
         let byte_position = position.to_byte_position(&tyml.tyml_source.code);
 
+        let named_type_map = tyml.tyml().named_type_map();
 
+        let name_id = named_type_map
+            .use_link_map
+            .iter()
+            .find(|(_, ranges)| {
+                ranges
+                    .iter()
+                    .any(|range| range.to_inclusive().contains(&byte_position))
+            })
+            .map(|(&name_id, _)| name_id);
 
-        todo!()
+        name_id.map(|name_id| {
+            named_type_map
+                .get_define_span(name_id)
+                .unwrap()
+                .as_utf8_byte_range()
+                .to_lsp_span(&tyml.tyml_source.code)
+        })
+    }
+
+    pub fn get_references(&self, position: Position) -> Vec<LSPRange> {
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return Vec::new();
+        };
+
+        let byte_position = position.to_byte_position(&tyml.tyml_source.code);
+
+        let named_type_map = tyml.tyml().named_type_map();
+
+        let name_id = named_type_map
+            .use_link_map
+            .iter()
+            .find(|(_, ranges)| {
+                ranges
+                    .iter()
+                    .any(|range| range.to_inclusive().contains(&byte_position))
+            })
+            .map(|(&name_id, _)| name_id);
+
+        let Some(name_id) = name_id else {
+            return Vec::new();
+        };
+
+        let Some(users) = named_type_map.use_link_map.get(&name_id) else {
+            return Vec::new();
+        };
+
+        users
+            .iter()
+            .map(|span| {
+                span.as_utf8_byte_range()
+                    .to_lsp_span(&tyml.tyml_source.code)
+            })
+            .collect()
     }
 }
 

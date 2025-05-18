@@ -112,7 +112,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     }
                 };
 
-                named_type_map.link(name_id, name, name_span, named_type);
+                named_type_map.register(name_id, name, name_span, named_type);
             }
         }
     }
@@ -339,7 +339,11 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 _ => {
                     // maybe user type
                     match name_env.resolve(base_type.name.value) {
-                        Some(name_id) => Type::Named(name_id),
+                        Some(name_id) => {
+                            named_type_map.link(name_id, base_type.name.span.clone());
+
+                            Type::Named(name_id)
+                        }
                         None => {
                             errors.push(TypeError {
                                 kind: TypeErrorKind::UnknownNamedType {
