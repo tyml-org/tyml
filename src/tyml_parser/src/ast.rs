@@ -83,10 +83,17 @@ pub enum Define<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct ElementDefine<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
     pub node: NodeLiteral<'input>,
     pub ty: Option<ElementType<'input, 'allocator>>,
     pub inline_type: Option<ElementInlineType<'input, 'allocator>>,
     pub default: Option<DefaultValue<'input>>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct Documents<'input, 'allocator> {
+    pub lines: Vec<&'input str, &'allocator Bump>,
     pub span: Range<usize>,
 }
 
@@ -169,6 +176,7 @@ pub enum TypeDefine<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct StructDefine<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
     pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
     pub defines: &'allocator Defines<'input, 'allocator>,
@@ -177,8 +185,17 @@ pub struct StructDefine<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct EnumDefine<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
     pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
-    pub elements: Vec<Literal<'input>, &'allocator Bump>,
+    pub elements: Vec<EnumElement<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct EnumElement<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
+    pub literal: Literal<'input>,
+    pub literal_value: &'input str,
     pub span: Range<usize>,
 }

@@ -11,7 +11,10 @@ mod tests {
         source             ::= defines
 
         defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
-        define             ::= element_define | type_define
+        define             ::= documents ( element_define | type_define )
+
+        documents          ::= { "(###|///)[^\n\r]*(\n|\r|\r\n)" }
+        //comments         ::= "//[^\n\r]*(\n|\r|\r\n)" | "/\*.*\*/"  /* ignored in lexer */
 
         element_define     ::= ( literal | "*" ) [ lf ] type_or_value
         type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
@@ -39,7 +42,7 @@ mod tests {
         struct_define      ::= "type" literal [ lf ] "{" defines "}"
 
         enum_define        ::= "enum" literal [ lf ] "{" enum_elements "}"
-        enum_elements      ::= [ lf ] { literal ( lf | "," [ lf ] ) }
+        enum_elements      ::= [ lf ] { documents string_literal ( lf | "," [ lf ] ) }
 
         literal            ::= r"\w+"
 

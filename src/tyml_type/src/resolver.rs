@@ -102,7 +102,10 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     TypeDefine::Enum(enum_define) => {
                         let mut elements = Vec::with_capacity_in(enum_define.elements.len(), ty);
                         for element in enum_define.elements.iter() {
-                            elements.push(element.clone());
+                            elements.push(Spanned::new(
+                                element.literal_value,
+                                element.literal.span.clone(),
+                            ));
                         }
                         (
                             enum_define.name.value,

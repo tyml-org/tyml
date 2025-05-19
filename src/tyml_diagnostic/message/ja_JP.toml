@@ -37,6 +37,7 @@ label_0 = "型名の後には'%color:cyan{{}'と'%color:cyan{\\}}'で囲われ�
 [parse_error.0011]
 message = "列挙型の要素の記述形式が正しくありません"
 label_0 = "これは列挙型の要素として有効ではありません"
+note = "列挙型の要素は'%color:cyan{\"Element\"}'の形式です"
 [parse_error.0012]
 message = "列挙型の要素の区切り文字が正しくありません"
 label_0 = "'%color:yellow{%0}'は不明な区切り文字です"

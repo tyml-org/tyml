@@ -323,6 +323,10 @@ impl Tyml {
         &self.inner.source_code
     }
 
+    pub fn comment_ranges(&self) -> &Vec<Range<usize>> {
+        &self.inner.comments
+    }
+
     pub fn ast<'this>(&'this self) -> &'this Defines<'this, 'this> {
         unsafe { transmute(self.inner.ast) }
     }
@@ -364,6 +368,8 @@ impl Tyml {
 
         let ast = parse_defines(&mut lexer, &mut parse_errors, allocator.deref());
 
+        let comments = lexer.comments.into_iter().collect();
+
         let (type_tree, named_type_map, type_errors) = resolve_type(ast, allocator.deref());
 
         let fake_static_ast = unsafe { transmute(ast) };
@@ -374,6 +380,7 @@ impl Tyml {
 
         let tyml_inner = TymlInner {
             source_code,
+            comments,
             ast: fake_static_ast,
             type_tree: fake_static_type_tree,
             named_type_map: fake_static_named_type_map,
@@ -392,6 +399,7 @@ impl Tyml {
 #[derive(Debug)]
 struct TymlInner {
     source_code: Arc<String>,
+    comments: Vec<Range<usize>>,
     /// fake static
     ast: &'static Defines<'static, 'static>,
     type_tree: TypeTree<'static, 'static>,

@@ -49,6 +49,10 @@ pub enum TokenKind {
     LineFeed,
     /// ' '
     Whitespace,
+    /// // comment or /* comment */
+    Comment,
+    /// /// document
+    Document,
     UnexpectedCharacter,
     None,
 }
@@ -82,6 +86,9 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::StringLiteral, r"'([^'\\]|\\.)*'"),
     Tokenizer::Regex(TokenKind::LineFeed, r"\n|\r"),
     Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
+    Tokenizer::Regex(TokenKind::Comment, r"//[^/\n\r]*(\n|\r|\r\n|$)"),
+    Tokenizer::Regex(TokenKind::Comment, r"/\*(.|\n|\r)*\*/"),
+    Tokenizer::Regex(TokenKind::Document, r"///[^\n\r]*(\n|\r|\r\n|$)"),
 ];
 
 enum Tokenizer {
@@ -152,6 +159,7 @@ pub struct Lexer<'input> {
     current_byte_position: usize,
     regex_cache: Box<[Option<Regex>]>,
     current_token_cache: Option<Token<'input>>,
+    pub comments: Vec<Range<usize>>,
 }
 
 impl<'input> Lexer<'input> {
@@ -161,6 +169,7 @@ impl<'input> Lexer<'input> {
             current_byte_position: 0,
             regex_cache: vec![None; TOKENIZERS.len()].into_boxed_slice(),
             current_token_cache: None,
+            comments: Vec::new(),
         }
     }
 
@@ -251,6 +260,12 @@ impl<'input> Iterator for Lexer<'input> {
                 self.current_byte_position += current_max_length;
 
                 if current_token_kind == TokenKind::Whitespace {
+                    continue;
+                }
+
+                if current_token_kind == TokenKind::Comment {
+                    self.comments
+                        .push(start_position..self.current_byte_position);
                     continue;
                 }
 

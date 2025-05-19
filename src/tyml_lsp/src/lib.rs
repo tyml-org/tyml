@@ -191,15 +191,15 @@ impl LanguageServer for LSPBackend {
         let mut tokens = Vec::new();
         let mut prev_line = 0;
         let mut prev_column = 0;
-        for (kind, span) in semantic_tokens.iter() {
-            if span.start.line != prev_line {
+        for (kind, (start, length)) in semantic_tokens.iter() {
+            if start.line != prev_line {
                 prev_column = 0;
             }
 
             tokens.push(SemanticToken {
-                delta_line: span.start.line - prev_line,
-                delta_start: span.start.character - prev_column,
-                length: span.end.character - span.start.character,
+                delta_line: start.line - prev_line,
+                delta_start: start.character - prev_column,
+                length: *length as _,
                 token_type: TOKEN_TYPES
                     .iter()
                     .position(|token_type| token_type == kind)
@@ -207,8 +207,8 @@ impl LanguageServer for LSPBackend {
                 token_modifiers_bitset: 0,
             });
 
-            prev_line = span.start.line;
-            prev_column = span.start.character;
+            prev_line = start.line;
+            prev_column = start.character;
         }
 
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {

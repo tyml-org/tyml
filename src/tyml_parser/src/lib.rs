@@ -11,22 +11,25 @@ mod test {
     use crate::{lexer::Lexer, parser::parse_defines};
 
     #[test]
-    fn test() {
+    fn parse_test() {
         let source = "
 settings: {
-    number = -3.65e-10
-    binary = 0xFF
-    string = \"aaaa\"
+    ip: string
+    port: int
+    mode: Mode?
+}
+/* comment
+*/
+// comment
+/// Document1
+/// Document2
+test: {
+    mode: Mode
 }
 
-type Server {
-    name: [ string | [ int | int ] ]
-    ip: string
-    port: int?
-}
-enum Enum {
-    Element0
-    Element1
+enum Mode {
+    \"Debug\"
+    \"Release\"
 }
 ";
         let mut lexer = Lexer::new(source);
@@ -35,5 +38,6 @@ enum Enum {
 
         let ast = parse_defines(&mut lexer, &mut errors, &allocator);
         dbg!(ast);
+        dbg!(errors);
     }
 }

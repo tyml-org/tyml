@@ -4,9 +4,9 @@ use either::Either;
 
 use crate::{
     ast::{
-        ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine,
-        ElementInlineType, ElementType, EnumDefine, FloatLiteral, IntoLiteral, NamedType,
-        NodeLiteral, OrType, StructDefine, TypeDefine, ValueLiteral,
+        ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
+        ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, FloatLiteral,
+        IntoLiteral, NamedType, NodeLiteral, OrType, StructDefine, TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -93,6 +93,33 @@ fn parse_define<'input, 'allocator>(
     None
 }
 
+fn parse_documents<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    allocator: &'allocator Bump,
+) -> Documents<'input, 'allocator> {
+    let anchor = lexer.cast_anchor();
+    let mut lines = Vec::new_in(allocator);
+
+    loop {
+        let Some(current) = lexer.current() else {
+            break;
+        };
+
+        if current.kind != TokenKind::Document {
+            break;
+        }
+
+        lines.push(&current.text[3..]);
+
+        lexer.next();
+    }
+
+    Documents {
+        lines,
+        span: anchor.elapsed(lexer),
+    }
+}
+
 fn parse_element_define<'input, 'allocator>(
     lexer: &mut Lexer<'input>,
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
@@ -100,9 +127,14 @@ fn parse_element_define<'input, 'allocator>(
 ) -> Option<ElementDefine<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
+    let documents = parse_documents(lexer, allocator);
+
     let node = match parse_node_literal(lexer) {
         Some(literal) => literal,
-        None => return None,
+        None => {
+            lexer.back_to_anchor(anchor);
+            return None;
+        }
     };
 
     let current_token_kind = lexer.current().get_kind();
@@ -132,6 +164,7 @@ fn parse_element_define<'input, 'allocator>(
     };
 
     Some(ElementDefine {
+        documents,
         node,
         inline_type,
         ty,
@@ -491,7 +524,10 @@ fn parse_struct_define<'input, 'allocator>(
 ) -> Option<StructDefine<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
+    let documents = parse_documents(lexer, allocator);
+
     if lexer.current().get_kind() != TokenKind::Type {
+        lexer.back_to_anchor(anchor);
         return None;
     }
     let keyword = lexer.next().unwrap();
@@ -549,6 +585,7 @@ fn parse_struct_define<'input, 'allocator>(
     lexer.next();
 
     Some(StructDefine {
+        documents,
         keyword_span: keyword.span,
         name,
         defines,
@@ -563,7 +600,10 @@ fn parse_enum_define<'input, 'allocator>(
 ) -> Option<EnumDefine<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
+    let documents = parse_documents(lexer, allocator);
+
     if lexer.current().get_kind() != TokenKind::Enum {
+        lexer.back_to_anchor(anchor);
         return None;
     }
     let keyword = lexer.next().unwrap();
@@ -614,8 +654,12 @@ fn parse_enum_define<'input, 'allocator>(
             break;
         }
 
-        let element = match lexer.current().get_kind() {
-            TokenKind::Literal => lexer.next().unwrap().into_literal(),
+        let element_anchor = lexer.cast_anchor();
+
+        let documents = parse_documents(lexer, allocator);
+
+        let literal = match lexer.current().get_kind() {
+            TokenKind::StringLiteral => lexer.next().unwrap().into_literal(),
             _ => {
                 let error = recover_until(
                     ParseErrorKind::InvalidEnumElement,
@@ -627,11 +671,22 @@ fn parse_enum_define<'input, 'allocator>(
                 );
                 errors.push(error);
 
+                if let TokenKind::LineFeed | TokenKind::Comma = lexer.current().get_kind() {
+                    lexer.next();
+                }
+
                 continue;
             }
         };
 
-        elements.push(element);
+        let literal_text = literal.value;
+
+        elements.push(EnumElement {
+            documents,
+            literal,
+            literal_value: &literal_text[1..(literal_text.len() - 1)],
+            span: element_anchor.elapsed(lexer),
+        });
 
         match lexer.current().get_kind() {
             TokenKind::Comma | TokenKind::LineFeed => {
@@ -671,6 +726,7 @@ fn parse_enum_define<'input, 'allocator>(
     lexer.next();
 
     Some(EnumDefine {
+        documents,
         keyword_span: keyword.span,
         name,
         elements,

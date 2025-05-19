@@ -22,7 +22,10 @@ use tyml::{
     Parsed, TymlContext, Validated,
     header::TymlHeader,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
-    tyml_generator::{registry::STYLE_REGISTRY, style::ASTTokenKind},
+    tyml_generator::{
+        registry::STYLE_REGISTRY,
+        style::{ASTTokenKind, language::LanguageStyle},
+    },
     tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan, ToByteSpan},
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
     tyml_validate::validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
@@ -38,7 +41,8 @@ pub struct GeneratedLanguageServer {
     pub has_tyml_file_error: AtomicBool,
     pub style_not_found: AtomicBool,
     pub tyml_file_name: Mutex<String>,
-    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
+    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, (Position, usize))>>>,
+    pub language_style: Mutex<Arc<LanguageStyle>>,
 }
 
 impl GeneratedLanguageServer {
@@ -51,6 +55,7 @@ impl GeneratedLanguageServer {
             style_not_found: AtomicBool::new(false),
             tyml_file_name: Mutex::new(String::new()),
             tokens: Mutex::new(Arc::new(Vec::new())),
+            language_style: Mutex::new(STYLE_REGISTRY.resolve("").unwrap()),
         }
     }
 
@@ -136,11 +141,18 @@ impl GeneratedLanguageServer {
                 ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
                 ASTTokenKind::Comment => SemanticTokenType::COMMENT,
             };
-            semantic_tokens.push((kind, span.as_utf8_byte_range().to_lsp_span(&source_code)));
+            for token in span
+                .as_utf8_byte_range()
+                .to_lsp_semantic_token(&source_code)
+            {
+                semantic_tokens.push((kind.clone(), token));
+            }
         }
         *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
 
         *self.tyml.lock().unwrap() = Some((tyml, header));
+
+        *self.language_style.lock().unwrap() = language;
 
         Ok(())
     }
@@ -338,7 +350,7 @@ pub struct TymlLanguageServer {
     pub url: Url,
     pub lang: &'static str,
     pub tyml: Mutex<Option<TymlContext<Parsed>>>,
-    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, LSPRange)>>>,
+    pub tokens: Mutex<Arc<Vec<(SemanticTokenType, (Position, usize))>>>,
 }
 
 impl TymlLanguageServer {
@@ -367,17 +379,23 @@ impl TymlLanguageServer {
             let mut tokens = BTreeMap::new();
             tyml_semantic_tokens::collect_tokens_for_defines(&tyml.tyml().ast(), &mut tokens);
 
-            let tokens = tokens
-                .into_values()
-                .map(|(token_type, span)| {
-                    (
-                        token_type,
-                        span.as_utf8_byte_range()
-                            .to_lsp_span(&tyml.tyml_source.code),
-                    )
-                })
-                .collect();
-            *self.tokens.lock().unwrap() = Arc::new(tokens);
+            for comment_range in tyml.tyml().comment_ranges().iter() {
+                tokens.insert(
+                    comment_range.start,
+                    (SemanticTokenType::COMMENT, comment_range.clone()),
+                );
+            }
+
+            let mut semantic_tokens = Vec::new();
+            for (token_type, span) in tokens.values() {
+                for token in span
+                    .as_utf8_byte_range()
+                    .to_lsp_semantic_token(&tyml.tyml_source.code)
+                {
+                    semantic_tokens.push((token_type.clone(), token));
+                }
+            }
+            *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
         }
 
         *self.tyml.lock().unwrap() = Some(tyml);
@@ -650,6 +668,9 @@ mod tyml_semantic_tokens {
         for define in ast.defines.iter() {
             match define {
                 Define::Element(element_define) => {
+                    let span = element_define.documents.span.clone();
+                    tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
                     let span = element_define.node.span();
                     tokens.insert(span.start, (SemanticTokenType::PROPERTY, span));
 
@@ -714,6 +735,9 @@ mod tyml_semantic_tokens {
     ) {
         match ast {
             TypeDefine::Struct(struct_define) => {
+                let span = struct_define.documents.span.clone();
+                tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
                 let span = struct_define.name.span.clone();
                 tokens.insert(span.start, (SemanticTokenType::TYPE, span));
 
@@ -723,6 +747,9 @@ mod tyml_semantic_tokens {
                 collect_tokens_for_defines(&struct_define.defines, tokens);
             }
             TypeDefine::Enum(enum_define) => {
+                let span = enum_define.documents.span.clone();
+                tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
                 let span = enum_define.name.span.clone();
                 tokens.insert(span.start, (SemanticTokenType::TYPE, span));
 
@@ -730,6 +757,9 @@ mod tyml_semantic_tokens {
                 tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
 
                 for element in enum_define.elements.iter() {
+                    let span = element.documents.span.clone();
+                    tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
                     let span = element.span.clone();
                     tokens.insert(span.start, (SemanticTokenType::STRING, span));
                 }
@@ -738,23 +768,32 @@ mod tyml_semantic_tokens {
     }
 }
 
-trait ToLSPSpan {
-    fn to_lsp_span(&self, code: &str) -> LSPRange;
+#[extension_fn(SourceCodeSpan)]
+fn to_lsp_span(&self, code: &str) -> LSPRange {
+    match self {
+        SourceCodeSpan::UTF8Byte(range) => LSPRange::new(
+            to_line_column(code, range.start),
+            to_line_column(code, range.end),
+        ),
+        SourceCodeSpan::UnicodeCharacter(range) => LSPRange::new(
+            to_line_column(code, character_to_byte(code, range.start)),
+            to_line_column(code, character_to_byte(code, range.end)),
+        ),
+    }
 }
 
-impl ToLSPSpan for SourceCodeSpan {
-    fn to_lsp_span(&self, code: &str) -> LSPRange {
-        match self {
-            SourceCodeSpan::UTF8Byte(range) => LSPRange::new(
-                to_line_column(code, range.start),
-                to_line_column(code, range.end),
-            ),
-            SourceCodeSpan::UnicodeCharacter(range) => LSPRange::new(
-                to_line_column(code, character_to_byte(code, range.start)),
-                to_line_column(code, character_to_byte(code, range.end)),
-            ),
-        }
-    }
+#[extension_fn(SourceCodeSpan)]
+fn to_lsp_semantic_token(&self, code: &str) -> impl Iterator<Item = (Position, usize)> {
+    let range = self.to_byte_span(code);
+
+    LINE_REGEX
+        .find_iter(&code[range.clone()])
+        .map(move |matched| {
+            (
+                to_line_column(code, range.start + matched.start()),
+                matched.as_str().chars().count(),
+            )
+        })
 }
 
 static LINE_REGEX: LazyLock<Regex> =
