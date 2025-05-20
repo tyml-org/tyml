@@ -91,6 +91,7 @@ impl LanguageServer for LSPBackend {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -327,6 +328,23 @@ impl LanguageServer for LSPBackend {
                 }))
             }
         }
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let server = self.get_server(params.text_document_position_params.text_document.uri);
+
+        let hover = match server {
+            Either::Left(server) => server.hover(params.text_document_position_params.position),
+            Either::Right(server) => server.hover(params.text_document_position_params.position),
+        };
+
+        Ok(hover.map(|hover| Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: hover,
+            }),
+            range: None,
+        }))
     }
 }
 

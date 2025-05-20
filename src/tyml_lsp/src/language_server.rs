@@ -14,8 +14,8 @@ use regex::Regex;
 use tower_lsp::{
     Client,
     lsp_types::{
-        CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, NumberOrString,
-        Position, SemanticTokenType, Url,
+        CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, Documentation,
+        MarkupContent, MarkupKind, NumberOrString, Position, SemanticTokenType, Url,
     },
 };
 use tyml::{
@@ -287,8 +287,6 @@ impl GeneratedLanguageServer {
             return None;
         };
 
-        let mut completions = Vec::new();
-
         let byte_position = position.to_byte_position(&tyml.0.ml_source_code().code);
 
         let non_whitespace_byte_position = tyml.0.ml_source_code().code[..byte_position]
@@ -303,6 +301,8 @@ impl GeneratedLanguageServer {
             })
             .unwrap_or(0);
 
+        let mut completions = Vec::new();
+
         tyml.0.validator().provide_completion(
             &tyml.0.tyml_source.code,
             non_whitespace_byte_position,
@@ -311,11 +311,24 @@ impl GeneratedLanguageServer {
 
         Some(
             completions
-                .iter()
-                .map(|completion| CompletionItem {
-                    label: completion.name.clone(),
-                    kind: Some(completion.kind.to_completion_item_kind()),
-                    ..Default::default()
+                .into_iter()
+                .map(|completion| {
+                    let documents = match completion.documents.is_empty() {
+                        true => None,
+                        false => Some(completion.documents),
+                    };
+
+                    CompletionItem {
+                        label: completion.name.clone(),
+                        kind: Some(completion.kind.to_completion_item_kind()),
+                        documentation: documents.map(|documents| {
+                            Documentation::MarkupContent(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: documents,
+                            })
+                        }),
+                        ..Default::default()
+                    }
                 })
                 .collect(),
         )
@@ -330,18 +343,43 @@ impl GeneratedLanguageServer {
 
         let defines = tyml
             .validator()
-            .goto_define(byte_position, &tyml.ml_source_code().code);
+            .goto_define_and_documents(byte_position, &tyml.ml_source_code().code);
 
         let defines = defines
             .into_iter()
             .map(|range| {
                 range
+                    .0
                     .as_utf8_byte_range()
                     .to_lsp_span(&tyml.tyml_source.code)
             })
             .collect();
 
         (header.tyml.unwrap_or_default(), defines)
+    }
+
+    pub fn hover(&self, position: Position) -> Option<String> {
+        let Some((tyml, _)) = self.tyml.lock().unwrap().clone() else {
+            return None;
+        };
+
+        let byte_position = position.to_byte_position(&tyml.ml_source_code().code);
+
+        let documents = tyml
+            .validator()
+            .goto_define_and_documents(byte_position, &tyml.ml_source_code().code);
+
+        if let Some((_, documents)) = documents.get(0) {
+            Some(
+                documents
+                    .iter()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(""),
+            )
+        } else {
+            None
+        }
     }
 }
 
@@ -556,6 +594,50 @@ impl TymlLanguageServer {
             })
             .collect()
     }
+
+    pub fn hover(&self, position: Position) -> Option<String> {
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return None;
+        };
+
+        let byte_position = position.to_byte_position(&tyml.tyml_source.code);
+
+        let named_type_map = tyml.tyml().named_type_map();
+
+        let name_id = named_type_map
+            .use_link_map
+            .iter()
+            .find(|(_, ranges)| {
+                ranges
+                    .iter()
+                    .any(|range| range.to_inclusive().contains(&byte_position))
+            })
+            .map(|(&name_id, _)| name_id);
+
+        let Some(name_id) = name_id else { return None };
+
+        let type_tree = named_type_map.get_type(name_id).unwrap();
+
+        let documents = match type_tree {
+            NamedTypeTree::Struct { tree } => &tree.documents(),
+            NamedTypeTree::Enum {
+                elements: _,
+                documents,
+            } => documents,
+        };
+
+        if documents.is_empty() {
+            None
+        } else {
+            Some(
+                documents
+                    .iter()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(""),
+            )
+        }
+    }
 }
 
 mod on_type_tag {
@@ -760,7 +842,7 @@ mod tyml_semantic_tokens {
                     let span = element.documents.span.clone();
                     tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
 
-                    let span = element.span.clone();
+                    let span = element.literal.span.clone();
                     tokens.insert(span.start, (SemanticTokenType::STRING, span));
                 }
             }
@@ -855,6 +937,7 @@ fn character_to_byte(code: &str, character: usize) -> usize {
 #[derive(Debug, Clone)]
 pub struct Completion {
     pub kind: CompletionKind,
+    pub documents: String,
     pub name: String,
 }
 
@@ -927,10 +1010,20 @@ fn provide_completion_recursive_for_type(
                     completions,
                 );
             }
-            NamedTypeTree::Enum { elements } => {
-                completions.extend(elements.iter().map(|element| Completion {
-                    kind: CompletionKind::EnumValue,
-                    name: element.value.to_string(),
+            NamedTypeTree::Enum {
+                elements,
+                documents: _,
+            } => {
+                completions.extend(elements.iter().map(|(element, documents)| {
+                    Completion {
+                        kind: CompletionKind::EnumValue,
+                        documents: documents
+                            .iter()
+                            .map(|line| line.to_string())
+                            .collect::<Vec<_>>()
+                            .join(""),
+                        name: element.value.to_string(),
+                    }
                 }));
             }
         },
@@ -985,6 +1078,7 @@ fn provide_completion_recursive_for_type_tree(
         TypeTree::Node {
             node,
             any_node,
+            documents: _,
             span: _,
         } => {
             let MergedValueTree::Section {
@@ -1067,16 +1161,26 @@ fn provide_completion_recursive_for_type_tree(
                 }
             }
 
-            for (element_name, _) in node.iter() {
+            for (element_name, element) in node.iter() {
                 if !elements.contains_key(*element_name) {
                     completions.push(Completion {
                         kind: CompletionKind::SectionName,
+                        documents: element
+                            .documents()
+                            .iter()
+                            .map(|line| line.to_string())
+                            .collect::<Vec<_>>()
+                            .join(""),
                         name: element_name.to_string(),
                     });
                 }
             }
         }
-        TypeTree::Leaf { ty, span: _ } => {
+        TypeTree::Leaf {
+            ty,
+            documents: _,
+            span: _,
+        } => {
             self.provide_completion_recursive_for_type(
                 ty,
                 merged_value_tree,
@@ -1089,7 +1193,11 @@ fn provide_completion_recursive_for_type_tree(
 }
 
 #[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
-fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
+fn goto_define_and_documents(
+    &self,
+    position: usize,
+    code: &str,
+) -> Vec<(Range<usize>, &'a [&'a str])> {
     let mut result = Vec::new();
 
     if let Some(merged_value_tree) = &self.merged_value_tree {
@@ -1100,7 +1208,7 @@ fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
         } = merged_value_tree
         {
             if let Some(root_tree) = elements.get("root") {
-                goto_define_recursive(
+                goto_define_and_documents_recursive(
                     &self.type_tree,
                     &self.named_type_map,
                     root_tree,
@@ -1116,19 +1224,20 @@ fn goto_define(&self, position: usize, code: &str) -> Vec<Range<usize>> {
     result
 }
 
-fn goto_define_recursive(
-    type_tree: &TypeTree,
-    named_type_map: &NamedTypeMap,
+fn goto_define_and_documents_recursive<'a>(
+    type_tree: &'a TypeTree<'a, 'a>,
+    named_type_map: &'a NamedTypeMap<'a, 'a>,
     merged_value_tree: &MergedValueTree,
     position: usize,
     code: &str,
-    result: &mut Vec<Range<usize>>,
+    result: &mut Vec<(Range<usize>, &'a [&'a str])>,
     is_root: bool,
 ) {
     match type_tree {
         TypeTree::Node {
             node,
             any_node,
+            documents,
             span,
         } => {
             let MergedValueTree::Section {
@@ -1145,7 +1254,7 @@ fn goto_define_recursive(
                     .iter()
                     .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
                 {
-                    result.push(span.clone());
+                    result.push((span.clone(), documents.as_slice()));
                     return;
                 }
             }
@@ -1163,7 +1272,7 @@ fn goto_define_recursive(
                     continue;
                 };
 
-                goto_define_recursive(
+                goto_define_and_documents_recursive(
                     type_tree,
                     named_type_map,
                     element,
@@ -1176,6 +1285,7 @@ fn goto_define_recursive(
         }
         TypeTree::Leaf {
             ty,
+            documents,
             span: define_span,
         } => {
             if let MergedValueTree::Value {
@@ -1193,7 +1303,7 @@ fn goto_define_recursive(
                     .to_inclusive()
                     .contains(&position)
                 {
-                    result.push(define_span.clone());
+                    result.push((define_span.clone(), documents.as_slice()));
                     return;
                 }
 
@@ -1202,7 +1312,7 @@ fn goto_define_recursive(
                     return;
                 };
 
-                find_enum_define(ty, named_type_map, value.as_ref(), result);
+                find_enum_define_and_documents(ty, named_type_map, value.as_ref(), result);
             } else if let MergedValueTree::Array {
                 elements,
                 key_span,
@@ -1218,12 +1328,12 @@ fn goto_define_recursive(
                     .to_inclusive()
                     .contains(&position)
                 {
-                    result.push(define_span.clone());
+                    result.push((define_span.clone(), documents));
                     return;
                 }
 
                 for element in elements.iter() {
-                    goto_define_recursive(
+                    goto_define_and_documents_recursive(
                         type_tree,
                         named_type_map,
                         element,
@@ -1238,29 +1348,33 @@ fn goto_define_recursive(
     }
 }
 
-fn find_enum_define(
+fn find_enum_define_and_documents<'a>(
     ty: &Type,
-    named_type_map: &NamedTypeMap,
+    named_type_map: &'a NamedTypeMap<'a, 'a>,
     value: &str,
-    result: &mut Vec<Range<usize>>,
+    result: &mut Vec<(Range<usize>, &'a [&'a str])>,
 ) {
     match ty {
         Type::Named(name_id) => {
-            if let NamedTypeTree::Enum { elements } = named_type_map.get_type(*name_id).unwrap() {
-                for element in elements.iter() {
+            if let NamedTypeTree::Enum {
+                elements,
+                documents: _,
+            } = named_type_map.get_type(*name_id).unwrap()
+            {
+                for (element, documents) in elements.iter() {
                     if element.value == value {
-                        result.push(element.span.clone());
+                        result.push((element.span.clone(), documents.as_slice()));
                     }
                 }
             }
         }
         Type::Or(types) => {
             for ty in types.iter() {
-                find_enum_define(ty, named_type_map, value, result);
+                find_enum_define_and_documents(ty, named_type_map, value, result);
             }
         }
-        Type::Array(base) => find_enum_define(base, named_type_map, value, result),
-        Type::Optional(base) => find_enum_define(base, named_type_map, value, result),
+        Type::Array(base) => find_enum_define_and_documents(base, named_type_map, value, result),
+        Type::Optional(base) => find_enum_define_and_documents(base, named_type_map, value, result),
         _ => return,
     }
 }

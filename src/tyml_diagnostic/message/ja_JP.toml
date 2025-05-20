@@ -74,8 +74,8 @@ message = "構造体以外の値が記述されています"
 label_0 = "'%color:yellow{%0}'には構造体を指定する必要があります"
 label_1 = "構造体として定義されているため、値や配列を指定できません"
 [validate_error.0002]
-message = "必要な値が見つかりません"
-label_0 = "このセクションで'%color:yellow{%0}'を探しましたが見つかりませんでした"
+message = "必要な値'%color:yellow{%0}'が見つかりません"
+label_0 = "このセクションで'%color:yellow{%0}'の値を探しましたが見つかりませんでした"
 label_1 = "ここで'%color:yellow{%0}'が定義されていますが、値は記述されていません"
 note = "必要ない場合は型に'%color:cyan{?}'を付けることで、Optional型として扱うことができます"
 [validate_error.0003]

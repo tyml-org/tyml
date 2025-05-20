@@ -5,8 +5,8 @@ use bumpalo::Bump;
 use either::Either;
 use hashbrown::HashMap;
 use tyml_parser::ast::{
-    BaseType, BinaryLiteral, DefaultValue, Define, Defines, ElementDefine, FloatLiteral, Literal,
-    NodeLiteral, OrType, Spanned, TypeDefine, ValueLiteral,
+    BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents, ElementDefine, FloatLiteral,
+    Literal, NodeLiteral, OrType, Spanned, TypeDefine, ValueLiteral,
 };
 
 use crate::{
@@ -35,6 +35,7 @@ pub fn resolve_type<'input, 'ast_allocator>(
     let root_tree = resolve_defines_type(
         ast,
         None,
+        None,
         name_env,
         &mut named_type_map,
         &mut errors,
@@ -47,6 +48,7 @@ pub fn resolve_type<'input, 'ast_allocator>(
 
 fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     ast: &Defines<'input, 'ast_allocator>,
+    documents: Option<&Documents<'input, 'ast_allocator>>,
     tree_span: Option<Range<usize>>,
     name_env: &'env NameEnvironment<'env, 'input>,
     named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
@@ -86,6 +88,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     TypeDefine::Struct(struct_define) => {
                         let tree = resolve_defines_type(
                             &struct_define.defines,
+                            Some(&struct_define.documents),
                             Some(struct_define.span.clone()),
                             name_env,
                             named_type_map,
@@ -102,15 +105,31 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     TypeDefine::Enum(enum_define) => {
                         let mut elements = Vec::with_capacity_in(enum_define.elements.len(), ty);
                         for element in enum_define.elements.iter() {
-                            elements.push(Spanned::new(
-                                element.literal_value,
-                                element.literal.span.clone(),
+                            let mut documents =
+                                Vec::with_capacity_in(element.documents.lines.len(), ty);
+                            for line in element.documents.lines.iter() {
+                                documents.push(*line);
+                            }
+
+                            elements.push((
+                                Spanned::new(element.literal_value, element.literal.span.clone()),
+                                documents,
                             ));
                         }
+
+                        let mut documents =
+                            Vec::with_capacity_in(enum_define.documents.lines.len(), ty);
+                        for line in enum_define.documents.lines.iter() {
+                            documents.push(*line);
+                        }
+
                         (
                             enum_define.name.value,
                             enum_define.name.span.clone(),
-                            NamedTypeTree::Enum { elements },
+                            NamedTypeTree::Enum {
+                                elements,
+                                documents,
+                            },
                         )
                     }
                 };
@@ -120,9 +139,22 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
         }
     }
 
+    let mut tree_documents = Vec::with_capacity_in(
+        documents
+            .map(|documents| documents.lines.len())
+            .unwrap_or(0),
+        ty,
+    );
+    if let Some(documents) = documents {
+        for line in documents.lines.iter() {
+            tree_documents.push(*line);
+        }
+    }
+
     TypeTree::Node {
         node,
         any_node,
+        documents: tree_documents,
         span: tree_span.unwrap_or(ast.span.clone()),
     }
 }
@@ -135,14 +167,21 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
     env: &'env Bump,
     ty: &'ast_allocator Bump,
 ) -> TypeTree<'input, 'ast_allocator> {
+    let mut documents = Vec::with_capacity_in(ast.documents.lines.len(), ty);
+    for line in ast.documents.lines.iter() {
+        documents.push(*line);
+    }
+
     match (&ast.ty, &ast.inline_type, &ast.default) {
         (None, None, Some(default)) => TypeTree::Leaf {
             ty: get_value_type(default, ty),
+            documents,
             span: ast.span.clone(),
         },
         (None, Some(inline), None) => resolve_defines_type(
             inline.defines,
-            Some(inline.span.clone()),
+            Some(&ast.documents),
+            Some(ast.span.clone()),
             name_env,
             named_type_map,
             errors,
@@ -151,7 +190,8 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
         ),
         (None, Some(inline), Some(_)) => resolve_defines_type(
             inline.defines,
-            Some(inline.span.clone()),
+            Some(&ast.documents),
+            Some(ast.span.clone()),
             name_env,
             named_type_map,
             errors,
@@ -169,6 +209,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             );
             TypeTree::Leaf {
                 ty,
+                documents,
                 span: ast.span.clone(),
             }
         }
@@ -212,11 +253,13 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 
             TypeTree::Leaf {
                 ty: element_type,
+                documents,
                 span: ast.span.clone(),
             }
         }
         _ => TypeTree::Leaf {
             ty: Type::Unknown,
+            documents,
             span: ast.span.clone(),
         },
     }

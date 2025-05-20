@@ -293,10 +293,12 @@ pub enum TypeTree<'input, 'ty> {
     Node {
         node: HashMap<&'input str, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
         any_node: Option<Box<TypeTree<'input, 'ty>, &'ty Bump>>,
+        documents: Vec<&'input str, &'ty Bump>,
         span: Range<usize>,
     },
     Leaf {
         ty: Type<'ty>,
+        documents: Vec<&'input str, &'ty Bump>,
         span: Range<usize>,
     },
 }
@@ -307,9 +309,14 @@ impl TypeTree<'_, '_> {
             TypeTree::Node {
                 node: _,
                 any_node: _,
+                documents: _,
                 span: _,
             } => false,
-            TypeTree::Leaf { ty, span: _ } => ty.is_allowed_optional(),
+            TypeTree::Leaf {
+                ty,
+                documents: _,
+                span: _,
+            } => ty.is_allowed_optional(),
         }
     }
 
@@ -318,9 +325,30 @@ impl TypeTree<'_, '_> {
             TypeTree::Node {
                 node: _,
                 any_node: _,
+                documents: _,
                 span,
             } => span.clone(),
-            TypeTree::Leaf { ty: _, span } => span.clone(),
+            TypeTree::Leaf {
+                ty: _,
+                documents: _,
+                span,
+            } => span.clone(),
+        }
+    }
+
+    pub fn documents(&self) -> &Vec<&str, &Bump> {
+        match self {
+            TypeTree::Node {
+                node: _,
+                any_node: _,
+                documents,
+                span: _,
+            } => documents,
+            TypeTree::Leaf {
+                ty: _,
+                documents,
+                span: _,
+            } => documents,
         }
     }
 }
@@ -331,7 +359,8 @@ pub enum NamedTypeTree<'input, 'ty> {
         tree: TypeTree<'input, 'ty>,
     },
     Enum {
-        elements: Vec<Literal<'input>, &'ty Bump>,
+        elements: Vec<(Literal<'input>, Vec<&'input str, &'ty Bump>), &'ty Bump>,
+        documents: Vec<&'input str, &'ty Bump>,
     },
 }
 

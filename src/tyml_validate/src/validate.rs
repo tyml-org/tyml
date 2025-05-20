@@ -288,10 +288,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             &allocator,
         );
 
-        let empty_merged_tree = MergedValueTree::Value {
-            value: ValidateValue::None,
-            key_span: SourceCodeSpan::UTF8Byte(0..0),
-            span: SourceCodeSpan::UTF8Byte(0..0),
+        let empty_merged_tree = MergedValueTree::Section {
+            elements: HashMap::new(),
+            name_spans: allocator_api2::vec![SourceCodeSpan::UTF8Byte(0..0)],
+            define_spans: allocator_api2::vec![SourceCodeSpan::UTF8Byte(0..0)],
         };
 
         let root_value_tree = match &merged_value_tree {
@@ -339,6 +339,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             TypeTree::Node {
                 node,
                 any_node,
+                documents: _,
                 span: tyml_span,
             } => match value_tree {
                 MergedValueTree::Section {
@@ -482,7 +483,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     }
                 }
             },
-            TypeTree::Leaf { ty, span } => match ty {
+            TypeTree::Leaf {
+                ty,
+                span,
+                documents: _,
+            } => match ty {
                 Type::Named(id) => {
                     let named_type_tree = self.named_type_map.get_type(*id).unwrap();
 
@@ -495,7 +500,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 return false;
                             }
                         }
-                        NamedTypeTree::Enum { elements } => {
+                        NamedTypeTree::Enum {
+                            elements,
+                            documents: _,
+                        } => {
                             let found_error_spans = match value_tree {
                                 MergedValueTree::Section {
                                     elements: _,
@@ -514,7 +522,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 } => match value {
                                     ValidateValue::String(value) => elements
                                         .iter()
-                                        .any(|element| element.value == value)
+                                        .any(|element| element.0.value == value)
                                         .not()
                                         .then(|| std::vec![span.clone()]),
                                     _ => Some(std::vec![span.clone()]),
@@ -720,14 +728,17 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     NamedTypeTree::Struct { tree } => {
                         self.validate_tree(&mut None, tree, value_tree, section_name_stack)
                     }
-                    NamedTypeTree::Enum { elements } => match value_tree {
+                    NamedTypeTree::Enum {
+                        elements,
+                        documents: _,
+                    } => match value_tree {
                         MergedValueTree::Value {
                             value,
                             key_span: _,
                             span: _,
                         } => match value {
                             ValidateValue::String(string) => {
-                                elements.iter().any(|element| element.value == string)
+                                elements.iter().any(|element| element.0.value == string)
                             }
                             _ => false,
                         },

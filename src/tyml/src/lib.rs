@@ -432,10 +432,7 @@ settings: {
 ";
 
         let ini_source = "
-[settings]
-ip = 192.168.1.8
-port = 25565
-test = v
+
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
@@ -443,7 +440,7 @@ test = v
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let language = STYLE_REGISTRY.resolve("").unwrap();
+        let language = STYLE_REGISTRY.resolve("ini").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
 
