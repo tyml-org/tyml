@@ -1,9 +1,10 @@
 use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
+use either::Either;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
-use tyml_validate::validate::{ValueTree, ValueTypeChecker};
+use tyml_validate::validate::{CreateSection, ValueTree, ValueTypeChecker};
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
 
@@ -257,6 +258,19 @@ impl<'input> AST<'input> for LanguageAST<'input> {
 
                         section.sections.len()
                     };
+
+                    validator.set_value(
+                        section_name_stack
+                            .iter()
+                            .map(|(name, name_span, define_span)| {
+                                (
+                                    name.clone(),
+                                    name_span.as_utf8_byte_range(),
+                                    define_span.as_utf8_byte_range(),
+                                )
+                            }),
+                        Either::Right(CreateSection),
+                    );
 
                     for key_value in key_values.iter() {
                         key_value.take_value(section_name_stack, validator);

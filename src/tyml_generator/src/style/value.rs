@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range, sync::Arc};
 
 use allocator_api2::vec::Vec;
+use either::Either;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree};
@@ -259,11 +260,11 @@ impl<'input> AST<'input> for ValueAST<'input> {
                         define_span.as_utf8_byte_range(),
                     )
                 }),
-            ValueTree::Value {
+            Either::Left(ValueTree::Value {
                 value,
                 key_span: key_span.as_utf8_byte_range(),
                 span: (key_span.start..self.span.end).as_utf8_byte_range(),
-            },
+            }),
         );
     }
 

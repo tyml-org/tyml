@@ -432,7 +432,14 @@ settings: {
 ";
 
         let ini_source = "
+[settings]
+ip = 192.168.1.1
 
+[settings]
+port = 25565
+
+[settings]
+port = 200
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

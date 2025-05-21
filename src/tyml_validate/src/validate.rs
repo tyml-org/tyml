@@ -5,7 +5,7 @@ use auto_enums::auto_enum;
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
-use tyml_parser::ast::Spanned;
+use tyml_parser::ast::{Spanned, either::Either};
 use tyml_source::SourceCodeSpan;
 use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
@@ -164,6 +164,8 @@ pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub merged_value_tree: Option<MergedValueTree<'section, 'value>>,
 }
 
+pub struct CreateSection;
+
 impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value>
 {
@@ -192,7 +194,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 SourceCodeSpan,
             ),
         >,
-        value: ValueTree<'section, 'value>,
+        value: Either<ValueTree<'section, 'value>, CreateSection>,
     ) {
         let root_section = [(
             Cow::Borrowed("root"),
@@ -254,7 +256,9 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                     // if last section
                     if sections.peek().is_none() {
-                        *matched_section_branch = value;
+                        if let Either::Left(value) = value {
+                            *matched_section_branch = value;
+                        }
                         return;
                     }
 
@@ -912,6 +916,20 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
 
                             section_name_stack.pop().unwrap();
 
+                            if let Some(exists) = new_elements.get(element_name.as_ref()) {
+                                let error = TymlValueValidateError::DuplicatedValue {
+                                    exists: exists.spans().cloned().collect(),
+                                    duplicated: new_tree.spans().next().unwrap().clone(),
+                                    path: section_name_stack
+                                        .iter()
+                                        .skip(1)
+                                        .map(|path| path.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("."),
+                                };
+                                errors.push(error);
+                            }
+
                             new_elements.insert(element_name.clone(), new_tree);
                         }
                     }
@@ -931,6 +949,7 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                         duplicated: duplicated.clone(),
                         path: section_name_stack
                             .iter()
+                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),
@@ -1004,6 +1023,7 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                         duplicated: value_tree.span().clone(),
                         path: section_name_stack
                             .iter()
+                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),
@@ -1032,6 +1052,7 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                         duplicated: value_tree.span().clone(),
                         path: section_name_stack
                             .iter()
+                            .skip(1)
                             .map(|path| path.to_string())
                             .collect::<Vec<_>>()
                             .join("."),
