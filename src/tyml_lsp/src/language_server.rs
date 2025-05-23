@@ -369,14 +369,18 @@ impl GeneratedLanguageServer {
             .validator()
             .goto_define_and_documents(byte_position, &tyml.ml_source_code().code);
 
-        if let Some((_, documents)) = documents.get(0) {
-            Some(
+        if let Some((span, documents)) = documents.get(0) {
+            let documents = documents
+                .iter()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>()
+                .join("");
+
+            Some(format!(
+                "{}{}",
+                create_hover_code_block(&tyml.tyml_source.code[span.clone()]),
                 documents
-                    .iter()
-                    .map(|line| line.to_string())
-                    .collect::<Vec<_>>()
-                    .join(""),
-            )
+            ))
         } else {
             None
         }
@@ -655,6 +659,19 @@ impl TymlLanguageServer {
             )
         }
     }
+}
+
+fn create_hover_code_block(code: &str) -> String {
+    // remove '///' documents
+    static DOCUMENTS_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(^|\n|\r|\r\n)[ 　\t]*///.*").unwrap());
+    static INDENT_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(\n|\r|\r\n| |　|\t)+").unwrap());
+
+    let code = DOCUMENTS_REGEX.replace_all(code, "");
+    let code = INDENT_REGEX.replace_all(code.as_ref(), "");
+
+    format!("```tyml\n{}\n```\n---\n", code)
 }
 
 mod on_type_tag {
