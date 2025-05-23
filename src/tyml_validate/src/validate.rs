@@ -778,6 +778,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                 self.validate_type(&base_type, value_tree, section_name_stack)
             }
+            Type::Any => true,
             Type::Unknown => true,
         }
     }

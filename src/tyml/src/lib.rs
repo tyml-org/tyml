@@ -428,6 +428,7 @@ mod tests {
 settings: {
     ip: string
     port: int
+    *: any
 }
 ";
 
@@ -439,7 +440,7 @@ ip = 192.168.1.1
 port = 25565
 
 [settings]
-port = 200
+test = 200
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

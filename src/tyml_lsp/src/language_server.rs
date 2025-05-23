@@ -602,6 +602,23 @@ impl TymlLanguageServer {
 
         let byte_position = position.to_byte_position(&tyml.tyml_source.code);
 
+        let mut result = None;
+        tyml_documents_from_ast::get_documents_from_defines(
+            tyml.tyml().ast(),
+            byte_position,
+            &mut result,
+        );
+
+        if let Some(lines) = result {
+            return Some(
+                lines
+                    .into_iter()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(""),
+            );
+        }
+
         let named_type_map = tyml.tyml().named_type_map();
 
         let name_id = named_type_map
@@ -845,6 +862,51 @@ mod tyml_semantic_tokens {
                     let span = element.literal.span.clone();
                     tokens.insert(span.start, (SemanticTokenType::STRING, span));
                 }
+            }
+        }
+    }
+}
+
+mod tyml_documents_from_ast {
+    use tyml::tyml_parser::ast::{AST, Define, Defines, TypeDefine};
+
+    use super::ToInclusive;
+
+    pub fn get_documents_from_defines<'input>(
+        defines: &Defines<'input, '_>,
+        position: usize,
+        result: &mut Option<Vec<&'input str>>,
+    ) {
+        for define in defines.defines.iter() {
+            match define {
+                Define::Element(element_define) => {
+                    if element_define
+                        .node
+                        .span()
+                        .to_inclusive()
+                        .contains(&position)
+                    {
+                        *result = Some(element_define.documents.lines.iter().cloned().collect());
+                        return;
+                    }
+
+                    if let Some(inline_type) = &element_define.inline_type {
+                        get_documents_from_defines(&inline_type.defines, position, result);
+                    }
+                }
+                Define::Type(type_define) => match type_define {
+                    TypeDefine::Struct(struct_define) => {
+                        get_documents_from_defines(&struct_define.defines, position, result);
+                    }
+                    TypeDefine::Enum(enum_define) => {
+                        for element in enum_define.elements.iter() {
+                            if element.literal.span.to_inclusive().contains(&position) {
+                                *result = Some(element.documents.lines.iter().cloned().collect());
+                                return;
+                            }
+                        }
+                    }
+                },
             }
         }
     }

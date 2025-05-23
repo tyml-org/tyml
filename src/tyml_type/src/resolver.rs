@@ -382,6 +382,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 "float" => Type::Float(FloatAttribute::default()),
                 "string" => Type::String(StringAttribute::default()),
                 "bool" => Type::Bool,
+                "any" => Type::Any,
                 _ => {
                     // maybe user type
                     match name_env.resolve(base_type.name.value) {

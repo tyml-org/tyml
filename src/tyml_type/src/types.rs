@@ -24,6 +24,8 @@ pub enum Type<'ty> {
     Or(Vec<Type<'ty>, &'ty Bump>),
     Array(Box<Type<'ty>, &'ty Bump>),
     Optional(Box<Type<'ty>, &'ty Bump>),
+    /// This is devil
+    Any,
     Unknown,
 }
 
@@ -135,6 +137,7 @@ impl<'ty> Type<'ty> {
             Type::Array(base_type) | Type::Optional(base_type) => {
                 base_type.validate_value_with_attribute(value)
             }
+            Type::Any => true,
             Type::Unknown => false,
         }
     }
@@ -172,6 +175,7 @@ impl<'ty> ToTypeName for Type<'ty> {
                 .join(" | "),
             Type::Array(base) => format!("[{}]", base.to_type_name(named_type_map)),
             Type::Optional(base) => format!("{}?", base.to_type_name(named_type_map)),
+            Type::Any => "any".into(),
             Type::Unknown => "unknown".into(),
         }
     }
