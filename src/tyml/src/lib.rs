@@ -439,7 +439,7 @@ ip = 192.168.1.1
 [settings]
 port = 25565
 
-[settings]
+[settings.test]
 test = 200
 ";
 

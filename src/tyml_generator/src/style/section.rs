@@ -35,6 +35,7 @@ pub enum SectionParserKind {
     Bracket {
         bracket_left: GeneratorTokenKind,
         bracket_right: GeneratorTokenKind,
+        dot: GeneratorTokenKind,
     },
     MultiBracket {
         bracket_left: GeneratorTokenKind,
@@ -56,6 +57,7 @@ impl<'input> ParserGenerator<'input, SectionAST<'input>, SectionParser> for Sect
             SectionKind::Bracket => SectionParserKind::Bracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
                 bracket_right: registry.register(GeneratorTokenizer::Keyword("]".into())),
+                dot: registry.register(GeneratorTokenizer::Keyword(".".into())),
             },
             SectionKind::MultiBracket => SectionParserKind::MultiBracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
@@ -82,6 +84,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
             SectionParserKind::Bracket {
                 bracket_left,
                 bracket_right,
+                dot,
             } => {
                 if !lexer.current_contains(bracket_left) {
                     return None;
@@ -102,6 +105,31 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     }
                 };
 
+                let mut sections = Vec::new();
+                sections.push(literal.into_spanned());
+
+                loop {
+                    if !lexer.current_contains(dot) {
+                        break;
+                    }
+                    lexer.next();
+
+                    let literal = match lexer.current_contains(self.literal.0) {
+                        true => lexer.next().unwrap(),
+                        false => {
+                            let error = recover_until_or_lf(lexer, &[bracket_right], self);
+                            errors.push(error);
+
+                            break;
+                        }
+                    };
+                    sections.push(literal.into_spanned());
+
+                    if lexer.current_contains(bracket_right) {
+                        break;
+                    }
+                }
+
                 if !lexer.current_contains(bracket_right) {
                     let error = recover_until_or_lf(lexer, &[bracket_right], self);
                     errors.push(error);
@@ -117,9 +145,6 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     });
                 }
                 lexer.next();
-
-                let mut sections = Vec::new();
-                sections.push(literal.into_spanned());
 
                 Some(SectionAST {
                     sections,
@@ -186,6 +211,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
             SectionParserKind::Bracket {
                 bracket_left,
                 bracket_right: _,
+                dot: _,
             } => bracket_left,
             SectionParserKind::MultiBracket {
                 bracket_left,
@@ -205,6 +231,7 @@ impl ParserPart for SectionParser {
             SectionParserKind::Bracket {
                 bracket_left: _,
                 bracket_right: _,
+                dot: _,
             } => Some("[section]".into()),
             SectionParserKind::MultiBracket {
                 bracket_left: _,

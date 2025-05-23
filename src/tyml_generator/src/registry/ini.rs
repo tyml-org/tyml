@@ -12,17 +12,6 @@ use crate::style::{
 
 pub fn ini() -> LanguageStyle {
     let literal = Literal::Custom(CustomRegexLiteral {
-        regex: r"[^ 　\t\[\]\n\r=;.][^\[\]\n\r=;.]*".into(),
-        option: CustomLiteralOption {
-            trim_space: true,
-            escape: EscapeOption {
-                allow_escape: true,
-                unicode: UnicodeFormatKind::Normal,
-            },
-        },
-    });
-
-    let any_string_literal = Literal::Custom(CustomRegexLiteral {
         regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*".into(),
         option: CustomLiteralOption {
             trim_space: true,
@@ -48,7 +37,7 @@ pub fn ini() -> LanguageStyle {
                     allow_plus_minus: true,
                     allow_under_line: true,
                 }),
-                any_string: Some(any_string_literal),
+                any_string: Some(literal),
                 ..Default::default()
             },
         },
