@@ -314,19 +314,25 @@ impl GeneratedLanguageServer {
                 .into_iter()
                 .map(|completion| {
                     let documents = match completion.documents.is_empty() {
-                        true => None,
-                        false => Some(completion.documents),
+                        true => create_hover_code_block(
+                            &tyml.0.tyml_source.code[completion.span.clone()],
+                        ),
+                        false => format!(
+                            "{}{}",
+                            create_hover_code_block(
+                                &tyml.0.tyml_source.code[completion.span.clone()]
+                            ),
+                            completion.documents
+                        ),
                     };
 
                     CompletionItem {
                         label: completion.name.clone(),
                         kind: Some(completion.kind.to_completion_item_kind()),
-                        documentation: documents.map(|documents| {
-                            Documentation::MarkupContent(MarkupContent {
-                                kind: MarkupKind::Markdown,
-                                value: documents,
-                            })
-                        }),
+                        documentation: Some(Documentation::MarkupContent(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: documents,
+                        })),
                         ..Default::default()
                     }
                 })
@@ -1017,6 +1023,7 @@ fn character_to_byte(code: &str, character: usize) -> usize {
 pub struct Completion {
     pub kind: CompletionKind,
     pub documents: String,
+    pub span: Range<usize>,
     pub name: String,
 }
 
@@ -1101,6 +1108,7 @@ fn provide_completion_recursive_for_type(
                             .map(|line| line.to_string())
                             .collect::<Vec<_>>()
                             .join(""),
+                        span: element.span.clone(),
                         name: element.value.to_string(),
                     }
                 }));
@@ -1250,6 +1258,7 @@ fn provide_completion_recursive_for_type_tree(
                             .map(|line| line.to_string())
                             .collect::<Vec<_>>()
                             .join(""),
+                        span: element.span(),
                         name: element_name.to_string(),
                     });
                 }

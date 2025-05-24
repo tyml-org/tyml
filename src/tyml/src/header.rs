@@ -18,7 +18,7 @@ impl TymlHeader {
 
         // header start must be until 64 bytes
         let Some(header_matched) = TYML_HEADER_REGEX
-            .find_iter(&source[..64.min(source.len())])
+            .find_iter(&source[..128.min(source.len())])
             .next()
         else {
             return None;
