@@ -1376,60 +1376,118 @@ fn goto_define_and_documents_recursive<'a>(
             documents,
             span: define_span,
         } => {
-            if let MergedValueTree::Value {
-                value,
-                key_span,
-                span,
-            } = merged_value_tree
-            {
-                if !span.to_byte_span(code).to_inclusive().contains(&position) {
-                    return;
+            match merged_value_tree {
+                MergedValueTree::Section {
+                    elements,
+                    name_spans,
+                    define_spans,
+                } => {
+                    if !is_root {
+                        if name_spans
+                            .iter()
+                            .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
+                        {
+                            result.push((define_span.clone(), documents.as_slice()));
+                            return;
+                        }
+                    }
+
+                    if !define_spans
+                        .iter()
+                        .any(|span| span.to_byte_span(code).to_inclusive().contains(&position))
+                    {
+                        return;
+                    }
+
+                    let Type::Named(name_id) = ty else { return };
+
+                    let NamedTypeTree::Struct { tree } = named_type_map.get_type(*name_id).unwrap()
+                    else {
+                        return;
+                    };
+
+                    let TypeTree::Node {
+                        node,
+                        any_node,
+                        documents: _,
+                        span: _,
+                    } = tree
+                    else {
+                        return;
+                    };
+
+                    for (element_name, element) in elements.iter() {
+                        let Some(type_tree) =
+                            node.get(element_name.as_ref()).or(any_node.as_deref())
+                        else {
+                            continue;
+                        };
+
+                        goto_define_and_documents_recursive(
+                            type_tree,
+                            named_type_map,
+                            element,
+                            position,
+                            code,
+                            result,
+                            false,
+                        );
+                    }
                 }
+                MergedValueTree::Array {
+                    elements,
+                    key_span,
+                    span,
+                } => {
+                    if !span.to_byte_span(code).to_inclusive().contains(&position) {
+                        return;
+                    }
 
-                if key_span
-                    .to_byte_span(code)
-                    .to_inclusive()
-                    .contains(&position)
-                {
-                    result.push((define_span.clone(), documents.as_slice()));
-                    return;
+                    if key_span
+                        .to_byte_span(code)
+                        .to_inclusive()
+                        .contains(&position)
+                    {
+                        result.push((define_span.clone(), documents));
+                        return;
+                    }
+
+                    for element in elements.iter() {
+                        goto_define_and_documents_recursive(
+                            type_tree,
+                            named_type_map,
+                            element,
+                            position,
+                            code,
+                            result,
+                            false,
+                        );
+                    }
                 }
+                MergedValueTree::Value {
+                    value,
+                    key_span,
+                    span,
+                } => {
+                    if !span.to_byte_span(code).to_inclusive().contains(&position) {
+                        return;
+                    }
 
-                // goto enum define
-                let ValidateValue::String(value) = value else {
-                    return;
-                };
+                    if key_span
+                        .to_byte_span(code)
+                        .to_inclusive()
+                        .contains(&position)
+                    {
+                        result.push((define_span.clone(), documents.as_slice()));
+                        return;
+                    }
 
-                find_enum_define_and_documents(ty, named_type_map, value.as_ref(), result);
-            } else if let MergedValueTree::Array {
-                elements,
-                key_span,
-                span,
-            } = merged_value_tree
-            {
-                if !span.to_byte_span(code).to_inclusive().contains(&position) {
-                    return;
-                }
+                    // goto enum define
+                    let ValidateValue::String(value) = value else {
+                        return;
+                    };
 
-                if key_span
-                    .to_byte_span(code)
-                    .to_inclusive()
-                    .contains(&position)
-                {
-                    result.push((define_span.clone(), documents));
-                    return;
-                }
-
-                for element in elements.iter() {
-                    goto_define_and_documents_recursive(
-                        type_tree,
-                        named_type_map,
-                        element,
-                        position,
-                        code,
-                        result,
-                        false,
-                    );
+                    find_enum_define_and_documents(ty, named_type_map, value.as_ref(), result);
                 }
             }
         }
