@@ -670,7 +670,7 @@ impl TymlLanguageServer {
 fn create_hover_code_block(code: &str) -> String {
     // remove '///' documents
     static DOCUMENTS_REGEX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(^|\n|\r|\r\n)[ 　\t]*///.*").unwrap());
+        LazyLock::new(|| Regex::new(r"(^|\n|\r|\r\n)[ 　\t]*(///|###).*").unwrap());
     static INDENT_REGEX: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^(\n|\r|\r\n| |　|\t)+").unwrap());
 
