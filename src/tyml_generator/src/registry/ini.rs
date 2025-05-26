@@ -3,8 +3,9 @@ use crate::style::{
     key_value::{KeyOption, KeyValue, KeyValueKind},
     language::{LanguageStyle, SectionStyle},
     literal::{
-        CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind, Literal,
-        LiteralSet, QuotesKind, StringLiteral, UnicodeFormatKind,
+        BinaryLiteral, BoolKind, BoolLiteral, CustomLiteralOption, CustomRegexLiteral,
+        EscapeOption, FloatLiteral, InfNanKind, Literal, LiteralSet, QuotesKind, StringLiteral,
+        UnicodeFormatKind,
     },
     section::{Section, SectionKind},
     value::Value,
@@ -51,11 +52,28 @@ pub fn ini() -> LanguageStyle {
             },
             kind: KeyValueKind::Equal,
             value: Value {
+                strings: vec![StringLiteral {
+                    quotes_kind: QuotesKind::DoubleQuotes,
+                    escape: EscapeOption {
+                        allow_escape: true,
+                        unicode: UnicodeFormatKind::None,
+                    },
+                }],
                 float: Some(FloatLiteral {
                     allow_e: true,
                     inf_nan_kind: InfNanKind::Insensitive,
                     allow_plus_minus: true,
                     allow_under_line: true,
+                }),
+                binary: Some(BinaryLiteral {
+                    allow_bit: true,
+                    allow_oct: true,
+                    allow_hex: true,
+                    allow_plus_minus: true,
+                    allow_under_line: true,
+                }),
+                bool: Some(BoolLiteral {
+                    kind: BoolKind::Insensitive,
                 }),
                 any_string: Some(literal),
                 ..Default::default()

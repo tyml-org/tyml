@@ -19,17 +19,17 @@ use super::{
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Value {
-    pub string: Option<StringLiteral>,
+    pub strings: std::vec::Vec<StringLiteral>,
     pub float: Option<FloatLiteral>,
     pub binary: Option<BinaryLiteral>,
     pub bool: Option<BoolLiteral>,
     pub any_string: Option<Literal>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValueParser {
     pub style: Arc<Value>,
-    pub string: Option<GeneratorTokenKind>,
+    pub strings: Vec<GeneratorTokenKind>,
     pub float: Option<GeneratorTokenKind>,
     pub binary: Option<GeneratorTokenKind>,
     pub bool: Option<GeneratorTokenKind>,
@@ -39,6 +39,7 @@ pub struct ValueParser {
 #[derive(Debug)]
 pub struct ValueAST<'input> {
     pub style: Arc<Value>,
+    pub parser: Arc<ValueParser>,
     pub value: SpannedText<'input>,
     pub kind: ValueASTKind,
     pub span: Range<usize>,
@@ -46,7 +47,7 @@ pub struct ValueAST<'input> {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueASTKind {
-    String,
+    String { kind: GeneratorTokenKind },
     Float,
     Binary,
     Bool,
@@ -57,7 +58,11 @@ impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> ValueParser {
         ValueParser {
             style: Arc::new(self.clone()),
-            string: self.string.as_ref().map(|string| string.register(registry)),
+            strings: self
+                .strings
+                .iter()
+                .map(|string| string.register(registry))
+                .collect(),
             float: self.float.as_ref().map(|float| float.register(registry)),
             binary: self.binary.as_ref().map(|binary| binary.register(registry)),
             bool: self.bool.as_ref().map(|bool| bool.register(registry)),
@@ -77,12 +82,13 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
     ) -> Option<ValueAST<'input>> {
         let anchor = lexer.cast_anchor();
 
-        if let Some(string) = self.string {
-            if lexer.current_contains(string) {
+        for string in self.strings.iter() {
+            if lexer.current_contains(*string) {
                 return Some(ValueAST {
                     style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
                     value: lexer.next().unwrap().into_spanned(),
-                    kind: ValueASTKind::String,
+                    kind: ValueASTKind::String { kind: *string },
                     span: anchor.elapsed(lexer),
                 });
             }
@@ -92,6 +98,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
             if lexer.current_contains(float) {
                 return Some(ValueAST {
                     style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
                     value: lexer.next().unwrap().into_spanned(),
                     kind: ValueASTKind::Float,
                     span: anchor.elapsed(lexer),
@@ -103,6 +110,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
             if lexer.current_contains(binary) {
                 return Some(ValueAST {
                     style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
                     value: lexer.next().unwrap().into_spanned(),
                     kind: ValueASTKind::Binary,
                     span: anchor.elapsed(lexer),
@@ -114,6 +122,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
             if lexer.current_contains(bool) {
                 return Some(ValueAST {
                     style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
                     value: lexer.next().unwrap().into_spanned(),
                     kind: ValueASTKind::Bool,
                     span: anchor.elapsed(lexer),
@@ -125,6 +134,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
             if lexer.current_contains(any_string) {
                 return Some(ValueAST {
                     style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
                     value: lexer.next().unwrap().into_spanned(),
                     kind: ValueASTKind::AnyString,
                     span: anchor.elapsed(lexer),
@@ -137,7 +147,6 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
 
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
         [
-            self.string,
             self.float,
             self.binary,
             self.binary,
@@ -146,6 +155,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
         ]
         .into_iter()
         .flatten()
+        .chain(self.strings.iter().cloned())
     }
 }
 
@@ -173,10 +183,18 @@ impl<'input> AST<'input> for ValueAST<'input> {
         validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
         let value = match self.kind {
-            ValueASTKind::String => {
-                let style = self.style.string.as_ref().unwrap();
+            ValueASTKind::String { kind } => {
+                let quotes_kind = self
+                    .style
+                    .strings
+                    .iter()
+                    .zip(self.parser.strings.iter())
+                    .find(|(_, parser)| **parser == kind)
+                    .map(|(style, _)| style)
+                    .unwrap()
+                    .quotes_kind;
 
-                let value = match style.quotes_kind {
+                let value = match quotes_kind {
                     QuotesKind::DoubleQuotes => &self.value.text[1..(self.value.text.len() - 1)],
                     QuotesKind::TripleDoubleQuotes => {
                         &self.value.text[3..(self.value.text.len() - 3)]
@@ -276,7 +294,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
         tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
     ) {
         let kind = match self.kind {
-            ValueASTKind::String => ASTTokenKind::StringValue,
+            ValueASTKind::String { kind: _ } => ASTTokenKind::StringValue,
             ValueASTKind::Float => {
                 let lower = self.value.text.to_lowercase();
 

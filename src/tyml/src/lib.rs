@@ -428,22 +428,20 @@ mod tests {
 settings: {
     ip: string
     port: int
+    mode: Mode
+}
 
-    test: {
-        ip: string
-    }
+enum Mode {
+    \"Debug\"
+    \"Release\"
 }
 ";
 
         let ini_source = "
 [\"settings\"]
 ip = 192.168.1.1
-
-[settings]
 port = 25565
-
-[settings \"test\"]
-ip = 192.168.1.6
+mode = \"Debug\"
 ";
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
