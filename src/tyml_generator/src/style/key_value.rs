@@ -6,20 +6,26 @@ use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
 
-use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer, SpannedText};
+use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer};
 
 use super::{
     AST, ASTTokenKind, NamedParserPart, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
-    literal::{CustomLiteralOption, Literal},
+    literal::{LiteralSet, LiteralSetAST, LiteralSetParser},
     value::{Value, ValueAST, ValueParser},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyValue {
-    pub key: Literal,
+    pub key: LiteralSet,
+    pub key_option: KeyOption,
     pub kind: KeyValueKind,
     pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyOption {
+    pub allow_dot_section_split: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,16 +39,21 @@ pub enum KeyValueKind {
 }
 
 pub struct KeyValueParser {
-    pub key: (GeneratorTokenKind, Option<CustomLiteralOption>),
+    pub key: LiteralSetParser,
+    pub key_option: KeyOptionTokenKind,
     pub kind: Option<GeneratorTokenKind>,
     pub parser_kind: KeyValueKind,
     pub value: ValueParser,
 }
 
+#[derive(Debug, Clone)]
+pub struct KeyOptionTokenKind {
+    pub dot: Option<GeneratorTokenKind>,
+}
+
 #[derive(Debug)]
 pub struct KeyValueAST<'input> {
-    pub key: SpannedText<'input>,
-    pub key_literl_option: Option<CustomLiteralOption>,
+    pub key: Vec<LiteralSetAST<'input>>,
     pub value: Option<ValueAST<'input>>,
     pub span: Range<usize>,
 }
@@ -56,7 +67,13 @@ impl<'input> ParserGenerator<'input, KeyValueAST<'input>, KeyValueParser> for Ke
         };
 
         KeyValueParser {
-            key: self.key.register(registry),
+            key: self.key.generate(registry),
+            key_option: KeyOptionTokenKind {
+                dot: self
+                    .key_option
+                    .allow_dot_section_split
+                    .then(|| registry.register(GeneratorTokenizer::Keyword(".".into()))),
+            },
             kind,
             parser_kind: self.kind,
             value: self.value.generate(registry),
@@ -72,10 +89,37 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
     ) -> Option<KeyValueAST<'input>> {
         let anchor = lexer.cast_anchor();
 
-        let key = match lexer.current_contains(self.key.0) {
-            true => lexer.next().unwrap().into_spanned(),
-            false => return None,
+        let Some(literal) = self.key.parse(lexer, errors) else {
+            return None;
         };
+
+        let mut key = Vec::new();
+        key.push(literal);
+
+        if let Some(dot) = self.key_option.dot {
+            loop {
+                if !lexer.current_contains(dot) {
+                    break;
+                }
+                lexer.next();
+
+                let Some(literal) = self.key.parse(lexer, errors) else {
+                    let error = recover_until_or_lf(
+                        lexer,
+                        [self.kind]
+                            .into_iter()
+                            .flatten()
+                            .chain(self.value.first_token_kinds()),
+                        self,
+                    );
+                    errors.push(error);
+
+                    break;
+                };
+
+                key.push(literal);
+            }
+        }
 
         if let Some(kind) = self.kind {
             if !lexer.current_contains(kind) {
@@ -87,7 +131,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
                 // contains key span for error
                 lexer.back_to_anchor(GeneratorAnchor {
-                    byte_position: key.span.start,
+                    byte_position: key.first().unwrap().span().start,
                 });
 
                 let error = recover_until_or_lf(lexer, [].into_iter(), &parser_part);
@@ -95,7 +139,6 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
                 return Some(KeyValueAST {
                     key,
-                    key_literl_option: self.key.1.clone(),
                     value: None,
                     span: anchor.elapsed(lexer),
                 });
@@ -115,14 +158,13 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
         Some(KeyValueAST {
             key,
-            key_literl_option: self.key.1.clone(),
             value,
             span: anchor.elapsed(lexer),
         })
     }
 
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
-        std::iter::once(self.key.0)
+        self.key.first_token_kinds()
     }
 }
 
@@ -153,26 +195,21 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        let literal_option = self
-            .key_literl_option
-            .as_ref()
-            .map(|option| option.clone())
-            .unwrap_or_default();
-
-        let key_text = match literal_option.trim_space {
-            true => self.key.text.trim(),
-            false => self.key.text,
-        };
-
-        let key_text = literal_option.escape.resolve_escape(key_text);
-
-        section_name_stack.push((key_text, self.key.span.clone(), self.span.clone()));
+        section_name_stack.extend(
+            self.key
+                .iter()
+                .map(|literal| literal.to_section_name(self.span()))
+                .flatten(),
+        );
 
         match &self.value {
             Some(value) => {
                 value.take_value(section_name_stack, validator);
             }
             None => {
+                let first_key_span = self.key.first().unwrap().span();
+                let last_key_span = self.key.last().unwrap().span();
+
                 validator.set_value(
                     section_name_stack
                         .iter()
@@ -185,7 +222,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                         }),
                     Either::Left(ValueTree::Value {
                         value: ValidateValue::None,
-                        key_span: self.key.span.as_utf8_byte_range(),
+                        key_span: (first_key_span.start..last_key_span.end).as_utf8_byte_range(),
                         span: self.span.as_utf8_byte_range(),
                     }),
                 );
@@ -199,11 +236,9 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         &self,
         tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
     ) {
-        // TODO : check value is tree
-        tokens.insert(
-            self.key.span.start,
-            (ASTTokenKind::Key, self.key.span.clone()),
-        );
+        for key in self.key.iter() {
+            tokens.insert(key.span().start, (ASTTokenKind::Key, key.span()));
+        }
 
         if let Some(value) = &self.value {
             value.take_token(tokens);

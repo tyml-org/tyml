@@ -1,6 +1,6 @@
 use crate::style::{
     comment::Comment,
-    key_value::{KeyValue, KeyValueKind},
+    key_value::{KeyOption, KeyValue, KeyValueKind},
     language::{LanguageStyle, SectionStyle},
     literal::{
         CustomLiteralOption, CustomRegexLiteral, EscapeOption, FloatLiteral, InfNanKind, Literal,
@@ -11,7 +11,7 @@ use crate::style::{
 };
 
 pub fn ini() -> LanguageStyle {
-    let literal = Literal::Custom(CustomRegexLiteral {
+    let custom_literal = CustomRegexLiteral {
         regex: r#"[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*"#.into(),
         option: CustomLiteralOption {
             trim_space: true,
@@ -20,7 +20,10 @@ pub fn ini() -> LanguageStyle {
                 unicode: UnicodeFormatKind::Normal,
             },
         },
-    });
+    };
+
+    let literal = Literal::Custom(custom_literal.clone());
+
     let section_literal = LiteralSet {
         normal: None,
         strings: vec![StringLiteral {
@@ -30,16 +33,7 @@ pub fn ini() -> LanguageStyle {
                 unicode: UnicodeFormatKind::None,
             },
         }],
-        custom: Some(CustomRegexLiteral {
-            regex: r#"[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*"#.into(),
-            option: CustomLiteralOption {
-                trim_space: true,
-                escape: EscapeOption {
-                    allow_escape: true,
-                    unicode: UnicodeFormatKind::Normal,
-                },
-            },
-        }),
+        custom: Some(custom_literal.clone()),
     };
 
     LanguageStyle::Section(SectionStyle {
@@ -50,7 +44,11 @@ pub fn ini() -> LanguageStyle {
             },
         },
         key_value: KeyValue {
-            key: literal.clone(),
+            key: LiteralSet {
+                normal: None,
+                strings: vec![],
+                custom: Some(custom_literal),
+            },
             kind: KeyValueKind::Equal,
             value: Value {
                 float: Some(FloatLiteral {
@@ -61,6 +59,9 @@ pub fn ini() -> LanguageStyle {
                 }),
                 any_string: Some(literal),
                 ..Default::default()
+            },
+            key_option: KeyOption {
+                allow_dot_section_split: false,
             },
         },
         comments: vec![
