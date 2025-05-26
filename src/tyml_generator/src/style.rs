@@ -26,7 +26,7 @@ pub trait Parser<'input, T: AST<'input>>: ParserPart {
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<T>;
 
-    fn first_token_kind(&self) -> GeneratorTokenKind;
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind>;
 }
 
 pub trait AST<'input> {

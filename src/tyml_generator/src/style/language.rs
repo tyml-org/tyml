@@ -1,6 +1,7 @@
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, iter::once, ops::Range};
 
 use allocator_api2::vec::Vec;
+use auto_enums::auto_enum;
 use either::Either;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
@@ -104,7 +105,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                         Some(section) => section,
                         None => {
                             let error =
-                                recover_until_or_lf(lexer, &[section.first_token_kind()], section);
+                                recover_until_or_lf(lexer, section.first_token_kinds(), section);
                             errors.push(error);
 
                             continue;
@@ -114,7 +115,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                     if !lexer.is_current_lf() {
                         let error = recover_until_or_lf(
                             lexer,
-                            &[GeneratorTokenKind::LineFeed],
+                            [GeneratorTokenKind::LineFeed].into_iter(),
                             &NamedParserPart::LINE_FEED,
                         );
                         errors.push(error);
@@ -134,18 +135,26 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                             Some(key_value) => key_value,
                             None => {
                                 // next token must be start of section
-                                if lexer.current_contains(section.first_token_kind()) {
+                                if section
+                                    .first_token_kinds()
+                                    .any(|kind| lexer.current_contains(kind))
+                                {
                                     break;
                                 }
 
                                 let error = recover_until_or_lf(
                                     lexer,
-                                    &[key_value.first_token_kind(), section.first_token_kind()],
+                                    key_value
+                                        .first_token_kinds()
+                                        .chain(section.first_token_kinds()),
                                     key_value,
                                 );
                                 errors.push(error);
 
-                                if lexer.current_contains(section.first_token_kind()) {
+                                if section
+                                    .first_token_kinds()
+                                    .any(|kind| lexer.current_contains(kind))
+                                {
                                     break;
                                 }
 
@@ -156,7 +165,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                         if !lexer.is_current_lf() && !lexer.is_reached_eof() {
                             let error = recover_until_or_lf(
                                 lexer,
-                                &[GeneratorTokenKind::LineFeed],
+                                [GeneratorTokenKind::LineFeed].into_iter(),
                                 &NamedParserPart::LINE_FEED,
                             );
                             errors.push(error);
@@ -184,14 +193,15 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
         }
     }
 
-    fn first_token_kind(&self) -> crate::lexer::GeneratorTokenKind {
+    #[auto_enum(Iterator)]
+    fn first_token_kinds(&self) -> impl Iterator<Item = crate::lexer::GeneratorTokenKind> {
         match self {
             LanguageParser::Section {
                 section,
                 key_value: _,
                 comments: _,
-            } => section.first_token_kind(),
-            LanguageParser::Empty { empty_lexer } => *empty_lexer,
+            } => section.first_token_kinds(),
+            LanguageParser::Empty { empty_lexer } => once(*empty_lexer),
         }
     }
 }
@@ -246,15 +256,13 @@ impl<'input> AST<'input> for LanguageAST<'input> {
 
                         1
                     } else {
-                        let literal_option = section.literal_option.clone().unwrap_or_default();
-
-                        section_name_stack.extend(section.sections.iter().map(|text| {
-                            (
-                                literal_option.resolve_escape(text.text),
-                                text.span.clone(),
-                                span.clone(),
-                            )
-                        }));
+                        section_name_stack.extend(
+                            section
+                                .sections
+                                .iter()
+                                .map(|literal| literal.to_section_name(span.clone()))
+                                .flatten(),
+                        );
 
                         section.sections.len()
                     };

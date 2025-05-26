@@ -428,12 +428,11 @@ mod tests {
 settings: {
     ip: string
     port: int
-    *: any
 }
 ";
 
         let ini_source = "
-[settings]
+[\"settings\"]
 ip = 192.168.1.1
 
 [settings]

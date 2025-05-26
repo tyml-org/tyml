@@ -135,14 +135,17 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
         None
     }
 
-    fn first_token_kind(&self) -> GeneratorTokenKind {
-        self.string
-            .or(self.float)
-            .or(self.binary)
-            .or(self.binary)
-            .or(self.bool)
-            .or(self.any_string.as_ref().map(|(kind, _)| *kind))
-            .unwrap()
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        [
+            self.string,
+            self.float,
+            self.binary,
+            self.binary,
+            self.bool,
+            self.any_string.as_ref().map(|(kind, _)| *kind),
+        ]
+        .into_iter()
+        .flatten()
     }
 }
 

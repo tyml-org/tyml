@@ -90,7 +90,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
                     byte_position: key.span.start,
                 });
 
-                let error = recover_until_or_lf(lexer, &[], &parser_part);
+                let error = recover_until_or_lf(lexer, [].into_iter(), &parser_part);
                 errors.push(error);
 
                 return Some(KeyValueAST {
@@ -106,7 +106,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         let value = match self.value.parse(lexer, errors) {
             Some(value) => Some(value),
             None => {
-                let error = recover_until_or_lf(lexer, &[], &self.value);
+                let error = recover_until_or_lf(lexer, [].into_iter(), &self.value);
                 errors.push(error);
 
                 None
@@ -121,8 +121,8 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         })
     }
 
-    fn first_token_kind(&self) -> GeneratorTokenKind {
-        self.key.0
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        std::iter::once(self.key.0)
     }
 }
 
@@ -164,7 +164,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
             false => self.key.text,
         };
 
-        let key_text = literal_option.resolve_escape(key_text);
+        let key_text = literal_option.escape.resolve_escape(key_text);
 
         section_name_stack.push((key_text, self.key.span.clone(), self.span.clone()));
 

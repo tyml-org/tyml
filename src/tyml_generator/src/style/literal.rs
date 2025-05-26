@@ -1,8 +1,12 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, iter::once, ops::Range, sync::LazyLock};
 
+use auto_enums::auto_enum;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, TokenizerRegistry};
+
+use super::{AST, Parser, ParserGenerator, ParserPart};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Literal {
@@ -80,6 +84,67 @@ pub enum UnicodeFormatKind {
     Normal,
     /// \u{FFFF}
     WithBrace,
+}
+
+impl EscapeOption {
+    pub fn resolve_escape<'input>(&self, input: &'input str) -> Cow<'input, str> {
+        match self.allow_escape {
+            true => {
+                let mut new_string = String::new();
+
+                let mut prev = '\0';
+                let mut chars = input.chars();
+                loop {
+                    let Some(char) = chars.next() else { break };
+
+                    if prev == '\\' {
+                        if char == 'u' || char == 'U' {
+                            let mut unicode = String::new();
+
+                            for _ in 0..4 {
+                                let Some(char) = chars.next() else { break };
+
+                                unicode.push(char);
+                            }
+
+                            match u32::from_str_radix(unicode.as_str(), 16)
+                                .ok()
+                                .map(|code| char::from_u32(code))
+                                .flatten()
+                            {
+                                Some(char) => new_string.push(char),
+                                None => {
+                                    new_string.push('\\');
+                                    new_string.push(char);
+                                    new_string += unicode.as_str();
+                                }
+                            }
+                            continue;
+                        }
+
+                        let replace = match char {
+                            'b' => '\x08',
+                            't' => '\t',
+                            'n' => '\n',
+                            'r' => '\r',
+                            '0' => '\0',
+                            '\\' => '\\',
+                            _ => char,
+                        };
+                        new_string.push(replace);
+
+                        continue;
+                    }
+
+                    new_string.push(char);
+                    prev = char;
+                }
+
+                input.into()
+            }
+            false => input.into(),
+        }
+    }
 }
 
 impl StringLiteral {
@@ -286,63 +351,246 @@ pub struct CustomLiteralOption {
     pub escape: EscapeOption,
 }
 
-impl CustomLiteralOption {
-    pub fn resolve_escape<'input>(&self, input: &'input str) -> Cow<'input, str> {
-        match self.escape.allow_escape {
-            true => {
-                let mut new_string = String::new();
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LiteralSet {
+    pub normal: Option<NormalLiteral>,
+    pub strings: Vec<StringLiteral>,
+    pub custom: Option<CustomRegexLiteral>,
+}
 
-                let mut prev = '\0';
-                let mut chars = input.chars();
-                loop {
-                    let Some(char) = chars.next() else { break };
+pub struct LiteralSetParser {
+    pub normal: Option<GeneratorTokenKind>,
+    pub strings: Vec<(GeneratorTokenKind, QuotesKind, EscapeOption)>,
+    pub custom: Option<(GeneratorTokenKind, CustomLiteralOption)>,
+}
 
-                    if prev == '\\' {
-                        if char == 'u' || char == 'U' {
-                            let mut unicode = String::new();
+#[derive(Debug)]
+pub enum LiteralSetAST<'input> {
+    Normal {
+        text: &'input str,
+        span: Range<usize>,
+    },
+    String {
+        text: &'input str,
+        kind: QuotesKind,
+        option: EscapeOption,
+        span: Range<usize>,
+    },
+    Custom {
+        text: &'input str,
+        option: CustomLiteralOption,
+        span: Range<usize>,
+    },
+}
 
-                            for _ in 0..4 {
-                                let Some(char) = chars.next() else { break };
+impl<'input> ParserGenerator<'input, LiteralSetAST<'input>, LiteralSetParser> for LiteralSet {
+    fn generate(&self, registry: &mut TokenizerRegistry) -> LiteralSetParser {
+        LiteralSetParser {
+            normal: self.normal.as_ref().map(|normal| normal.register(registry)),
+            strings: self
+                .strings
+                .iter()
+                .map(|string| {
+                    (
+                        string.register(registry),
+                        string.quotes_kind,
+                        string.escape.clone(),
+                    )
+                })
+                .collect(),
+            custom: self
+                .custom
+                .as_ref()
+                .map(|custom| (custom.regiter(registry), custom.option.clone())),
+        }
+    }
+}
 
-                                unicode.push(char);
-                            }
+impl<'input> Parser<'input, LiteralSetAST<'input>> for LiteralSetParser {
+    fn parse(
+        &self,
+        lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        _: &mut allocator_api2::vec::Vec<super::error::GeneratedParseError>,
+    ) -> Option<LiteralSetAST<'input>> {
+        if let Some(normal) = &self.normal {
+            if lexer.current_contains(*normal) {
+                let token = lexer.next().unwrap();
 
-                            match u32::from_str_radix(unicode.as_str(), 16)
-                                .ok()
-                                .map(|code| char::from_u32(code))
-                                .flatten()
-                            {
-                                Some(char) => new_string.push(char),
-                                None => {
-                                    new_string.push('\\');
-                                    new_string.push(char);
-                                    new_string += unicode.as_str();
-                                }
-                            }
-                            continue;
+                return Some(LiteralSetAST::Normal {
+                    text: token.text,
+                    span: token.span,
+                });
+            }
+        }
+
+        for (token_kind, quotes_kind, escape_option) in self.strings.iter() {
+            if lexer.current_contains(*token_kind) {
+                let token = lexer.next().unwrap();
+
+                return Some(LiteralSetAST::String {
+                    text: token.text,
+                    kind: *quotes_kind,
+                    option: escape_option.clone(),
+                    span: token.span,
+                });
+            }
+        }
+
+        if let Some((token_kind, custom_option)) = &self.custom {
+            if lexer.current_contains(*token_kind) {
+                let token = lexer.next().unwrap();
+
+                return Some(LiteralSetAST::Custom {
+                    text: token.text,
+                    option: custom_option.clone(),
+                    span: token.span,
+                });
+            }
+        }
+
+        None
+    }
+
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        [self.normal, self.custom.as_ref().map(|(kind, _)| *kind)]
+            .into_iter()
+            .flatten()
+            .chain(self.strings.iter().map(|(kind, _, _)| *kind))
+    }
+}
+
+impl<'input> ParserPart for LiteralSetParser {
+    fn parse_error_code(&self) -> usize {
+        unreachable!()
+    }
+
+    fn expected_format(&self) -> Option<Cow<'static, str>> {
+        unreachable!()
+    }
+}
+
+impl<'input> AST<'input> for LiteralSetAST<'input> {
+    fn span(&self) -> Range<usize> {
+        match self {
+            LiteralSetAST::Normal { text: _, span } => span.clone(),
+            LiteralSetAST::String {
+                text: _,
+                kind: _,
+                option: _,
+                span,
+            } => span.clone(),
+            LiteralSetAST::Custom {
+                text: _,
+                option: _,
+                span,
+            } => span.clone(),
+        }
+    }
+
+    fn take_value(
+        &self,
+        _: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>),
+            &bumpalo::Bump,
+        >,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        unreachable!()
+    }
+
+    fn take_token(
+        &self,
+        _: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
+    ) {
+        unreachable!()
+    }
+}
+
+impl<'input> LiteralSetAST<'input> {
+    pub fn to_literal(&self) -> Cow<'input, str> {
+        match self {
+            LiteralSetAST::Normal { text, span: _ } => (*text).into(),
+            LiteralSetAST::String {
+                text,
+                kind,
+                option,
+                span: _,
+            } => {
+                let text = match kind {
+                    QuotesKind::DoubleQuotes => &text[1..(text.len() - 1)],
+                    QuotesKind::TripleDoubleQuotes => &text[3..(text.len() - 3)],
+                    QuotesKind::SingleQuote => &text[1..(text.len() - 1)],
+                    QuotesKind::TripleQuotes => &text[3..(text.len() - 3)],
+                };
+                option.resolve_escape(text)
+            }
+            LiteralSetAST::Custom {
+                text,
+                option,
+                span: _,
+            } => {
+                let text = match option.trim_space {
+                    true => text.trim(),
+                    false => text,
+                };
+                option.escape.resolve_escape(text)
+            }
+        }
+    }
+
+    #[auto_enum(Iterator)]
+    pub fn to_section_name(
+        &self,
+        define_span: Range<usize>,
+    ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>)> {
+        match self {
+            LiteralSetAST::Normal { text, span } => text
+                .split(".")
+                .map(move |text| (text.into(), span.clone(), define_span.clone())),
+            LiteralSetAST::String {
+                text: _,
+                kind: _,
+                option: _,
+                span,
+            } => once((self.to_literal(), span.clone(), define_span)),
+            LiteralSetAST::Custom { text, option, span } => {
+                #[auto_enum(Iterator)]
+                fn split<'input>(
+                    text: &'input str,
+                    option: &CustomLiteralOption,
+                    span: &Range<usize>,
+                    define_span: Range<usize>,
+                ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>)>
+                {
+                    match option.escape.allow_escape {
+                        true => {
+                            static SPLIT: LazyLock<Regex> =
+                                LazyLock::new(|| Regex::new(r"([^\.\\]|\\.)+").unwrap());
+
+                            SPLIT.find_iter(text).map(move |matched| {
+                                let text = match option.trim_space {
+                                    true => matched.as_str().trim(),
+                                    false => matched.as_str(),
+                                };
+                                (
+                                    option.escape.resolve_escape(text),
+                                    span.clone(),
+                                    define_span.clone(),
+                                )
+                            })
                         }
-
-                        let replace = match char {
-                            'b' => '\x08',
-                            't' => '\t',
-                            'n' => '\n',
-                            'r' => '\r',
-                            '0' => '\0',
-                            '\\' => '\\',
-                            _ => char,
-                        };
-                        new_string.push(replace);
-
-                        continue;
+                        false => text.split(".").map(move |text| {
+                            let text = match option.trim_space {
+                                true => text.trim(),
+                                false => text,
+                            };
+                            (text.into(), span.clone(), define_span.clone())
+                        }),
                     }
-
-                    new_string.push(char);
-                    prev = char;
                 }
 
-                input.into()
+                split(*text, option, span, define_span)
             }
-            false => input.into(),
         }
     }
 }

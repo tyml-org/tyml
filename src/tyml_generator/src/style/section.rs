@@ -1,20 +1,20 @@
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, iter::once, ops::Range};
 
 use allocator_api2::vec::Vec;
 use serde::{Deserialize, Serialize};
 use tyml_validate::validate::ValueTypeChecker;
 
-use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText};
+use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
 
 use super::{
     AST, ASTTokenKind, Parser, ParserGenerator, ParserPart,
     error::{GeneratedParseError, recover_until_or_lf},
-    literal::{CustomLiteralOption, Literal},
+    literal::{LiteralSet, LiteralSetAST, LiteralSetParser},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Section {
-    pub literal: Literal,
+    pub literal: LiteralSet,
     pub kind: SectionKind,
 }
 
@@ -27,7 +27,7 @@ pub enum SectionKind {
 }
 
 pub struct SectionParser {
-    pub literal: (GeneratorTokenKind, Option<CustomLiteralOption>),
+    pub literal: LiteralSetParser,
     pub kind: SectionParserKind,
 }
 
@@ -45,9 +45,14 @@ pub enum SectionParserKind {
 
 #[derive(Debug)]
 pub struct SectionAST<'input> {
-    pub sections: Vec<SpannedText<'input>>,
-    pub literal_option: Option<CustomLiteralOption>,
+    pub sections: Vec<LiteralSetAST<'input>>,
     /// Only section name part span
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct SpannedSection<'input> {
+    pub text: Cow<'input, str>,
     pub span: Range<usize>,
 }
 
@@ -66,7 +71,7 @@ impl<'input> ParserGenerator<'input, SectionAST<'input>, SectionParser> for Sect
         };
 
         SectionParser {
-            literal: self.literal.register(registry),
+            literal: self.literal.generate(registry),
             kind,
         }
     }
@@ -91,22 +96,15 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 }
                 lexer.next();
 
-                let literal = match lexer.current_contains(self.literal.0) {
-                    true => lexer.next().unwrap(),
-                    false => {
-                        let error = recover_until_or_lf(lexer, &[bracket_right], self);
-                        errors.push(error);
-
-                        return Some(SectionAST {
-                            sections: Vec::new(),
-                            literal_option: self.literal.1.clone(),
-                            span: anchor.elapsed(lexer),
-                        });
-                    }
+                let Some(literal) = self.literal.parse(lexer, errors) else {
+                    return Some(SectionAST {
+                        sections: Vec::new(),
+                        span: anchor.elapsed(lexer),
+                    });
                 };
 
                 let mut sections = Vec::new();
-                sections.push(literal.into_spanned());
+                sections.push(literal);
 
                 loop {
                     if !lexer.current_contains(dot) {
@@ -114,16 +112,13 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     }
                     lexer.next();
 
-                    let literal = match lexer.current_contains(self.literal.0) {
-                        true => lexer.next().unwrap(),
-                        false => {
-                            let error = recover_until_or_lf(lexer, &[bracket_right], self);
-                            errors.push(error);
+                    let Some(literal) = self.literal.parse(lexer, errors) else {
+                        let error = recover_until_or_lf(lexer, [bracket_right].into_iter(), self);
+                        errors.push(error);
 
-                            break;
-                        }
+                        break;
                     };
-                    sections.push(literal.into_spanned());
+                    sections.push(literal);
 
                     if lexer.current_contains(bracket_right) {
                         break;
@@ -131,7 +126,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 }
 
                 if !lexer.current_contains(bracket_right) {
-                    let error = recover_until_or_lf(lexer, &[bracket_right], self);
+                    let error = recover_until_or_lf(lexer, [bracket_right].into_iter(), self);
                     errors.push(error);
 
                     if lexer.current_contains(bracket_right) {
@@ -140,7 +135,6 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                     return Some(SectionAST {
                         sections: Vec::new(),
-                        literal_option: self.literal.1.clone(),
                         span: anchor.elapsed(lexer),
                     });
                 }
@@ -148,7 +142,6 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
-                    literal_option: self.literal.1.clone(),
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -168,29 +161,24 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     }
                     lexer.next();
 
-                    let literal = match lexer.current_contains(self.literal.0) {
-                        true => lexer.next().unwrap(),
-                        false => {
-                            let error = recover_until_or_lf(lexer, &[bracket_right], self);
-                            errors.push(error);
-
-                            return Some(SectionAST {
-                                sections: Vec::new(),
-                                literal_option: self.literal.1.clone(),
-                                span: anchor.elapsed(lexer),
-                            });
-                        }
-                    };
-
-                    sections.push(literal.into_spanned());
-
-                    if !lexer.current_contains(bracket_right) {
-                        let error = recover_until_or_lf(lexer, &[bracket_right], self);
+                    let Some(literal) = self.literal.parse(lexer, errors) else {
+                        let error = recover_until_or_lf(lexer, [bracket_right].into_iter(), self);
                         errors.push(error);
 
                         return Some(SectionAST {
                             sections: Vec::new(),
-                            literal_option: self.literal.1.clone(),
+                            span: anchor.elapsed(lexer),
+                        });
+                    };
+
+                    sections.push(literal);
+
+                    if !lexer.current_contains(bracket_right) {
+                        let error = recover_until_or_lf(lexer, [bracket_right].into_iter(), self);
+                        errors.push(error);
+
+                        return Some(SectionAST {
+                            sections: Vec::new(),
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -199,15 +187,14 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
-                    literal_option: self.literal.1.clone(),
                     span: anchor.elapsed(lexer),
                 })
             }
         }
     }
 
-    fn first_token_kind(&self) -> GeneratorTokenKind {
-        match self.kind {
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        once(match self.kind {
             SectionParserKind::Bracket {
                 bracket_left,
                 bracket_right: _,
@@ -217,7 +204,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 bracket_left,
                 bracket_right: _,
             } => bracket_left,
-        }
+        })
     }
 }
 
@@ -263,8 +250,8 @@ impl<'input> AST<'input> for SectionAST<'input> {
     ) {
         for section in self.sections.iter() {
             tokens.insert(
-                section.span.start,
-                (ASTTokenKind::Section, section.span.clone()),
+                section.span().start,
+                (ASTTokenKind::Section, section.span().clone()),
             );
         }
     }

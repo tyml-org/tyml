@@ -13,10 +13,12 @@ pub struct GeneratedParseError {
 
 pub(crate) fn recover_until_or_lf<'input, P: ParserPart>(
     lexer: &mut GeneratorLexer,
-    until: &[GeneratorTokenKind],
+    until: impl Iterator<Item = GeneratorTokenKind>,
     parser: &P,
 ) -> GeneratedParseError {
     let anchor = lexer.cast_anchor();
+
+    let until = until.collect::<Vec<_>>();
 
     loop {
         if until.iter().any(|until| lexer.current_contains(*until)) {
