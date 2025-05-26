@@ -12,7 +12,7 @@ use crate::style::{
 
 pub fn ini() -> LanguageStyle {
     let literal = Literal::Custom(CustomRegexLiteral {
-        regex: r"[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*".into(),
+        regex: r#"[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*"#.into(),
         option: CustomLiteralOption {
             trim_space: true,
             escape: EscapeOption {
@@ -31,7 +31,7 @@ pub fn ini() -> LanguageStyle {
             },
         }],
         custom: Some(CustomRegexLiteral {
-            regex: r"[^ 　\t\[\]\n\r=;]*".into(),
+            regex: r#"[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*"#.into(),
             option: CustomLiteralOption {
                 trim_space: true,
                 escape: EscapeOption {
@@ -45,7 +45,9 @@ pub fn ini() -> LanguageStyle {
     LanguageStyle::Section(SectionStyle {
         section: Section {
             literal: section_literal,
-            kind: SectionKind::Bracket,
+            kind: SectionKind::Bracket {
+                allow_space_split: true,
+            },
         },
         key_value: KeyValue {
             key: literal.clone(),

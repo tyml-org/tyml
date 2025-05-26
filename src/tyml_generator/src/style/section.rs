@@ -21,7 +21,7 @@ pub struct Section {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SectionKind {
     /// [section]
-    Bracket,
+    Bracket { allow_space_split: bool },
     /// [section1][section2]
     MultiBracket,
 }
@@ -36,6 +36,7 @@ pub enum SectionParserKind {
         bracket_left: GeneratorTokenKind,
         bracket_right: GeneratorTokenKind,
         dot: GeneratorTokenKind,
+        allow_space_split: bool,
     },
     MultiBracket {
         bracket_left: GeneratorTokenKind,
@@ -59,10 +60,11 @@ pub struct SpannedSection<'input> {
 impl<'input> ParserGenerator<'input, SectionAST<'input>, SectionParser> for Section {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> SectionParser {
         let kind = match self.kind {
-            SectionKind::Bracket => SectionParserKind::Bracket {
+            SectionKind::Bracket { allow_space_split } => SectionParserKind::Bracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
                 bracket_right: registry.register(GeneratorTokenizer::Keyword("]".into())),
                 dot: registry.register(GeneratorTokenizer::Keyword(".".into())),
+                allow_space_split,
             },
             SectionKind::MultiBracket => SectionParserKind::MultiBracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
@@ -90,6 +92,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 bracket_left,
                 bracket_right,
                 dot,
+                allow_space_split,
             } => {
                 if !lexer.current_contains(bracket_left) {
                     return None;
@@ -97,6 +100,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 lexer.next();
 
                 let Some(literal) = self.literal.parse(lexer, errors) else {
+                    dbg!(lexer.current());
                     return Some(SectionAST {
                         sections: Vec::new(),
                         span: anchor.elapsed(lexer),
@@ -107,6 +111,18 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 sections.push(literal);
 
                 loop {
+                    if allow_space_split {
+                        if let Some(literal) = self.literal.parse(lexer, errors) {
+                            sections.push(literal);
+
+                            if lexer.current_contains(bracket_right) {
+                                break;
+                            }
+
+                            continue;
+                        }
+                    }
+
                     if !lexer.current_contains(dot) {
                         break;
                     }
@@ -199,6 +215,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 bracket_left,
                 bracket_right: _,
                 dot: _,
+                allow_space_split: _,
             } => bracket_left,
             SectionParserKind::MultiBracket {
                 bracket_left,
@@ -219,6 +236,7 @@ impl ParserPart for SectionParser {
                 bracket_left: _,
                 bracket_right: _,
                 dot: _,
+                allow_space_split: _,
             } => Some("[section]".into()),
             SectionParserKind::MultiBracket {
                 bracket_left: _,
