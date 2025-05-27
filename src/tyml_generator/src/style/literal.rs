@@ -574,7 +574,7 @@ impl<'input> LiteralSetAST<'input> {
                                 };
                                 (
                                     option.escape.resolve_escape(text),
-                                    span.clone(),
+                                    (span.start + matched.start())..(span.start + matched.end()),
                                     define_span.clone(),
                                 )
                             })
