@@ -677,7 +677,18 @@ fn create_hover_code_block(code: &str) -> String {
     let code = DOCUMENTS_REGEX.replace_all(code, "");
     let code = INDENT_REGEX.replace_all(code.as_ref(), "");
 
-    format!("```tyml\n{}\n```\n---\n", code)
+    static FOUND_INDENT_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\n|\r|\r\n)([ \t]+)\}").unwrap());
+
+    let indent = FOUND_INDENT_REGEX
+        .captures_iter(code.as_ref())
+        .map(|captured| captured[2].chars().count())
+        .min()
+        .unwrap_or(0);
+
+    let indent = " ".repeat(indent);
+
+    format!("```tyml\n{}{}\n```\n---\n", indent, code)
 }
 
 mod on_type_tag {
