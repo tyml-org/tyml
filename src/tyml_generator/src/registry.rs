@@ -1,4 +1,5 @@
 pub(crate) mod ini;
+pub(crate) mod toml_;
 
 use std::{
     collections::HashMap,
@@ -24,6 +25,7 @@ impl StyleRegistry {
 
         styles.insert("".to_string(), Arc::new(LanguageStyle::Empty));
         styles.insert("ini".to_string(), Arc::new(ini::ini()));
+        styles.insert("toml".to_string(), Arc::new(toml_::toml()));
 
         Self {
             styles: RwLock::new(styles),

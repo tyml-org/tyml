@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn lib_test() {
-        let source = "
+        let source = r#"
 settings: [Setting]
 
 type Setting {
@@ -434,29 +434,29 @@ type Setting {
 }
 
 enum Mode {
-    \"Debug\"
-    \"Release\"
+    "Debug"
+    "Release"
 }
-";
+"#;
 
-        let ini_source = "
-[[\"settings\"]]
-ip = 192.168.1.1
+        let ini_source = r#"
+[[settings]]
+ip = "192.168.1.1"
 port = 25565
-mode = \"Debug\"
+mode = "Debu"
 
 [[settings]]
-ip = 192.168.1.6
+ip = "192.168.1.6"
 port = 25565
-mode = \"Release\"
-";
+mode = "Debu"
+"#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
-        let ml_source = SourceCode::new("test.ini".to_string(), ini_source.to_string());
+        let ml_source = SourceCode::new("test.toml".to_string(), ini_source.to_string());
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let language = STYLE_REGISTRY.resolve("ini").unwrap();
+        let language = STYLE_REGISTRY.resolve("toml").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
 
