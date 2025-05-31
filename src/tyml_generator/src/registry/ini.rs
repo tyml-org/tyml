@@ -42,6 +42,7 @@ pub fn ini() -> LanguageStyle {
             literal: section_literal,
             kind: SectionKind::Bracket {
                 allow_space_split: true,
+                allow_double_bracket_array: true,
             },
         },
         key_value: KeyValue {

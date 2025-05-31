@@ -190,7 +190,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>),
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -213,11 +213,12 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                 validator.set_value(
                     section_name_stack
                         .iter()
-                        .map(|(name, name_span, define_span)| {
+                        .map(|(name, name_span, define_span, is_array)| {
                             (
                                 name.clone(),
                                 name_span.as_utf8_byte_range(),
                                 define_span.as_utf8_byte_range(),
+                                *is_array,
                             )
                         }),
                     Either::Left(ValueTree::Value {

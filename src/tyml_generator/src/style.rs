@@ -7,13 +7,13 @@ use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::{GeneratorLexer, GeneratorTokenKind, TokenizerRegistry};
 
+pub mod comment;
 pub mod error;
 pub mod key_value;
 pub mod language;
 pub mod literal;
 pub mod section;
 pub mod value;
-pub mod comment;
 
 pub trait ParserGenerator<'input, T: AST<'input>, P: Parser<'input, T>> {
     fn generate(&self, registry: &mut TokenizerRegistry) -> P;
@@ -35,7 +35,7 @@ pub trait AST<'input> {
 
     fn take_value(
         &self,
-        section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>), &Bump>,
+        section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &Bump>,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     );
 

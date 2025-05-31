@@ -192,6 +192,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 impl Into<Cow<'section, str>>,
                 SourceCodeSpan,
                 SourceCodeSpan,
+                bool,
             ),
         >,
         value: Either<ValueTree<'section, 'value>, CreateSection>,
@@ -200,25 +201,27 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             Cow::Borrowed("root"),
             self.value_tree.span().clone(),
             self.value_tree.span().clone(),
+            false,
         )];
         // Iterator<(Into<Cow>, Span)> => Iterator<(Cow, Span)>
-        let sections = sections
-            .map(|(section, name_span, define_span)| (section.into(), name_span, define_span));
+        let sections = sections.map(|(section, name_span, define_span, is_array)| {
+            (section.into(), name_span, define_span, is_array)
+        });
 
         // add root section on the head of sections iterator
         let mut sections = root_section.into_iter().chain(sections).peekable();
         let mut value_tree = &mut self.value_tree;
 
         loop {
+            let (current_section, current_section_name_span, current_section_define_span, is_array) =
+                sections.next().unwrap();
+
             value_tree = match value_tree {
                 ValueTree::Section {
                     elements,
                     name_span: _,
                     define_span: _,
                 } => {
-                    let (current_section, current_section_name_span, current_section_define_span) =
-                        sections.next().unwrap();
-
                     let element_branches =
                         elements.entry(current_section.into()).or_insert(Vec::new());
 
@@ -234,7 +237,13 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 elements: _,
                                 key_span: _,
                                 span: _,
-                            } => false,
+                            } => {
+                                if is_array {
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
                             ValueTree::Value {
                                 value: _,
                                 key_span: _,
@@ -243,14 +252,80 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         });
 
                     let matched_section_branch = match next_branch_position {
-                        Some(next_branch_position) => &mut element_branches[next_branch_position],
+                        Some(next_branch_position) => {
+                            let branch = &mut element_branches[next_branch_position];
+                            match branch {
+                                ValueTree::Array {
+                                    elements,
+                                    key_span: _,
+                                    span: _,
+                                } => {
+                                    let next_branch_position =
+                                        elements.iter().position(|branch| match branch {
+                                            ValueTree::Section {
+                                                elements: _,
+                                                name_span,
+                                                define_span: _,
+                                            } => name_span == &current_section_name_span,
+                                            ValueTree::Array {
+                                                elements: _,
+                                                key_span: _,
+                                                span: _,
+                                            } => false,
+                                            ValueTree::Value {
+                                                value: _,
+                                                key_span: _,
+                                                span: _,
+                                            } => false,
+                                        });
+
+                                    match next_branch_position {
+                                        Some(next_branch_position) => {
+                                            &mut elements[next_branch_position]
+                                        }
+                                        None => {
+                                            elements.push(ValueTree::Section {
+                                                elements: HashMap::new(),
+                                                name_span: current_section_name_span,
+                                                define_span: current_section_define_span,
+                                            });
+                                            elements.last_mut().unwrap()
+                                        }
+                                    }
+                                }
+                                _ => branch,
+                            }
+                        }
                         None => {
-                            element_branches.push(ValueTree::Section {
-                                elements: HashMap::new(),
-                                name_span: current_section_name_span,
-                                define_span: current_section_define_span,
-                            });
-                            element_branches.last_mut().unwrap()
+                            if is_array {
+                                element_branches.push(ValueTree::Array {
+                                    elements: Vec::new(),
+                                    key_span: current_section_name_span.clone(),
+                                    span: current_section_define_span.clone(),
+                                });
+                                if let ValueTree::Array {
+                                    elements,
+                                    key_span: _,
+                                    span: _,
+                                } = element_branches.last_mut().unwrap()
+                                {
+                                    elements.push(ValueTree::Section {
+                                        elements: HashMap::new(),
+                                        name_span: current_section_name_span,
+                                        define_span: current_section_define_span,
+                                    });
+                                    elements.last_mut().unwrap()
+                                } else {
+                                    unreachable!()
+                                }
+                            } else {
+                                element_branches.push(ValueTree::Section {
+                                    elements: HashMap::new(),
+                                    name_span: current_section_name_span,
+                                    define_span: current_section_define_span,
+                                });
+                                element_branches.last_mut().unwrap()
+                            }
                         }
                     };
 

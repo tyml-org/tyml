@@ -227,7 +227,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>),
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -252,6 +252,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                             "unknown".into(),
                             section.span.clone(),
                             section.span.clone(),
+                            false,
                         ));
 
                         1
@@ -261,22 +262,32 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                                 .sections
                                 .iter()
                                 .map(|literal| literal.to_section_name(span.clone()))
-                                .flatten(),
+                                .flatten()
+                                .enumerate()
+                                .map(|(index, (literal, name_span, define_span, _))| {
+                                    (
+                                        literal,
+                                        name_span,
+                                        define_span,
+                                        section.is_array && index == (section.sections.len() - 1),
+                                    )
+                                }),
                         );
 
                         section.sections.len()
                     };
 
                     validator.set_value(
-                        section_name_stack
-                            .iter()
-                            .map(|(name, name_span, define_span)| {
+                        section_name_stack.iter().map(
+                            |(name, name_span, define_span, is_array)| {
                                 (
                                     name.clone(),
                                     name_span.as_utf8_byte_range(),
                                     define_span.as_utf8_byte_range(),
+                                    *is_array,
                                 )
-                            }),
+                            },
+                        ),
                         Either::Right(CreateSection),
                     );
 

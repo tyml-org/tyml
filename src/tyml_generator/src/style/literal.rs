@@ -490,7 +490,7 @@ impl<'input> AST<'input> for LiteralSetAST<'input> {
     fn take_value(
         &self,
         _: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>),
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
@@ -542,17 +542,17 @@ impl<'input> LiteralSetAST<'input> {
     pub fn to_section_name(
         &self,
         define_span: Range<usize>,
-    ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>)> {
+    ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>, bool)> {
         match self {
             LiteralSetAST::Normal { text, span } => text
                 .split(".")
-                .map(move |text| (text.into(), span.clone(), define_span.clone())),
+                .map(move |text| (text.into(), span.clone(), define_span.clone(), false)),
             LiteralSetAST::String {
                 text: _,
                 kind: _,
                 option: _,
                 span,
-            } => once((self.to_literal(), span.clone(), define_span)),
+            } => once((self.to_literal(), span.clone(), define_span, false)),
             LiteralSetAST::Custom { text, option, span } => {
                 #[auto_enum(Iterator)]
                 fn split<'input>(
@@ -560,7 +560,7 @@ impl<'input> LiteralSetAST<'input> {
                     option: &CustomLiteralOption,
                     span: &Range<usize>,
                     define_span: Range<usize>,
-                ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>)>
+                ) -> impl Iterator<Item = (Cow<'input, str>, Range<usize>, Range<usize>, bool)>
                 {
                     match option.escape.allow_escape {
                         true => {
@@ -576,6 +576,7 @@ impl<'input> LiteralSetAST<'input> {
                                     option.escape.resolve_escape(text),
                                     (span.start + matched.start())..(span.start + matched.end()),
                                     define_span.clone(),
+                                    false,
                                 )
                             })
                         }
@@ -584,7 +585,7 @@ impl<'input> LiteralSetAST<'input> {
                                 true => text.trim(),
                                 false => text,
                             };
-                            (text.into(), span.clone(), define_span.clone())
+                            (text.into(), span.clone(), define_span.clone(), false)
                         }),
                     }
                 }

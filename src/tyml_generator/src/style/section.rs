@@ -21,7 +21,10 @@ pub struct Section {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SectionKind {
     /// [section]
-    Bracket { allow_space_split: bool },
+    Bracket {
+        allow_space_split: bool,
+        allow_double_bracket_array: bool,
+    },
     /// [section1][section2]
     MultiBracket,
 }
@@ -37,6 +40,7 @@ pub enum SectionParserKind {
         bracket_right: GeneratorTokenKind,
         dot: GeneratorTokenKind,
         allow_space_split: bool,
+        allow_double_bracket_array: bool,
     },
     MultiBracket {
         bracket_left: GeneratorTokenKind,
@@ -47,6 +51,7 @@ pub enum SectionParserKind {
 #[derive(Debug)]
 pub struct SectionAST<'input> {
     pub sections: Vec<LiteralSetAST<'input>>,
+    pub is_array: bool,
     /// Only section name part span
     pub span: Range<usize>,
 }
@@ -60,11 +65,15 @@ pub struct SpannedSection<'input> {
 impl<'input> ParserGenerator<'input, SectionAST<'input>, SectionParser> for Section {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> SectionParser {
         let kind = match self.kind {
-            SectionKind::Bracket { allow_space_split } => SectionParserKind::Bracket {
+            SectionKind::Bracket {
+                allow_space_split,
+                allow_double_bracket_array,
+            } => SectionParserKind::Bracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
                 bracket_right: registry.register(GeneratorTokenizer::Keyword("]".into())),
                 dot: registry.register(GeneratorTokenizer::Keyword(".".into())),
                 allow_space_split,
+                allow_double_bracket_array,
             },
             SectionKind::MultiBracket => SectionParserKind::MultiBracket {
                 bracket_left: registry.register(GeneratorTokenizer::Keyword("[".into())),
@@ -93,16 +102,24 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 bracket_right,
                 dot,
                 allow_space_split,
+                allow_double_bracket_array,
             } => {
                 if !lexer.current_contains(bracket_left) {
                     return None;
                 }
                 lexer.next();
 
+                let mut double_bracket = false;
+                if allow_double_bracket_array && lexer.current_contains(bracket_left) {
+                    // double bracket array array
+                    lexer.next();
+                    double_bracket = true;
+                }
+
                 let Some(literal) = self.literal.parse(lexer, errors) else {
-                    dbg!(lexer.current());
                     return Some(SectionAST {
                         sections: Vec::new(),
+                        is_array: false,
                         span: anchor.elapsed(lexer),
                     });
                 };
@@ -151,13 +168,33 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                     return Some(SectionAST {
                         sections: Vec::new(),
+                        is_array: double_bracket,
                         span: anchor.elapsed(lexer),
                     });
                 }
                 lexer.next();
 
+                if double_bracket {
+                    if !lexer.current_contains(bracket_right) {
+                        let error = recover_until_or_lf(lexer, [bracket_right].into_iter(), self);
+                        errors.push(error);
+
+                        if lexer.current_contains(bracket_right) {
+                            lexer.next().unwrap();
+                        }
+
+                        return Some(SectionAST {
+                            sections: Vec::new(),
+                            is_array: double_bracket,
+                            span: anchor.elapsed(lexer),
+                        });
+                    }
+                    lexer.next();
+                }
+
                 Some(SectionAST {
                     sections,
+                    is_array: double_bracket,
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -183,6 +220,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            is_array: false,
                             span: anchor.elapsed(lexer),
                         });
                     };
@@ -195,6 +233,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            is_array: false,
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -203,6 +242,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
+                    is_array: false,
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -216,6 +256,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 bracket_right: _,
                 dot: _,
                 allow_space_split: _,
+                allow_double_bracket_array: _,
             } => bracket_left,
             SectionParserKind::MultiBracket {
                 bracket_left,
@@ -237,6 +278,7 @@ impl ParserPart for SectionParser {
                 bracket_right: _,
                 dot: _,
                 allow_space_split: _,
+                allow_double_bracket_array: _,
             } => Some("[section]".into()),
             SectionParserKind::MultiBracket {
                 bracket_left: _,
@@ -254,7 +296,7 @@ impl<'input> AST<'input> for SectionAST<'input> {
     fn take_value(
         &self,
         _: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>),
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
