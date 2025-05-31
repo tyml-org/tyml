@@ -1179,6 +1179,23 @@ fn provide_completion_recursive_for_type_tree(
             documents: _,
             span: _,
         } => {
+            if let MergedValueTree::Array {
+                elements,
+                key_span: _,
+                span: _,
+            } = merged_value_tree
+            {
+                for element in elements.iter() {
+                    self.provide_completion_recursive_for_type_tree(
+                        type_tree,
+                        element,
+                        code,
+                        byte_position,
+                        completions,
+                    );
+                }
+            }
+
             let MergedValueTree::Section {
                 elements,
                 name_spans: _,
@@ -1410,69 +1427,84 @@ fn goto_define_and_documents_recursive<'a>(
                         return;
                     }
 
-                    let Type::Named(name_id) = ty else { return };
+                    let mut trees = Vec::new();
+                    collect_type_tree(ty, named_type_map, &mut trees);
 
-                    let NamedTypeTree::Struct { tree } = named_type_map.get_type(*name_id).unwrap()
-                    else {
-                        return;
-                    };
-
-                    let TypeTree::Node {
-                        node,
-                        any_node,
-                        documents: _,
-                        span: _,
-                    } = tree
-                    else {
-                        return;
-                    };
-
-                    for (element_name, element) in elements.iter() {
-                        let Some(type_tree) =
-                            node.get(element_name.as_ref()).or(any_node.as_deref())
+                    for tree in trees {
+                        let TypeTree::Node {
+                            node,
+                            any_node,
+                            documents: _,
+                            span: _,
+                        } = tree
                         else {
-                            continue;
+                            return;
                         };
 
-                        goto_define_and_documents_recursive(
-                            type_tree,
-                            named_type_map,
-                            element,
-                            position,
-                            code,
-                            result,
-                            false,
-                        );
+                        for (element_name, element) in elements.iter() {
+                            let Some(type_tree) =
+                                node.get(element_name.as_ref()).or(any_node.as_deref())
+                            else {
+                                continue;
+                            };
+
+                            goto_define_and_documents_recursive(
+                                type_tree,
+                                named_type_map,
+                                element,
+                                position,
+                                code,
+                                result,
+                                false,
+                            );
+                        }
                     }
                 }
                 MergedValueTree::Array {
                     elements,
-                    key_span,
-                    span,
+                    key_span: _,
+                    span: _,
                 } => {
-                    if !span.to_byte_span(code).to_inclusive().contains(&position) {
-                        return;
-                    }
-
-                    if key_span
-                        .to_byte_span(code)
-                        .to_inclusive()
-                        .contains(&position)
-                    {
-                        result.push((define_span.clone(), documents));
-                        return;
-                    }
-
                     for element in elements.iter() {
-                        goto_define_and_documents_recursive(
-                            type_tree,
-                            named_type_map,
-                            element,
-                            position,
-                            code,
-                            result,
-                            false,
-                        );
+                        if let MergedValueTree::Section {
+                            elements: _,
+                            name_spans,
+                            define_spans: _,
+                        } = element
+                        {
+                            if name_spans.iter().any(|span| {
+                                span.to_byte_span(code).to_inclusive().contains(&position)
+                            }) {
+                                result.push((define_span.clone(), documents));
+                                return;
+                            }
+                        }
+                    }
+
+                    let TypeTree::Leaf {
+                        ty,
+                        documents: _,
+                        span: _,
+                    } = type_tree
+                    else {
+                        return;
+                    };
+
+                    let mut trees = Vec::new();
+                    collect_type_tree(&ty, named_type_map, &mut trees);
+
+                    for tree in trees {
+                        for element in elements.iter() {
+                            goto_define_and_documents_recursive(
+                                tree,
+                                named_type_map,
+                                element,
+                                position,
+                                code,
+                                result,
+                                false,
+                            );
+                        }
                     }
                 }
                 MergedValueTree::Value {
@@ -1502,6 +1534,28 @@ fn goto_define_and_documents_recursive<'a>(
                 }
             }
         }
+    }
+}
+
+fn collect_type_tree<'a>(
+    ty: &Type<'a>,
+    named_type_map: &'a NamedTypeMap<'a, 'a>,
+    trees: &mut Vec<&'a TypeTree<'a, 'a>>,
+) {
+    match ty {
+        Type::Named(name_id) => {
+            if let NamedTypeTree::Struct { tree } = named_type_map.get_type(*name_id).unwrap() {
+                trees.push(tree);
+            }
+        }
+        Type::Or(or_types) => {
+            for ty in or_types.iter() {
+                collect_type_tree(ty, named_type_map, trees);
+            }
+        }
+        Type::Array(base_type) => collect_type_tree(&base_type, named_type_map, trees),
+        Type::Optional(ty) => collect_type_tree(&ty, named_type_map, trees),
+        _ => {}
     }
 }
 
