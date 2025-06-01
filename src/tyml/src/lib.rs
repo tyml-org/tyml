@@ -447,7 +447,7 @@ mode = "Debu"
 
 [[settings]]
 ip = "192.168.1.6"
-port = 25565
+port = "aa"
 mode = "Debu"
 "#;
 
@@ -459,6 +459,7 @@ mode = "Debu"
         let language = STYLE_REGISTRY.resolve("toml").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
+        dbg!(&tyml.validator().merged_value_tree);
 
         tyml.print_tyml_error(Lang::system());
         tyml.print_ml_parse_error(Lang::system());

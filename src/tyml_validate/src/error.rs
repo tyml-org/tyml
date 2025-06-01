@@ -27,6 +27,7 @@ pub enum TymlValueValidateError {
         found: Vec<SourceCodeSpan>,
         expected: Spanned<String>,
         path: String,
+        caused_by: Vec<(String, String)>,
     },
     NotArrayValue {
         found: Vec<SourceCodeSpan>,

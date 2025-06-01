@@ -266,10 +266,15 @@ impl GeneratedLanguageServer {
                         severity: Some(DiagnosticSeverity::ERROR),
                         code: Some(NumberOrString::Number(diagnostic.message.code as _)),
                         message: format!(
-                            "{}: {}\n{}",
+                            "{}: {}\n{}{}",
                             diagnostic.message.section_name(self.lang, false),
                             diagnostic.message.message(self.lang, false),
-                            diagnostic.message.label(0, self.lang, false).unwrap()
+                            diagnostic.message.label(0, self.lang, false).unwrap(),
+                            diagnostic
+                                .message
+                                .note(self.lang, false)
+                                .map(|note| format!("\n{}", note))
+                                .unwrap_or(String::new())
                         ),
                         ..Default::default()
                     });
@@ -1199,11 +1204,19 @@ fn provide_completion_recursive_for_type_tree(
             let MergedValueTree::Section {
                 elements,
                 name_spans: _,
-                define_spans: _,
+                define_spans,
             } = merged_value_tree
             else {
                 return;
             };
+
+            if !define_spans.iter().any(|span| {
+                span.to_byte_span(code)
+                    .to_inclusive()
+                    .contains(&byte_position)
+            }) {
+                return;
+            }
 
             for (element_name, element) in elements.iter() {
                 let Some(type_tree) = node
@@ -1236,16 +1249,12 @@ fn provide_completion_recursive_for_type_tree(
                         }
                     }
                     MergedValueTree::Array {
-                        elements: _,
+                        elements,
                         key_span: _,
-                        span,
+                        span: _,
                     } => {
-                        if span
-                            .to_byte_span(code)
-                            .to_inclusive()
-                            .contains(&byte_position)
-                        {
-                            return self.provide_completion_recursive_for_type_tree(
+                        for element in elements.iter() {
+                            self.provide_completion_recursive_for_type_tree(
                                 type_tree,
                                 element,
                                 code,
@@ -1277,7 +1286,19 @@ fn provide_completion_recursive_for_type_tree(
             }
 
             for (element_name, element) in node.iter() {
-                if !elements.contains_key(*element_name) {
+                let should_provide = elements
+                    .get(*element_name)
+                    .map(|element| match element {
+                        MergedValueTree::Array {
+                            elements: _,
+                            key_span: _,
+                            span: _,
+                        } => true,
+                        _ => false,
+                    })
+                    .unwrap_or(true);
+
+                if should_provide {
                     completions.push(Completion {
                         kind: CompletionKind::SectionName,
                         documents: element

@@ -106,28 +106,39 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 found,
                 expected,
                 path,
-            } => Diagnostic {
-                message: TymlDiagnositcMessage {
-                    section: MessageSection::ValidateError,
-                    code: 0005,
-                    arguments: vec![path.clone(), expected.value.clone()],
-                },
-                labels: found
-                    .iter()
-                    .map(|span| DiagnosticLabel {
-                        kind: SourceCodeKind::ValidateTraget,
-                        span: span.clone(),
-                        color: Color::Red,
-                        message_override: Some(0),
-                    })
-                    .chain(once(DiagnosticLabel {
-                        kind: SourceCodeKind::Tyml,
-                        span: expected.span.as_utf8_byte_range(),
-                        color: Color::Yellow,
-                        message_override: Some(1),
-                    }))
-                    .collect(),
-            },
+                caused_by,
+            } => {
+                let caused_by = format!(
+                    "[{}]",
+                    caused_by
+                        .iter()
+                        .map(|(name, ty)| format!("{}: {}", name, ty))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                Diagnostic {
+                    message: TymlDiagnositcMessage {
+                        section: MessageSection::ValidateError,
+                        code: 0005,
+                        arguments: vec![path.clone(), expected.value.clone(), caused_by],
+                    },
+                    labels: found
+                        .iter()
+                        .map(|span| DiagnosticLabel {
+                            kind: SourceCodeKind::ValidateTraget,
+                            span: span.clone(),
+                            color: Color::Red,
+                            message_override: Some(0),
+                        })
+                        .chain(once(DiagnosticLabel {
+                            kind: SourceCodeKind::Tyml,
+                            span: expected.span.as_utf8_byte_range(),
+                            color: Color::Yellow,
+                            message_override: Some(1),
+                        }))
+                        .collect(),
+                }
+            }
             TymlValueValidateError::NotArrayValue {
                 found,
                 expected,

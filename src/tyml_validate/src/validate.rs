@@ -396,6 +396,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             &self.type_tree,
             &root_value_tree,
             &mut Vec::new_in(&allocator),
+            &mut Vec::new(),
         );
 
         self.merged_value_tree = Some(merged_value_tree);
@@ -412,7 +413,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         errors: &mut Option<&mut Vec<TymlValueValidateError>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
         value_tree: &MergedValueTree<'section, 'value>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
+        section_name_stack: &mut Vec<&'input str, &'temp Bump>,
+        non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
     ) -> bool {
         match type_tree {
             TypeTree::Node {
@@ -426,6 +428,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     name_spans: _,
                     define_spans: value_tree_section_spans,
                 } => {
+                    let mut has_error = false;
                     for (element_name, element_type) in node.iter() {
                         match elements.get(*element_name) {
                             Some(element_value) => {
@@ -436,13 +439,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     element_type,
                                     element_value,
                                     section_name_stack,
+                                    non_matched_name_stack,
                                 );
 
-                                if !result && errors.is_none() {
-                                    return false;
-                                }
-
                                 section_name_stack.pop().unwrap();
+
+                                if !result && errors.is_none() {
+                                    has_error = true;
+                                }
                             }
                             None => {
                                 if !element_type.is_allowed_optional() {
@@ -471,6 +475,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                         }
                     }
 
+                    if has_error && errors.is_none() {
+                        return false;
+                    }
+
                     for (value_element_name, value_element) in elements.iter() {
                         if node.contains_key(value_element_name.as_ref()) {
                             continue;
@@ -485,13 +493,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     &any_node_type,
                                     value_element,
                                     section_name_stack,
+                                    non_matched_name_stack,
                                 );
+
+                                section_name_stack.pop().unwrap();
 
                                 if !result && errors.is_none() {
                                     return false;
                                 }
-
-                                section_name_stack.pop().unwrap();
                             }
                             None => {
                                 if let Some(errors) = errors {
@@ -572,8 +581,13 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                     match named_type_tree {
                         NamedTypeTree::Struct { tree } => {
-                            let result =
-                                self.validate_tree(errors, tree, value_tree, section_name_stack);
+                            let result = self.validate_tree(
+                                errors,
+                                tree,
+                                value_tree,
+                                section_name_stack,
+                                non_matched_name_stack,
+                            );
 
                             if !result && errors.is_none() {
                                 return false;
@@ -623,8 +637,19 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                             .map(|name| name.to_string())
                                             .collect::<Vec<_>>()
                                             .join("."),
+                                        caused_by: std::vec::Vec::new(),
                                     };
                                     errors.push(error);
+                                } else {
+                                    non_matched_name_stack.push((
+                                        section_name_stack
+                                            .iter()
+                                            .map(|name| name.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join("."),
+                                        ty.clone(),
+                                    ));
+                                    return false;
                                 }
                             }
                         }
@@ -638,7 +663,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     } = value_tree
                     {
                         for element in elements.iter() {
-                            if self.validate_type(&base_type, element, section_name_stack) {
+                            let mut new_non_matched_name_stack = Vec::new();
+
+                            if self.validate_type(
+                                &base_type,
+                                element,
+                                section_name_stack,
+                                &mut new_non_matched_name_stack,
+                            ) {
                                 continue;
                             }
 
@@ -646,7 +678,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 let error = TymlValueValidateError::InvalidValue {
                                     found: element.spans().cloned().collect(),
                                     expected: Spanned::new(
-                                        base_type.to_type_name(&self.named_type_map),
+                                        ty.to_type_name(&self.named_type_map),
                                         span.clone(),
                                     ),
                                     path: section_name_stack
@@ -654,9 +686,23 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                         .map(|name| name.to_string())
                                         .collect::<Vec<_>>()
                                         .join("."),
+                                    caused_by: new_non_matched_name_stack
+                                        .into_iter()
+                                        .map(|(name, ty)| {
+                                            (name, ty.to_type_name(self.named_type_map))
+                                        })
+                                        .collect(),
                                 };
                                 errors.push(error);
                             } else {
+                                non_matched_name_stack.push((
+                                    section_name_stack
+                                        .iter()
+                                        .map(|name| name.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join("."),
+                                    ty.clone(),
+                                ));
                                 return false;
                             }
                         }
@@ -681,7 +727,13 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     }
                 }
                 _ => {
-                    let result = self.validate_type(ty, value_tree, section_name_stack);
+                    let mut new_non_matched_name_stack = Vec::new();
+                    let result = self.validate_type(
+                        ty,
+                        value_tree,
+                        section_name_stack,
+                        &mut new_non_matched_name_stack,
+                    );
 
                     if !result {
                         if let Some(errors) = errors {
@@ -696,9 +748,21 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     .map(|name| name.to_string())
                                     .collect::<Vec<_>>()
                                     .join("."),
+                                caused_by: new_non_matched_name_stack
+                                    .into_iter()
+                                    .map(|(name, ty)| (name, ty.to_type_name(self.named_type_map)))
+                                    .collect(),
                             };
                             errors.push(error);
                         } else {
+                            non_matched_name_stack.push((
+                                section_name_stack
+                                    .iter()
+                                    .map(|name| name.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("."),
+                                ty.clone(),
+                            ));
                             return false;
                         }
                     }
@@ -713,7 +777,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         &self,
         ty: &Type,
         value_tree: &MergedValueTree<'section, 'value>,
-        section_name_stack: &mut allocator_api2::vec::Vec<&'input str, &'temp Bump>,
+        section_name_stack: &mut Vec<&'input str, &'temp Bump>,
+        non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
     ) -> bool {
         match ty {
             Type::Int(attribute) => match value_tree {
@@ -804,9 +869,13 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 let named_type_tree = self.named_type_map.get_type(*name_id).unwrap();
 
                 match named_type_tree {
-                    NamedTypeTree::Struct { tree } => {
-                        self.validate_tree(&mut None, tree, value_tree, section_name_stack)
-                    }
+                    NamedTypeTree::Struct { tree } => self.validate_tree(
+                        &mut None,
+                        tree,
+                        value_tree,
+                        section_name_stack,
+                        non_matched_name_stack,
+                    ),
                     NamedTypeTree::Enum {
                         elements,
                         documents: _,
@@ -825,17 +894,17 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     },
                 }
             }
-            Type::Or(items) => items
-                .iter()
-                .any(|ty| self.validate_type(ty, value_tree, section_name_stack)),
+            Type::Or(items) => items.iter().any(|ty| {
+                self.validate_type(ty, value_tree, section_name_stack, non_matched_name_stack)
+            }),
             Type::Array(ty) => match value_tree {
                 MergedValueTree::Array {
                     elements,
                     key_span: _,
                     span: _,
-                } => elements
-                    .iter()
-                    .all(|element| self.validate_type(&ty, element, section_name_stack)),
+                } => elements.iter().all(|element| {
+                    self.validate_type(&ty, element, section_name_stack, non_matched_name_stack)
+                }),
                 _ => false,
             },
             Type::Optional(base_type) => {
@@ -851,7 +920,12 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     }
                 }
 
-                self.validate_type(&base_type, value_tree, section_name_stack)
+                self.validate_type(
+                    &base_type,
+                    value_tree,
+                    section_name_stack,
+                    non_matched_name_stack,
+                )
             }
             Type::Any => true,
             Type::Unknown => true,

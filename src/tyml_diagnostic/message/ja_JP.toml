@@ -89,6 +89,7 @@ label_0 = "この要素は定義されていません"
 message = "要素'%color:yellow{%0}'の値とその型'%color:yellow{%1}'が一致しません"
 label_0 = "この値は定義されている型'%color:yellow{%1}'と一致しません"
 label_1 = "要素'%color:yellow{%0}'は型'%color:yellow{%1}'として定義されています"
+note = "型が一致しない子要素 : %color:yellow{%2}"
 [validate_error.0006]
 message = "要素'%color:yellow{%0}'に配列型'%color:yellow{%1}'ではない値が記述されています"
 label_0 = "ここで記述されている値の型が定義されているものと一致しません"
