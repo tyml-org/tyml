@@ -109,7 +109,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 caused_by,
             } => {
                 let caused_by = format!(
-                    "[{}]",
+                    "{}",
                     caused_by
                         .iter()
                         .map(|(name, ty)| format!("{}: {}", name, ty))

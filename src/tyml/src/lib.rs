@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-settings: [Setting]
+settings: [Setting] | int
 
 type Setting {
     ip: string
@@ -443,12 +443,11 @@ enum Mode {
 [[settings]]
 ip = "192.168.1.1"
 port = 25565
-mode = "Debu"
+mode = "Debug"
 
 [[settings]]
 ip = "192.168.1.6"
-port = "aa"
-mode = "Debu"
+port = ""
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
@@ -459,7 +458,6 @@ mode = "Debu"
         let language = STYLE_REGISTRY.resolve("toml").unwrap();
 
         let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
-        dbg!(&tyml.validator().merged_value_tree);
 
         tyml.print_tyml_error(Lang::system());
         tyml.print_ml_parse_error(Lang::system());

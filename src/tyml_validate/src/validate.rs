@@ -737,8 +737,21 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                     if !result {
                         if let Some(errors) = errors {
+                            let found_spans = match value_tree {
+                                MergedValueTree::Array {
+                                    elements,
+                                    key_span: _,
+                                    span: _,
+                                } => elements
+                                    .iter()
+                                    .map(|element| element.spans().cloned())
+                                    .flatten()
+                                    .collect(),
+                                _ => value_tree.spans().cloned().collect(),
+                            };
+
                             let error = TymlValueValidateError::InvalidValue {
-                                found: value_tree.spans().cloned().collect(),
+                                found: found_spans,
                                 expected: Spanned::new(
                                     ty.to_type_name(&self.named_type_map),
                                     span.clone(),
