@@ -69,7 +69,7 @@ pub fn toml() -> LanguageStyle {
                 ..Default::default()
             },
             key_option: KeyOption {
-                allow_dot_section_split: false,
+                allow_dot_section_split: true,
             },
         },
         comments: vec![Comment::Line {

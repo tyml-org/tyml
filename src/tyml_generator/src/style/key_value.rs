@@ -230,7 +230,9 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
             }
         }
 
-        section_name_stack.pop().unwrap();
+        for _ in 0..self.key.len() {
+            section_name_stack.pop().unwrap();
+        }
     }
 
     fn take_token(

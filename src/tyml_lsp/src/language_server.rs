@@ -329,7 +329,7 @@ impl GeneratedLanguageServer {
             .char_indices()
             .rev()
             .find_map(|(i, ch)| {
-                if ch.is_whitespace() {
+                if ch.is_whitespace() || ch == '.' {
                     None
                 } else {
                     Some(i + ch.len_utf8())
@@ -1296,9 +1296,39 @@ fn provide_completion_recursive_for_type_tree(
                     }
                     MergedValueTree::Value {
                         value: _,
-                        key_span: _,
+                        key_span,
                         span,
                     } => {
+                        if let TypeTree::Node {
+                            node,
+                            any_node: _,
+                            documents: _,
+                            span: _,
+                        } = type_tree
+                        {
+                            if key_span
+                                .to_byte_span(code)
+                                .to_inclusive()
+                                .contains(&byte_position)
+                            {
+                                // pattern of 'test.'
+                                for (element_name, element) in node.iter() {
+                                    completions.push(Completion {
+                                        kind: CompletionKind::SectionName,
+                                        documents: element
+                                            .documents()
+                                            .iter()
+                                            .map(|line| line.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(""),
+                                        span: element.span(),
+                                        name: element_name.to_string(),
+                                    });
+                                }
+                                return;
+                            }
+                        }
+
                         if span
                             .to_byte_span(code)
                             .to_inclusive()
@@ -1317,31 +1347,17 @@ fn provide_completion_recursive_for_type_tree(
             }
 
             for (element_name, element) in node.iter() {
-                let should_provide = elements
-                    .get(*element_name)
-                    .map(|element| match element {
-                        MergedValueTree::Array {
-                            elements: _,
-                            key_span: _,
-                            span: _,
-                        } => true,
-                        _ => false,
-                    })
-                    .unwrap_or(true);
-
-                if should_provide {
-                    completions.push(Completion {
-                        kind: CompletionKind::SectionName,
-                        documents: element
-                            .documents()
-                            .iter()
-                            .map(|line| line.to_string())
-                            .collect::<Vec<_>>()
-                            .join(""),
-                        span: element.span(),
-                        name: element_name.to_string(),
-                    });
-                }
+                completions.push(Completion {
+                    kind: CompletionKind::SectionName,
+                    documents: element
+                        .documents()
+                        .iter()
+                        .map(|line| line.to_string())
+                        .collect::<Vec<_>>()
+                        .join(""),
+                    span: element.span(),
+                    name: element_name.to_string(),
+                });
             }
         }
         TypeTree::Leaf {
