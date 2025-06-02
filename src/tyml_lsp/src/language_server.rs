@@ -28,7 +28,10 @@ use tyml::{
     },
     tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan, ToByteSpan},
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
-    tyml_validate::validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
+    tyml_validate::{
+        error::TymlValueValidateError,
+        validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
+    },
 };
 
 type LSPRange = tower_lsp::lsp_types::Range;
@@ -259,25 +262,53 @@ impl GeneratedLanguageServer {
                 for error in tyml.ml_validate_error().iter() {
                     let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
 
-                    diagnostics.push(Diagnostic {
-                        range: diagnostic.labels[0]
-                            .span
-                            .to_lsp_span(&tyml.ml_source_code().code),
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        code: Some(NumberOrString::Number(diagnostic.message.code as _)),
-                        message: format!(
-                            "{}: {}\n{}{}",
-                            diagnostic.message.section_name(self.lang, false),
-                            diagnostic.message.message(self.lang, false),
-                            diagnostic.message.label(0, self.lang, false).unwrap(),
-                            diagnostic
-                                .message
-                                .note(self.lang, false)
-                                .map(|note| format!("\n{}", note))
-                                .unwrap_or(String::new())
-                        ),
-                        ..Default::default()
-                    });
+                    if let TymlValueValidateError::InvalidValue {
+                        found,
+                        expected: _,
+                        path: _,
+                        caused_by: _,
+                    } = error
+                    {
+                        for found in found.iter() {
+                            diagnostics.push(Diagnostic {
+                                range: found.to_lsp_span(&tyml.ml_source_code().code),
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                                message: format!(
+                                    "{}: {}\n{}\n{}\n{}",
+                                    diagnostic.message.section_name(self.lang, false),
+                                    diagnostic.message.message(self.lang, false),
+                                    diagnostic.message.label(0, self.lang, false).unwrap(),
+                                    diagnostic
+                                        .message
+                                        .note(self.lang, false)
+                                        .unwrap_or(String::new()),
+                                    get_text("lsp.message.array_error_diagnostic", self.lang)
+                                ),
+                                ..Default::default()
+                            });
+                        }
+                    } else {
+                        diagnostics.push(Diagnostic {
+                            range: diagnostic.labels[0]
+                                .span
+                                .to_lsp_span(&tyml.ml_source_code().code),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(NumberOrString::Number(diagnostic.message.code as _)),
+                            message: format!(
+                                "{}: {}\n{}{}",
+                                diagnostic.message.section_name(self.lang, false),
+                                diagnostic.message.message(self.lang, false),
+                                diagnostic.message.label(0, self.lang, false).unwrap(),
+                                diagnostic
+                                    .message
+                                    .note(self.lang, false)
+                                    .map(|note| format!("\n{}", note))
+                                    .unwrap_or(String::new())
+                            ),
+                            ..Default::default()
+                        });
+                    }
                 }
             }
 
