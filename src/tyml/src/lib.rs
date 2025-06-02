@@ -426,11 +426,12 @@ mod tests {
     fn lib_test() {
         let source = r#"
 settings: [Setting] | int
+test: int
 
 type Setting {
     ip: string
     port: int
-    mode: Mode
+    mode: Mode?
 }
 
 enum Mode {
@@ -440,6 +441,8 @@ enum Mode {
 "#;
 
         let ini_source = r#"
+test = 0xFF
+
 [[settings]]
 ip = "192.168.1.1"
 port = 25565
@@ -447,7 +450,7 @@ mode = "Debug"
 
 [[settings]]
 ip = "192.168.1.6"
-port = ""
+port = 25565
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

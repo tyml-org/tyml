@@ -1,7 +1,12 @@
-use std::{borrow::Cow, ops::Range, sync::Arc};
+use std::{
+    borrow::Cow,
+    ops::Range,
+    sync::{Arc, LazyLock},
+};
 
 use allocator_api2::vec::Vec;
 use either::Either;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree};
@@ -223,25 +228,47 @@ impl<'input> AST<'input> for ValueAST<'input> {
 
                 let space_removed = self.value.text.replace(" ", "");
 
-                let prefix = match style.allow_plus_minus {
-                    true => &space_removed[1..3],
-                    false => &space_removed[0..2],
+                static HEX: LazyLock<Regex> =
+                    LazyLock::new(|| Regex::new(r"([+-]?)0x([a-f|A-F|0-9|_]+)").unwrap());
+                static OCT: LazyLock<Regex> =
+                    LazyLock::new(|| Regex::new(r"([+-]?)0o([0-7|_]+)").unwrap());
+                static BIN: LazyLock<Regex> =
+                    LazyLock::new(|| Regex::new(r"([+-]?)0b([01_]+)").unwrap());
+
+                let (plus_minus, value_text, radix) = if space_removed.contains("0x") {
+                    let captured = HEX.captures(space_removed.as_str()).unwrap();
+                    (captured[1].to_string(), &captured[2].to_string(), 16)
+                } else if space_removed.contains("0o") {
+                    let captured = OCT.captures(space_removed.as_str()).unwrap();
+                    (captured[1].to_string(), &captured[2].to_string(), 8)
+                } else if space_removed.contains("0b") {
+                    let captured = BIN.captures(space_removed.as_str()).unwrap();
+                    (captured[1].to_string(), &captured[2].to_string(), 2)
+                } else {
+                    unreachable!()
                 };
 
-                let binary_text = match style.allow_plus_minus {
-                    true => &space_removed[3..],
-                    false => &space_removed[2..],
-                };
+                match style.allow_plus_minus {
+                    true => {
+                        let value = i64::from_str_radix(value_text.as_str(), radix).ok();
 
-                let value = match prefix {
-                    "0x" => u64::from_str_radix(binary_text, 16),
-                    "0o" => u64::from_str_radix(binary_text, 8),
-                    "0b" => u64::from_str_radix(binary_text, 2),
-                    _ => unreachable!(),
+                        if plus_minus == "-" {
+                            match value.map(|value| -value) {
+                                Some(value) => ValidateValue::Int(value),
+                                None => ValidateValue::OverflowInt(value_text.clone()),
+                            }
+                        } else {
+                            match value {
+                                Some(value) => ValidateValue::Int(value),
+                                None => ValidateValue::OverflowInt(value_text.clone()),
+                            }
+                        }
+                    }
+                    false => match u64::from_str_radix(value_text.as_str(), radix).ok() {
+                        Some(value) => ValidateValue::UnsignedInt(value),
+                        None => ValidateValue::OverflowInt(value_text.to_string()),
+                    },
                 }
-                .unwrap();
-
-                ValidateValue::UnsignedInt(value)
             }
             ValueASTKind::Bool => {
                 let lower = self.value.text.to_ascii_lowercase();

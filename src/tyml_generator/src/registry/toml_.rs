@@ -75,5 +75,6 @@ pub fn toml() -> LanguageStyle {
         comments: vec![Comment::Line {
             start: "#".to_string(),
         }],
+        allow_non_section_key_value: true,
     })
 }

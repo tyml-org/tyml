@@ -59,6 +59,7 @@ pub enum ValidateValue<'value> {
     Float(f64),
     String(Cow<'value, str>),
     Bool(bool),
+    OverflowInt(String),
     None,
 }
 

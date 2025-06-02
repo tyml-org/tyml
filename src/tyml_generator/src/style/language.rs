@@ -28,6 +28,7 @@ pub struct SectionStyle {
     pub section: Section,
     pub key_value: KeyValue,
     pub comments: std::vec::Vec<Comment>,
+    pub allow_non_section_key_value: bool,
 }
 
 pub enum LanguageParser {
@@ -35,6 +36,7 @@ pub enum LanguageParser {
         section: SectionParser,
         key_value: KeyValueParser,
         comments: Vec<GeneratorTokenKind>,
+        allow_non_section_key_value: bool,
     },
     Empty {
         empty_lexer: GeneratorTokenKind,
@@ -44,6 +46,7 @@ pub enum LanguageParser {
 #[derive(Debug)]
 pub enum LanguageAST<'input> {
     Section {
+        non_section_key_values: Vec<KeyValueAST<'input>>,
         sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>, Range<usize>)>,
         span: Range<usize>,
     },
@@ -63,6 +66,7 @@ impl<'input> ParserGenerator<'input, LanguageAST<'input>, LanguageParser> for La
                     .iter()
                     .map(|comment| registry.register(GeneratorTokenizer::Regex(comment.regex())))
                     .collect(),
+                allow_non_section_key_value: section.allow_non_section_key_value,
             },
             LanguageStyle::Empty => LanguageParser::Empty {
                 empty_lexer: registry.register(GeneratorTokenizer::regex(".*")),
@@ -87,10 +91,24 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 section,
                 key_value,
                 comments,
+                allow_non_section_key_value,
             } => {
+                let mut non_section_key_values = Vec::new();
                 let mut sections = Vec::new();
 
                 lexer.comments.extend(comments.iter().cloned());
+
+                if *allow_non_section_key_value {
+                    loop {
+                        lexer.skip_lf();
+
+                        let Some(key_value) = key_value.parse(lexer, errors) else {
+                            break;
+                        };
+
+                        non_section_key_values.push(key_value);
+                    }
+                }
 
                 loop {
                     lexer.skip_lf();
@@ -179,6 +197,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 }
 
                 Some(LanguageAST::Section {
+                    non_section_key_values,
                     sections,
                     span: anchor.elapsed(lexer),
                 })
@@ -200,6 +219,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 section,
                 key_value: _,
                 comments: _,
+                allow_non_section_key_value: _,
             } => section.first_token_kinds(),
             LanguageParser::Empty { empty_lexer } => once(*empty_lexer),
         }
@@ -219,7 +239,11 @@ impl ParserPart for LanguageParser {
 impl<'input> AST<'input> for LanguageAST<'input> {
     fn span(&self) -> Range<usize> {
         match self {
-            LanguageAST::Section { sections: _, span } => span.clone(),
+            LanguageAST::Section {
+                non_section_key_values: _,
+                sections: _,
+                span,
+            } => span.clone(),
             LanguageAST::Empty { span } => span.clone(),
         }
     }
@@ -244,7 +268,15 @@ impl<'input> AST<'input> for LanguageAST<'input> {
         }
 
         match self {
-            LanguageAST::Section { sections, span: _ } => {
+            LanguageAST::Section {
+                non_section_key_values,
+                sections,
+                span: _,
+            } => {
+                for key_value in non_section_key_values.iter() {
+                    key_value.take_value(section_name_stack, validator);
+                }
+
                 for (section, key_values, span) in sections.iter() {
                     // stack this section
                     let stacked = if section.sections.is_empty() {
@@ -309,7 +341,15 @@ impl<'input> AST<'input> for LanguageAST<'input> {
         tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
     ) {
         match self {
-            LanguageAST::Section { sections, span: _ } => {
+            LanguageAST::Section {
+                non_section_key_values,
+                sections,
+                span: _,
+            } => {
+                for key_value in non_section_key_values.iter() {
+                    key_value.take_token(tokens);
+                }
+
                 for (section, key_values, _) in sections.iter() {
                     section.take_token(tokens);
 

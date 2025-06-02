@@ -91,5 +91,6 @@ pub fn ini() -> LanguageStyle {
                 start: "#".to_string(),
             },
         ],
+        allow_non_section_key_value: true,
     })
 }
