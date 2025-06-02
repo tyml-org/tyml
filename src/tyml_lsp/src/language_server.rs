@@ -714,7 +714,7 @@ fn create_hover_code_block(code: &str) -> String {
     let code = INDENT_REGEX.replace_all(code.as_ref(), "");
 
     static FOUND_INDENT_REGEX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(\n|\r|\r\n)([ \t]+)\}").unwrap());
+        LazyLock::new(|| Regex::new(r"(\n|\r|\r\n)([ \t]*)\}").unwrap());
 
     let indent = FOUND_INDENT_REGEX
         .captures_iter(code.as_ref())

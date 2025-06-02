@@ -55,6 +55,7 @@ pub struct KeyOptionTokenKind {
 pub struct KeyValueAST<'input> {
     pub key: Vec<LiteralSetAST<'input>>,
     pub value: Option<ValueAST<'input>>,
+    pub on_dot_input: bool,
     pub span: Range<usize>,
 }
 
@@ -96,12 +97,14 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         let mut key = Vec::new();
         key.push(literal);
 
+        let mut on_dot_input = false;
         if let Some(dot) = self.key_option.dot {
             loop {
                 if !lexer.current_contains(dot) {
                     break;
                 }
                 lexer.next();
+                on_dot_input = true;
 
                 let Some(literal) = self.key.parse(lexer, errors) else {
                     let error = recover_until_or_lf(
@@ -116,6 +119,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
                     break;
                 };
+                on_dot_input = false;
 
                 key.push(literal);
             }
@@ -140,6 +144,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
                 return Some(KeyValueAST {
                     key,
                     value: None,
+                    on_dot_input,
                     span: anchor.elapsed(lexer),
                 });
             }
@@ -159,6 +164,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         Some(KeyValueAST {
             key,
             value,
+            on_dot_input,
             span: anchor.elapsed(lexer),
         })
     }
@@ -201,6 +207,15 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                 .map(|literal| literal.to_section_name(self.span()))
                 .flatten(),
         );
+
+        if self.on_dot_input {
+            section_name_stack.push((
+                "".into(),
+                self.key.last().unwrap().span(),
+                self.key.last().unwrap().span(),
+                false,
+            ));
+        }
 
         match &self.value {
             Some(value) => {

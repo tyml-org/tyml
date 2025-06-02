@@ -167,7 +167,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     }
 
                     return Some(SectionAST {
-                        sections: Vec::new(),
+                        sections,
                         is_array: double_bracket,
                         span: anchor.elapsed(lexer),
                     });
@@ -184,7 +184,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                         }
 
                         return Some(SectionAST {
-                            sections: Vec::new(),
+                            sections,
                             is_array: double_bracket,
                             span: anchor.elapsed(lexer),
                         });
