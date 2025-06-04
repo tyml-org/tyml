@@ -427,7 +427,7 @@ mod tests {
         let source = r#"
 settings: [Setting] | int
 test: {
-    test: int
+    test: [int]
 }
 
 type Setting {
@@ -443,7 +443,7 @@ enum Mode {
 "#;
 
         let ini_source = r#"
-test.test = 0xFF
+test.test = [0xFF, ""]
 
 [[settings]]
 ip = "192.168.1.1"

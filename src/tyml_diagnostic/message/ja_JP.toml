@@ -126,6 +126,10 @@ label_1 = "キーと値の間にコロン'%color:cyan{:}'を記述してみて�
 message = "等号'%color:yellow{=}'が記述されていません"
 label_0 = "等号が必要です"
 label_1 = "キーと値の間に等号'%color:cyan{=}'を記述してみてください"
+[ml_parse_error.0008]
+message = "配列の記述形式が正しくありません"
+label_0 = "不明なトークンです"
+label_1 = "配列は'%color:cyan{%0}'の形式です"
 
 [lsp.message]
 header_var_lookup_error = "指定された環境変数'%0'を解決できません"

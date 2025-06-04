@@ -1285,6 +1285,14 @@ fn provide_completion_recursive_for_type_tree(
                         span: _,
                     } => {
                         for element in elements.iter() {
+                            if !element.spans().any(|span| {
+                                span.to_byte_span(code)
+                                    .to_inclusive()
+                                    .contains(&byte_position)
+                            }) {
+                                continue;
+                            }
+
                             self.provide_completion_recursive_for_type_tree(
                                 type_tree,
                                 element,

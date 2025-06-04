@@ -7,7 +7,7 @@ use crate::style::{
         NormalLiteral, QuotesKind, StringLiteral, UnicodeFormatKind,
     },
     section::{Section, SectionKind},
-    value::Value,
+    value::{ArrayValue, Value},
 };
 
 pub fn toml() -> LanguageStyle {
@@ -65,6 +65,10 @@ pub fn toml() -> LanguageStyle {
                 }),
                 bool: Some(BoolLiteral {
                     kind: BoolKind::LowerCase,
+                }),
+                array: Some(ArrayValue::Bracket {
+                    allow_line_feed: true,
+                    allow_extra_comma: true,
                 }),
                 ..Default::default()
             },

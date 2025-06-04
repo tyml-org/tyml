@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    iter::once,
     ops::Range,
     sync::{Arc, LazyLock},
 };
@@ -11,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{ValidateValue, ValueTree};
 
-use crate::lexer::{GeneratorTokenKind, SpannedText};
+use crate::{
+    lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText},
+    style::error::recover_until_or_lf,
+};
 
 use super::{
     AST, ASTTokenKind, Parser, ParserGenerator, ParserPart,
@@ -29,6 +33,7 @@ pub struct Value {
     pub binary: Option<BinaryLiteral>,
     pub bool: Option<BoolLiteral>,
     pub any_string: Option<Literal>,
+    pub array: Option<ArrayValue>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,24 +44,26 @@ pub struct ValueParser {
     pub binary: Option<GeneratorTokenKind>,
     pub bool: Option<GeneratorTokenKind>,
     pub any_string: Option<(GeneratorTokenKind, Option<CustomLiteralOption>)>,
+    pub array: Option<ArrayValueParser>,
 }
 
 #[derive(Debug)]
 pub struct ValueAST<'input> {
     pub style: Arc<Value>,
     pub parser: Arc<ValueParser>,
-    pub value: SpannedText<'input>,
-    pub kind: ValueASTKind,
+    pub value: Option<SpannedText<'input>>,
+    pub kind: ValueASTKind<'input>,
     pub span: Range<usize>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ValueASTKind {
+#[derive(Debug)]
+pub enum ValueASTKind<'input> {
     String { kind: GeneratorTokenKind },
     Float,
     Binary,
     Bool,
     AnyString,
+    Array { array: ArrayValueAST<'input> },
 }
 
 impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
@@ -75,6 +82,7 @@ impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
                 .any_string
                 .as_ref()
                 .map(|any_string| any_string.register(registry)),
+            array: self.array.as_ref().map(|array| array.generate(registry)),
         }
     }
 }
@@ -83,7 +91,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
     fn parse(
         &self,
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
-        _: &mut Vec<GeneratedParseError>,
+        errors: &mut Vec<GeneratedParseError>,
     ) -> Option<ValueAST<'input>> {
         let anchor = lexer.cast_anchor();
 
@@ -92,7 +100,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 return Some(ValueAST {
                     style: self.style.clone(),
                     parser: Arc::new(self.clone()),
-                    value: lexer.next().unwrap().into_spanned(),
+                    value: Some(lexer.next().unwrap().into_spanned()),
                     kind: ValueASTKind::String { kind: *string },
                     span: anchor.elapsed(lexer),
                 });
@@ -104,7 +112,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 return Some(ValueAST {
                     style: self.style.clone(),
                     parser: Arc::new(self.clone()),
-                    value: lexer.next().unwrap().into_spanned(),
+                    value: Some(lexer.next().unwrap().into_spanned()),
                     kind: ValueASTKind::Float,
                     span: anchor.elapsed(lexer),
                 });
@@ -116,7 +124,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 return Some(ValueAST {
                     style: self.style.clone(),
                     parser: Arc::new(self.clone()),
-                    value: lexer.next().unwrap().into_spanned(),
+                    value: Some(lexer.next().unwrap().into_spanned()),
                     kind: ValueASTKind::Binary,
                     span: anchor.elapsed(lexer),
                 });
@@ -128,7 +136,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 return Some(ValueAST {
                     style: self.style.clone(),
                     parser: Arc::new(self.clone()),
-                    value: lexer.next().unwrap().into_spanned(),
+                    value: Some(lexer.next().unwrap().into_spanned()),
                     kind: ValueASTKind::Bool,
                     span: anchor.elapsed(lexer),
                 });
@@ -140,9 +148,23 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 return Some(ValueAST {
                     style: self.style.clone(),
                     parser: Arc::new(self.clone()),
-                    value: lexer.next().unwrap().into_spanned(),
+                    value: Some(lexer.next().unwrap().into_spanned()),
                     kind: ValueASTKind::AnyString,
                     span: anchor.elapsed(lexer),
+                });
+            }
+        }
+
+        if let Some(array) = &self.array {
+            if let Some(array) = array.parse(self, lexer, errors) {
+                let span = array.span();
+
+                return Some(ValueAST {
+                    style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
+                    value: None,
+                    kind: ValueASTKind::Array { array },
+                    span,
                 });
             }
         }
@@ -161,6 +183,13 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
         .into_iter()
         .flatten()
         .chain(self.strings.iter().cloned())
+        .chain(
+            self.array
+                .as_ref()
+                .map(|array| array.first_token_kinds())
+                .into_iter()
+                .flatten(),
+        )
     }
 }
 
@@ -174,44 +203,39 @@ impl ParserPart for ValueParser {
     }
 }
 
-impl<'input> AST<'input> for ValueAST<'input> {
-    fn span(&self) -> std::ops::Range<usize> {
-        self.span.clone()
-    }
-
-    fn take_value(
+impl<'input> ValueAST<'input> {
+    fn create_value_tree(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-    ) {
-        let value = match self.kind {
+    ) -> ValueTree<'input, 'input> {
+        let value = match &self.kind {
             ValueASTKind::String { kind } => {
                 let quotes_kind = self
                     .style
                     .strings
                     .iter()
                     .zip(self.parser.strings.iter())
-                    .find(|(_, parser)| **parser == kind)
+                    .find(|(_, parser)| *parser == kind)
                     .map(|(style, _)| style)
                     .unwrap()
                     .quotes_kind;
 
+                let value = self.value.as_ref().unwrap();
+
                 let value = match quotes_kind {
-                    QuotesKind::DoubleQuotes => &self.value.text[1..(self.value.text.len() - 1)],
-                    QuotesKind::TripleDoubleQuotes => {
-                        &self.value.text[3..(self.value.text.len() - 3)]
-                    }
-                    QuotesKind::SingleQuote => &self.value.text[1..(self.value.text.len() - 1)],
-                    QuotesKind::TripleQuotes => &self.value.text[3..(self.value.text.len() - 3)],
+                    QuotesKind::DoubleQuotes => &value.text[1..(value.text.len() - 1)],
+                    QuotesKind::TripleDoubleQuotes => &value.text[3..(value.text.len() - 3)],
+                    QuotesKind::SingleQuote => &value.text[1..(value.text.len() - 1)],
+                    QuotesKind::TripleQuotes => &value.text[3..(value.text.len() - 3)],
                 };
 
                 ValidateValue::String(value.into())
             }
             ValueASTKind::Float => {
-                let space_removed = self.value.text.replace(" ", "");
+                let space_removed = self.value.as_ref().unwrap().text.replace(" ", "");
 
                 if let Ok(value) = space_removed.parse::<u64>() {
                     ValidateValue::UnsignedInt(value)
@@ -226,7 +250,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
             ValueASTKind::Binary => {
                 let style = self.style.binary.as_ref().unwrap();
 
-                let space_removed = self.value.text.replace(" ", "");
+                let space_removed = self.value.as_ref().unwrap().text.replace(" ", "");
 
                 static HEX: LazyLock<Regex> =
                     LazyLock::new(|| Regex::new(r"([+-]?)0x([a-f|A-F|0-9|_]+)").unwrap());
@@ -271,25 +295,27 @@ impl<'input> AST<'input> for ValueAST<'input> {
                 }
             }
             ValueASTKind::Bool => {
-                let lower = self.value.text.to_ascii_lowercase();
+                let lower = self.value.as_ref().unwrap().text.to_ascii_lowercase();
 
                 ValidateValue::Bool(lower.parse::<bool>().unwrap())
             }
             ValueASTKind::AnyString => {
+                let value = self.value.as_ref().unwrap();
                 let style = self.style.any_string.as_ref().unwrap();
 
                 let value = match style {
                     Literal::Custom(custom_regex_literal) => {
                         match custom_regex_literal.option.trim_space {
-                            true => self.value.text.trim(),
-                            false => self.value.text,
+                            true => value.text.trim(),
+                            false => value.text,
                         }
                     }
-                    _ => self.value.text,
+                    _ => value.text,
                 };
 
                 ValidateValue::String(value.into())
             }
+            ValueASTKind::Array { array } => return array.create_value_tree(section_name_stack),
         };
 
         // take last section(maybe key)'s span
@@ -297,6 +323,29 @@ impl<'input> AST<'input> for ValueAST<'input> {
             Some((_, span, _, _)) => span.clone(),
             None => self.span.clone(),
         };
+
+        ValueTree::Value {
+            value,
+            key_span: key_span.as_utf8_byte_range(),
+            span: self.span.as_utf8_byte_range(),
+        }
+    }
+}
+
+impl<'input> AST<'input> for ValueAST<'input> {
+    fn span(&self) -> std::ops::Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        let value_tree = self.create_value_tree(section_name_stack);
 
         validator.set_value(
             section_name_stack
@@ -309,11 +358,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
                         *is_array,
                     )
                 }),
-            Either::Left(ValueTree::Value {
-                value,
-                key_span: key_span.as_utf8_byte_range(),
-                span: (key_span.start..self.span.end).as_utf8_byte_range(),
-            }),
+            Either::Left(value_tree),
         );
     }
 
@@ -321,10 +366,16 @@ impl<'input> AST<'input> for ValueAST<'input> {
         &self,
         tokens: &mut std::collections::BTreeMap<usize, (super::ASTTokenKind, Range<usize>)>,
     ) {
-        let kind = match self.kind {
+        if let ValueASTKind::Array { array } = &self.kind {
+            return array.take_token(tokens);
+        }
+
+        let value = self.value.as_ref().unwrap();
+
+        let kind = match &self.kind {
             ValueASTKind::String { kind: _ } => ASTTokenKind::StringValue,
             ValueASTKind::Float => {
-                let lower = self.value.text.to_lowercase();
+                let lower = value.text.to_lowercase();
 
                 if lower.contains("inf") || lower.contains("nan") {
                     ASTTokenKind::InfNan
@@ -335,8 +386,241 @@ impl<'input> AST<'input> for ValueAST<'input> {
             ValueASTKind::Binary => ASTTokenKind::NumericValue,
             ValueASTKind::Bool => ASTTokenKind::BoolValue,
             ValueASTKind::AnyString => ASTTokenKind::StringValue,
+            ValueASTKind::Array { array: _ } => unreachable!(),
         };
 
-        tokens.insert(self.value.span.start, (kind, self.value.span.clone()));
+        tokens.insert(value.span.start, (kind, value.span.clone()));
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ArrayValue {
+    Bracket {
+        allow_line_feed: bool,
+        allow_extra_comma: bool,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ArrayValueParser {
+    Bracket {
+        bracket_left: GeneratorTokenKind,
+        bracket_right: GeneratorTokenKind,
+        comma: GeneratorTokenKind,
+        allow_line_feed: bool,
+        allow_extra_comma: bool,
+    },
+}
+
+#[derive(Debug)]
+pub struct ArrayValueAST<'input> {
+    pub values: Vec<ValueAST<'input>>,
+    pub span: Range<usize>,
+}
+
+impl<'input> ParserGenerator<'input, ArrayValueAST<'input>, ArrayValueParser> for ArrayValue {
+    fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> ArrayValueParser {
+        match self {
+            ArrayValue::Bracket {
+                allow_line_feed,
+                allow_extra_comma,
+            } => ArrayValueParser::Bracket {
+                bracket_left: registry.register(GeneratorTokenizer::Keyword("[".to_string())),
+                bracket_right: registry.register(GeneratorTokenizer::Keyword("]".to_string())),
+                comma: registry.register(GeneratorTokenizer::Keyword(",".to_string())),
+                allow_line_feed: *allow_line_feed,
+                allow_extra_comma: *allow_extra_comma,
+            },
+        }
+    }
+}
+
+impl<'input> ArrayValueParser {
+    fn parse(
+        &self,
+        value_parser: &ValueParser,
+        lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        errors: &mut Vec<GeneratedParseError>,
+    ) -> Option<ArrayValueAST<'input>> {
+        match self {
+            ArrayValueParser::Bracket {
+                bracket_left,
+                bracket_right,
+                comma,
+                allow_line_feed,
+                allow_extra_comma,
+            } => {
+                let anchor = lexer.cast_anchor();
+
+                if !lexer.current_contains(*bracket_left) {
+                    return None;
+                }
+                lexer.next();
+
+                let mut values = Vec::new();
+
+                let mut is_last_comma = false;
+                loop {
+                    if *allow_line_feed {
+                        lexer.skip_lf();
+                    }
+
+                    let Some(value) = value_parser.parse(lexer, errors) else {
+                        break;
+                    };
+                    values.push(value);
+
+                    is_last_comma = false;
+
+                    if !lexer.current_contains(*comma) {
+                        break;
+                    }
+                    lexer.next();
+                    is_last_comma = true;
+                }
+
+                if *allow_line_feed {
+                    lexer.skip_lf();
+                }
+
+                let mut has_error = false;
+                if !lexer.current_contains(*bracket_right) {
+                    let error = recover_until_or_lf(lexer, [*bracket_right].into_iter(), self);
+                    errors.push(error);
+
+                    has_error = true;
+                }
+
+                if !*allow_extra_comma && !has_error && is_last_comma {
+                    let error = recover_until_or_lf(lexer, [*bracket_right].into_iter(), self);
+                    errors.push(error);
+                }
+
+                if lexer.current_contains(*bracket_right) {
+                    lexer.next();
+                }
+
+                Some(ArrayValueAST {
+                    values,
+                    span: anchor.elapsed(lexer),
+                })
+            }
+        }
+    }
+}
+
+impl<'input> Parser<'input, ArrayValueAST<'input>> for ArrayValueParser {
+    fn parse(
+        &self,
+        _: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        _: &mut Vec<GeneratedParseError>,
+    ) -> Option<ArrayValueAST<'input>> {
+        unreachable!()
+    }
+
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        match self {
+            ArrayValueParser::Bracket {
+                bracket_left,
+                bracket_right: _,
+                comma: _,
+                allow_line_feed: _,
+                allow_extra_comma: _,
+            } => once(*bracket_left),
+        }
+    }
+}
+
+impl ParserPart for ArrayValueParser {
+    fn parse_error_code(&self) -> usize {
+        match self {
+            ArrayValueParser::Bracket {
+                bracket_left: _,
+                bracket_right: _,
+                comma: _,
+                allow_line_feed: _,
+                allow_extra_comma: _,
+            } => 0008,
+        }
+    }
+
+    fn expected_format(&self) -> Option<Cow<'static, str>> {
+        match self {
+            ArrayValueParser::Bracket {
+                bracket_left: _,
+                bracket_right: _,
+                comma: _,
+                allow_line_feed: _,
+                allow_extra_comma: _,
+            } => Some("[value1, value2]".into()),
+        }
+    }
+}
+
+impl<'input> ArrayValueAST<'input> {
+    fn create_value_tree(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+    ) -> ValueTree<'input, 'input> {
+        let elements = self
+            .values
+            .iter()
+            .map(|value| value.create_value_tree(section_name_stack))
+            .collect();
+
+        // take last section(maybe key)'s span
+        let key_span = match section_name_stack.last() {
+            Some((_, span, _, _)) => span.clone(),
+            None => self.span.clone(),
+        };
+
+        ValueTree::Array {
+            elements,
+            key_span: key_span.as_utf8_byte_range(),
+            span: (key_span.start..self.span.end).as_utf8_byte_range(),
+        }
+    }
+}
+
+impl<'input> AST<'input> for ArrayValueAST<'input> {
+    fn span(&self) -> Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        let value_tree = self.create_value_tree(section_name_stack);
+
+        validator.set_value(
+            section_name_stack
+                .iter()
+                .map(|(name, name_span, define_span, is_array)| {
+                    (
+                        name.clone(),
+                        name_span.as_utf8_byte_range(),
+                        define_span.as_utf8_byte_range(),
+                        *is_array,
+                    )
+                }),
+            Either::Left(value_tree),
+        );
+    }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (ASTTokenKind, Range<usize>)>,
+    ) {
+        for value in self.values.iter() {
+            value.take_token(tokens);
+        }
     }
 }
