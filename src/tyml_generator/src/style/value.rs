@@ -14,7 +14,11 @@ use tyml_validate::validate::{ValidateValue, ValueTree};
 
 use crate::{
     lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText},
-    style::error::recover_until_or_lf,
+    style::{
+        NamedParserPart,
+        error::recover_until_or_lf,
+        key_value::{KeyValueAST, KeyValueParser},
+    },
 };
 
 use super::{
@@ -459,7 +463,7 @@ impl<'input> ArrayValueParser {
 
                 let mut values = Vec::new();
 
-                let mut is_last_comma = false;
+                let mut last_comma = None;
                 loop {
                     if *allow_line_feed {
                         lexer.skip_lf();
@@ -470,13 +474,12 @@ impl<'input> ArrayValueParser {
                     };
                     values.push(value);
 
-                    is_last_comma = false;
+                    last_comma = None;
 
                     if !lexer.current_contains(*comma) {
                         break;
                     }
-                    lexer.next();
-                    is_last_comma = true;
+                    last_comma = lexer.next();
                 }
 
                 if *allow_line_feed {
@@ -491,9 +494,15 @@ impl<'input> ArrayValueParser {
                     has_error = true;
                 }
 
-                if !*allow_extra_comma && !has_error && is_last_comma {
-                    let error = recover_until_or_lf(lexer, [*bracket_right].into_iter(), self);
-                    errors.push(error);
+                if !*allow_extra_comma && !has_error {
+                    if let Some(last_comma) = last_comma {
+                        let error = GeneratedParseError {
+                            span: last_comma.span.clone(),
+                            parse_error_code: 0011,
+                            expected_format: None,
+                        };
+                        errors.push(error);
+                    }
                 }
 
                 if lexer.current_contains(*bracket_right) {
@@ -621,6 +630,245 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
     ) {
         for value in self.values.iter() {
             value.take_token(tokens);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InlineSection {
+    pub kind: InlineSectionKind,
+    pub separator: InlineSectionSeparator,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InlineSectionSeparator {
+    LineFeed,
+    Comma {
+        allow_line_feed: bool,
+        allow_extra_comma: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InlineSectionKind {
+    Brace,
+}
+
+pub struct InlineSectionParser {
+    pub kind: InlineSectionKindParser,
+    pub separator: InlineSectionSeparatorParser,
+}
+
+pub enum InlineSectionKindParser {
+    Brace {
+        brace_left: GeneratorTokenKind,
+        brace_right: GeneratorTokenKind,
+    },
+}
+
+pub enum InlineSectionSeparatorParser {
+    LineFeed,
+    Comma {
+        allow_line_feed: bool,
+        allow_extra_comma: bool,
+        comma: GeneratorTokenKind,
+    },
+}
+
+pub struct InlineSectionAST<'input> {
+    pub key_values: Vec<KeyValueAST<'input>>,
+    pub span: Range<usize>,
+}
+
+impl<'input> ParserGenerator<'input, InlineSectionAST<'input>, InlineSectionParser>
+    for InlineSection
+{
+    fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> InlineSectionParser {
+        let kind = match self.kind {
+            InlineSectionKind::Brace => InlineSectionKindParser::Brace {
+                brace_left: registry.register(GeneratorTokenizer::Keyword("{".to_string())),
+                brace_right: registry.register(GeneratorTokenizer::Keyword("}".to_string())),
+            },
+        };
+        let separator = match &self.separator {
+            InlineSectionSeparator::LineFeed => InlineSectionSeparatorParser::LineFeed,
+            InlineSectionSeparator::Comma {
+                allow_line_feed,
+                allow_extra_comma,
+            } => InlineSectionSeparatorParser::Comma {
+                allow_line_feed: *allow_line_feed,
+                allow_extra_comma: *allow_extra_comma,
+                comma: registry.register(GeneratorTokenizer::Keyword(",".to_string())),
+            },
+        };
+
+        InlineSectionParser { kind, separator }
+    }
+}
+
+impl<'input> InlineSectionParser {
+    fn parse(
+        &self,
+        key_value_parser: &KeyValueParser,
+        lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        errors: &mut Vec<GeneratedParseError>,
+    ) -> Option<InlineSectionAST<'input>> {
+        match &self.kind {
+            InlineSectionKindParser::Brace {
+                brace_left,
+                brace_right,
+            } => {
+                let anchor = lexer.cast_anchor();
+
+                if !lexer.current_contains(*brace_left) {
+                    return None;
+                }
+
+                let mut key_values = Vec::new();
+
+                let mut last_comma = None;
+                loop {
+                    if let InlineSectionSeparatorParser::Comma {
+                        allow_line_feed,
+                        allow_extra_comma: _,
+                        comma: _,
+                    } = &self.separator
+                    {
+                        if *allow_line_feed {
+                            lexer.skip_lf();
+                        }
+                    }
+
+                    let Some(key_value) = key_value_parser.parse(lexer, errors) else {
+                        break;
+                    };
+                    key_values.push(key_value);
+
+                    last_comma = None;
+
+                    match &self.separator {
+                        InlineSectionSeparatorParser::LineFeed => {
+                            if !lexer.current_contains(GeneratorTokenKind::LineFeed) {
+                                break;
+                            }
+                            lexer.skip_lf();
+                        }
+                        InlineSectionSeparatorParser::Comma {
+                            allow_line_feed: _,
+                            allow_extra_comma: _,
+                            comma,
+                        } => {
+                            if !lexer.current_contains(*comma) {
+                                break;
+                            }
+                            last_comma = lexer.next();
+                        }
+                    }
+                }
+
+                if !lexer.current_contains(*brace_right) {
+                    let error =
+                        recover_until_or_lf(lexer, [].into_iter(), &NamedParserPart::BRACE_RIGHT);
+                    errors.push(error);
+                }
+
+                if let InlineSectionSeparatorParser::Comma {
+                    allow_line_feed,
+                    allow_extra_comma,
+                    comma: _,
+                } = &self.separator
+                {
+                    if *allow_line_feed {
+                        lexer.skip_lf();
+                    }
+
+                    if !*allow_extra_comma {
+                        if let Some(last_comma) = last_comma {
+                            let error = GeneratedParseError {
+                                span: last_comma.span.clone(),
+                                parse_error_code: 0011,
+                                expected_format: None,
+                            };
+                            errors.push(error);
+                        }
+                    }
+                }
+
+                if !lexer.current_contains(*brace_right) {
+                    let error = recover_until_or_lf(
+                        lexer,
+                        [*brace_right].into_iter(),
+                        &NamedParserPart::BRACE_RIGHT,
+                    );
+                    errors.push(error);
+                }
+
+                if lexer.current_contains(*brace_right) {
+                    lexer.next();
+                }
+
+                Some(InlineSectionAST {
+                    key_values,
+                    span: anchor.elapsed(lexer),
+                })
+            }
+        }
+    }
+}
+
+impl<'input> Parser<'input, InlineSectionAST<'input>> for InlineSectionParser {
+    fn parse(
+        &self,
+        _: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        _: &mut Vec<GeneratedParseError>,
+    ) -> Option<InlineSectionAST<'input>> {
+        unreachable!()
+    }
+
+    fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
+        match &self.kind {
+            InlineSectionKindParser::Brace {
+                brace_left,
+                brace_right: _,
+            } => once(*brace_left),
+        }
+    }
+}
+
+impl ParserPart for InlineSectionParser {
+    fn parse_error_code(&self) -> usize {
+        0009
+    }
+
+    fn expected_format(&self) -> Option<Cow<'static, str>> {
+        None
+    }
+}
+
+impl<'input> AST<'input> for InlineSectionAST<'input> {
+    fn span(&self) -> Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        for key_value in self.key_values.iter() {
+            key_value.take_value(section_name_stack, validator);
+        }
+    }
+
+    fn take_token(
+        &self,
+        tokens: &mut std::collections::BTreeMap<usize, (ASTTokenKind, Range<usize>)>,
+    ) {
+        for key_value in self.key_values.iter() {
+            key_value.take_token(tokens);
         }
     }
 }

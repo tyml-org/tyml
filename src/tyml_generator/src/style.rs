@@ -61,21 +61,25 @@ pub trait ParserPart {
 
 pub struct NamedParserPart {
     pub parse_error_code: usize,
-    pub expected_format: &'static str,
+    pub expected_format: Option<&'static str>,
 }
 
 impl NamedParserPart {
     pub const LINE_FEED: Self = Self {
         parse_error_code: 0005,
-        expected_format: "expected.format.line_feed",
+        expected_format: None,
     };
     pub const KEY_VALUE_COLON: Self = Self {
         parse_error_code: 0006,
-        expected_format: "expected.format.colon_on_key_value",
+        expected_format: None,
     };
     pub const KEY_VALUE_EQUAL: Self = Self {
         parse_error_code: 0007,
-        expected_format: "expected.format.equal_on_key_value",
+        expected_format: None,
+    };
+    pub const BRACE_RIGHT: Self = Self {
+        parse_error_code: 0010,
+        expected_format: None,
     };
 }
 
@@ -85,6 +89,6 @@ impl ParserPart for NamedParserPart {
     }
 
     fn expected_format(&self) -> Option<Cow<'static, str>> {
-        Some(self.expected_format.into())
+        self.expected_format.map(|expected| expected.into())
     }
 }
