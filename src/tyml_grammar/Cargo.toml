@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bnf_rules = "0.1.5"
+bnf_rules = "0.1.6"

@@ -6,15 +6,13 @@ mod tests {
     // If the specified grammar is ambiguous, compilation is aborted with conflict.
     // Usage : https://github.com/bea4dev/bnf_rules
     bnf_rules! {
-        #[generate_code = false]
-
         source             ::= defines
 
         defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
         define             ::= documents ( element_define | type_define )
 
-        documents          ::= { "(###|///)[^\n\r]*(\n|\r|\r\n)" }
-        //comments         ::= "//[^\n\r]*(\n|\r|\r\n)" | "/\*.*\*/"  /* ignored in lexer */
+        documents          ::= { r"(###|///)[^\n\r]*(\n|\r|\r\n)" }
+        //comments         ::= r"//[^\n\r]*(\n|\r|\r\n)" | "/\*.*\*/"  /* ignored in lexer */
 
         element_define     ::= ( literal | "*" ) [ lf ] type_or_value
         type_or_value      ::= element_type [ default_value ] | default_value | inline_type_define
@@ -46,7 +44,6 @@ mod tests {
 
         literal            ::= r"\w+"
 
-        lf                 ::= lf_code { lf_code }
-        lf_code            ::= "\n" | "\r"
+        lf                 ::= r"\n|\r|\r\n"
     }
 }

@@ -111,9 +111,9 @@ checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
 name = "bnf_rules"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0424563029065e163ec534501695e938591283807fc300317b1bdf27fb5bf38a"
+checksum = "93957a04b0067d65208be81f985b7ce1f34952483fde3e66e0c36098b1bffe51"
 dependencies = [
  "bnf_rules_macro",
  "bnf_rules_parser",
@@ -122,9 +122,9 @@ dependencies = [
 
 [[package]]
 name = "bnf_rules_macro"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c7c444e2730a62559d21b4cae698475974353b4972985a8d780ab6189295a34"
+checksum = "a129cb69e3627a08dfe123bd3e867408d0148592ad6e218b582438e031fb678c"
 dependencies = [
  "bnf_rules_parser",
  "quote",
@@ -133,9 +133,9 @@ dependencies = [
 
 [[package]]
 name = "bnf_rules_parser"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73c08d78eb2fd3d02b14b6471531398fdf49e84dda9281485e13abf1b7b31f26"
+checksum = "4cc4e52c073547cf03a1ab29f862c7f4dcee0a2c157aba1273fb4d5635df42d3"
 dependencies = [
  "derivative",
  "either",
