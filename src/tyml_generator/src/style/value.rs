@@ -6,11 +6,10 @@ use std::{
 };
 
 use allocator_api2::vec::Vec;
-use either::Either;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
-use tyml_validate::validate::{ValidateValue, ValueTree};
+use tyml_validate::validate::{SetValue, ValidateValue, ValueTree};
 
 use crate::{
     lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText},
@@ -38,6 +37,7 @@ pub struct Value {
     pub bool: Option<BoolLiteral>,
     pub any_string: Option<Literal>,
     pub array: Option<ArrayValue>,
+    pub inline_section: Option<InlineSection>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,7 @@ pub struct ValueParser {
     pub bool: Option<GeneratorTokenKind>,
     pub any_string: Option<(GeneratorTokenKind, Option<CustomLiteralOption>)>,
     pub array: Option<ArrayValueParser>,
+    pub inline_section: Option<InlineSectionParser>,
 }
 
 #[derive(Debug)]
@@ -62,12 +63,19 @@ pub struct ValueAST<'input> {
 
 #[derive(Debug)]
 pub enum ValueASTKind<'input> {
-    String { kind: GeneratorTokenKind },
+    String {
+        kind: GeneratorTokenKind,
+    },
     Float,
     Binary,
     Bool,
     AnyString,
-    Array { array: ArrayValueAST<'input> },
+    Array {
+        array: ArrayValueAST<'input>,
+    },
+    InlineSection {
+        inline_section: InlineSectionAST<'input>,
+    },
 }
 
 impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
@@ -87,13 +95,18 @@ impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
                 .as_ref()
                 .map(|any_string| any_string.register(registry)),
             array: self.array.as_ref().map(|array| array.generate(registry)),
+            inline_section: self
+                .inline_section
+                .as_ref()
+                .map(|inline_section| inline_section.generate(registry)),
         }
     }
 }
 
-impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
-    fn parse(
+impl<'input> ValueParser {
+    pub fn parse(
         &self,
+        key_value_parser: &KeyValueParser,
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<ValueAST<'input>> {
@@ -160,7 +173,7 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
         }
 
         if let Some(array) = &self.array {
-            if let Some(array) = array.parse(self, lexer, errors) {
+            if let Some(array) = array.parse(key_value_parser, lexer, errors) {
                 let span = array.span();
 
                 return Some(ValueAST {
@@ -173,7 +186,31 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
             }
         }
 
+        if let Some(inline_section) = &self.inline_section {
+            if let Some(inline_section) = inline_section.parse(key_value_parser, lexer, errors) {
+                let span = inline_section.span();
+
+                return Some(ValueAST {
+                    style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
+                    value: None,
+                    kind: ValueASTKind::InlineSection { inline_section },
+                    span,
+                });
+            }
+        }
+
         None
+    }
+}
+
+impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
+    fn parse(
+        &self,
+        _: &mut crate::lexer::GeneratorLexer<'input, '_>,
+        _: &mut Vec<GeneratedParseError>,
+    ) -> Option<ValueAST<'input>> {
+        unreachable!()
     }
 
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
@@ -207,14 +244,19 @@ impl ParserPart for ValueParser {
     }
 }
 
-impl<'input> ValueAST<'input> {
-    fn create_value_tree(
+impl<'input> AST<'input> for ValueAST<'input> {
+    fn span(&self) -> std::ops::Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-    ) -> ValueTree<'input, 'input> {
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
         let value = match &self.kind {
             ValueASTKind::String { kind } => {
                 let quotes_kind = self
@@ -319,7 +361,12 @@ impl<'input> ValueAST<'input> {
 
                 ValidateValue::String(value.into())
             }
-            ValueASTKind::Array { array } => return array.create_value_tree(section_name_stack),
+            ValueASTKind::Array { array } => {
+                return array.take_value(section_name_stack, validator);
+            }
+            ValueASTKind::InlineSection { inline_section } => {
+                return inline_section.take_value(section_name_stack, validator);
+            }
         };
 
         // take last section(maybe key)'s span
@@ -328,28 +375,11 @@ impl<'input> ValueAST<'input> {
             None => self.span.clone(),
         };
 
-        ValueTree::Value {
+        let value_tree = ValueTree::Value {
             value,
             key_span: key_span.as_utf8_byte_range(),
             span: self.span.as_utf8_byte_range(),
-        }
-    }
-}
-
-impl<'input> AST<'input> for ValueAST<'input> {
-    fn span(&self) -> std::ops::Range<usize> {
-        self.span.clone()
-    }
-
-    fn take_value(
-        &self,
-        section_name_stack: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
-            &bumpalo::Bump,
-        >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-    ) {
-        let value_tree = self.create_value_tree(section_name_stack);
+        };
 
         validator.set_value(
             section_name_stack
@@ -362,7 +392,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
                         *is_array,
                     )
                 }),
-            Either::Left(value_tree),
+            SetValue::Value(value_tree),
         );
     }
 
@@ -372,6 +402,10 @@ impl<'input> AST<'input> for ValueAST<'input> {
     ) {
         if let ValueASTKind::Array { array } = &self.kind {
             return array.take_token(tokens);
+        }
+
+        if let ValueASTKind::InlineSection { inline_section } = &self.kind {
+            return inline_section.take_token(tokens);
         }
 
         let value = self.value.as_ref().unwrap();
@@ -391,6 +425,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
             ValueASTKind::Bool => ASTTokenKind::BoolValue,
             ValueASTKind::AnyString => ASTTokenKind::StringValue,
             ValueASTKind::Array { array: _ } => unreachable!(),
+            ValueASTKind::InlineSection { inline_section: _ } => unreachable!(),
         };
 
         tokens.insert(value.span.start, (kind, value.span.clone()));
@@ -442,7 +477,7 @@ impl<'input> ParserGenerator<'input, ArrayValueAST<'input>, ArrayValueParser> fo
 impl<'input> ArrayValueParser {
     fn parse(
         &self,
-        value_parser: &ValueParser,
+        key_value_parser: &KeyValueParser,
         lexer: &mut crate::lexer::GeneratorLexer<'input, '_>,
         errors: &mut Vec<GeneratedParseError>,
     ) -> Option<ArrayValueAST<'input>> {
@@ -469,7 +504,10 @@ impl<'input> ArrayValueParser {
                         lexer.skip_lf();
                     }
 
-                    let Some(value) = value_parser.parse(lexer, errors) else {
+                    let Some(value) = key_value_parser
+                        .value
+                        .parse(key_value_parser, lexer, errors)
+                    else {
                         break;
                     };
                     values.push(value);
@@ -566,34 +604,6 @@ impl ParserPart for ArrayValueParser {
     }
 }
 
-impl<'input> ArrayValueAST<'input> {
-    fn create_value_tree(
-        &self,
-        section_name_stack: &mut allocator_api2::vec::Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
-            &bumpalo::Bump,
-        >,
-    ) -> ValueTree<'input, 'input> {
-        let elements = self
-            .values
-            .iter()
-            .map(|value| value.create_value_tree(section_name_stack))
-            .collect();
-
-        // take last section(maybe key)'s span
-        let key_span = match section_name_stack.last() {
-            Some((_, span, _, _)) => span.clone(),
-            None => self.span.clone(),
-        };
-
-        ValueTree::Array {
-            elements,
-            key_span: key_span.as_utf8_byte_range(),
-            span: (key_span.start..self.span.end).as_utf8_byte_range(),
-        }
-    }
-}
-
 impl<'input> AST<'input> for ArrayValueAST<'input> {
     fn span(&self) -> Range<usize> {
         self.span.clone()
@@ -607,21 +617,12 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
         >,
         validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        let value_tree = self.create_value_tree(section_name_stack);
+        // as array
+        section_name_stack.last_mut().unwrap().3 = true;
 
-        validator.set_value(
-            section_name_stack
-                .iter()
-                .map(|(name, name_span, define_span, is_array)| {
-                    (
-                        name.clone(),
-                        name_span.as_utf8_byte_range(),
-                        define_span.as_utf8_byte_range(),
-                        *is_array,
-                    )
-                }),
-            Either::Left(value_tree),
-        );
+        for value in self.values.iter() {
+            value.take_value(section_name_stack, validator);
+        }
     }
 
     fn take_token(
@@ -654,11 +655,13 @@ pub enum InlineSectionKind {
     Brace,
 }
 
+#[derive(Debug, Clone)]
 pub struct InlineSectionParser {
     pub kind: InlineSectionKindParser,
     pub separator: InlineSectionSeparatorParser,
 }
 
+#[derive(Debug, Clone)]
 pub enum InlineSectionKindParser {
     Brace {
         brace_left: GeneratorTokenKind,
@@ -666,6 +669,7 @@ pub enum InlineSectionKindParser {
     },
 }
 
+#[derive(Debug, Clone)]
 pub enum InlineSectionSeparatorParser {
     LineFeed,
     Comma {
@@ -675,6 +679,7 @@ pub enum InlineSectionSeparatorParser {
     },
 }
 
+#[derive(Debug)]
 pub struct InlineSectionAST<'input> {
     pub key_values: Vec<KeyValueAST<'input>>,
     pub span: Range<usize>,

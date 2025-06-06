@@ -5,7 +5,7 @@ use auto_enums::auto_enum;
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 
-use tyml_parser::ast::{Spanned, either::Either};
+use tyml_parser::ast::Spanned;
 use tyml_source::SourceCodeSpan;
 use tyml_type::types::{Attribute, NamedTypeMap, NamedTypeTree, ToTypeName, Type, TypeTree};
 
@@ -165,7 +165,10 @@ pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub merged_value_tree: Option<MergedValueTree<'section, 'value>>,
 }
 
-pub struct CreateSection;
+pub enum SetValue<'section, 'input> {
+    Value(ValueTree<'section, 'input>),
+    CreateSection,
+}
 
 impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value>
@@ -196,7 +199,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 bool,
             ),
         >,
-        value: Either<ValueTree<'section, 'value>, CreateSection>,
+        value: SetValue<'section, 'value>,
     ) {
         let root_section = [(
             Cow::Borrowed("root"),
@@ -233,7 +236,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 elements: _,
                                 name_span,
                                 define_span: _,
-                            } => name_span == &current_section_name_span,
+                            } => name_span == &current_section_name_span && !is_array,
                             ValueTree::Array {
                                 elements: _,
                                 key_span: _,
@@ -332,7 +335,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                     // if last section
                     if sections.peek().is_none() {
-                        if let Either::Left(value) = value {
+                        if let SetValue::Value(value) = value {
                             *matched_section_branch = value;
                         }
                         return;

@@ -2,10 +2,9 @@ use std::{borrow::Cow, iter::once, ops::Range};
 
 use allocator_api2::vec::Vec;
 use auto_enums::auto_enum;
-use either::Either;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
-use tyml_validate::validate::{CreateSection, ValueTree, ValueTypeChecker};
+use tyml_validate::validate::{SetValue, ValueTree, ValueTypeChecker};
 
 use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
 
@@ -320,7 +319,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                                 )
                             },
                         ),
-                        Either::Right(CreateSection),
+                        SetValue::CreateSection,
                     );
 
                     for key_value in key_values.iter() {

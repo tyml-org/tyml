@@ -1,10 +1,9 @@
 use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
-use either::Either;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
-use tyml_validate::validate::{ValidateValue, ValueTree, ValueTypeChecker};
+use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeChecker};
 
 use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer};
 
@@ -151,7 +150,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         }
         lexer.next();
 
-        let value = match self.value.parse(lexer, errors) {
+        let value = match self.value.parse(self, lexer, errors) {
             Some(value) => Some(value),
             None => {
                 let error = recover_until_or_lf(lexer, [].into_iter(), &self.value);
@@ -201,12 +200,15 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        section_name_stack.extend(
-            self.key
-                .iter()
-                .map(|literal| literal.to_section_name(self.span()))
-                .flatten(),
-        );
+        let stack = self
+            .key
+            .iter()
+            .map(|literal| literal.to_section_name(self.span()))
+            .flatten()
+            .collect::<Vec<_>>();
+        let stack_size = stack.len();
+
+        section_name_stack.extend(stack);
 
         if self.on_dot_input {
             section_name_stack.push((
@@ -236,7 +238,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                                 *is_array,
                             )
                         }),
-                    Either::Left(ValueTree::Value {
+                    SetValue::Value(ValueTree::Value {
                         value: ValidateValue::None,
                         key_span: (first_key_span.start..last_key_span.end).as_utf8_byte_range(),
                         span: self.span.as_utf8_byte_range(),
@@ -245,7 +247,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
             }
         }
 
-        for _ in 0..self.key.len() {
+        for _ in 0..stack_size {
             section_name_stack.pop().unwrap();
         }
     }
