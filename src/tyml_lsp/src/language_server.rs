@@ -62,102 +62,147 @@ impl GeneratedLanguageServer {
         }
     }
 
-    pub fn on_change(
-        &self,
-        source_code_name: Arc<String>,
-        source_code: Arc<String>,
-    ) -> Result<(), ()> {
-        let header = TymlHeader::parse(&source_code).ok_or(())?;
+    pub fn on_change(&self, source_code_name: Arc<String>, source_code: Arc<String>) {
+        let header = TymlHeader::parse(&source_code);
 
-        let file = header
-            .tyml
-            .as_ref()
-            .map(|tyml| File::open(tyml).ok())
-            .ok()
-            .flatten()
-            .filter(|file| {
-                file.metadata()
-                    .map(|metadata| metadata.is_file())
-                    .unwrap_or(false)
-            });
-        let file_open_result = file.is_some();
+        match header {
+            Some(header) => {
+                let file = header
+                    .tyml
+                    .as_ref()
+                    .map(|tyml| File::open(tyml).ok())
+                    .ok()
+                    .flatten()
+                    .filter(|file| {
+                        file.metadata()
+                            .map(|metadata| metadata.is_file())
+                            .unwrap_or(false)
+                    });
+                let file_open_result = file.is_some();
 
-        let mut tyml_source = String::new();
-        file.map(|mut file| file.read_to_string(&mut tyml_source));
+                let mut tyml_source = String::new();
+                file.map(|mut file| file.read_to_string(&mut tyml_source));
 
-        if let Ok(tyml) = &header.tyml {
-            *self.tyml_file_name.lock().unwrap() = tyml.clone();
-        }
+                if let Ok(tyml) = &header.tyml {
+                    *self.tyml_file_name.lock().unwrap() = tyml.clone();
+                }
 
-        self.has_tyml_file_error
-            .store(!file_open_result, Ordering::Release);
+                self.has_tyml_file_error
+                    .store(!file_open_result, Ordering::Release);
 
-        if !file_open_result {
-            tyml_source = "*: any".to_string();
-        }
+                if !file_open_result {
+                    tyml_source = "*: any".to_string();
+                }
 
-        let tyml = TymlContext::new(SourceCode::new(
-            header
-                .tyml
-                .as_ref()
-                .map(|tyml| tyml.as_str())
-                .clone()
-                .unwrap_or("error")
-                .to_string(),
-            tyml_source,
-        ))
-        .parse();
+                let tyml = TymlContext::new(SourceCode::new(
+                    header
+                        .tyml
+                        .as_ref()
+                        .map(|tyml| tyml.as_str())
+                        .clone()
+                        .unwrap_or("error")
+                        .to_string(),
+                    tyml_source,
+                ))
+                .parse();
 
-        let url = self.url.to_string();
-        let style_fall_back = url.split(".").last().unwrap_or("");
-        let style = header
-            .style
-            .as_ref()
-            .map(|style| style.as_ref().map(|style| style.as_str()).ok())
-            .flatten()
-            .unwrap_or(style_fall_back);
+                let url = self.url.to_string();
+                let style_fall_back = url.split(".").last().unwrap_or("");
+                let style = header
+                    .style
+                    .as_ref()
+                    .map(|style| style.as_ref().map(|style| style.as_str()).ok())
+                    .flatten()
+                    .unwrap_or(style_fall_back);
 
-        let language = STYLE_REGISTRY
-            .resolve(style)
-            .unwrap_or(STYLE_REGISTRY.resolve("").unwrap());
+                let language = STYLE_REGISTRY
+                    .resolve(style)
+                    .unwrap_or(STYLE_REGISTRY.resolve("").unwrap());
 
-        self.style_not_found
-            .store(STYLE_REGISTRY.resolve(style).is_none(), Ordering::Release);
+                self.style_not_found
+                    .store(STYLE_REGISTRY.resolve(style).is_none(), Ordering::Release);
 
-        let mut tokens = BTreeMap::new();
+                let mut tokens = BTreeMap::new();
 
-        let tyml = tyml.ml_parse_and_validate(
-            &language,
-            &SourceCode::new(source_code_name, source_code.clone()),
-            Some(&mut tokens),
-        );
+                let tyml = tyml.ml_parse_and_validate(
+                    &language,
+                    &SourceCode::new(source_code_name, source_code.clone()),
+                    Some(&mut tokens),
+                );
 
-        let mut semantic_tokens = Vec::new();
-        for (kind, span) in tokens.values() {
-            let kind = match kind {
-                ASTTokenKind::Section => SemanticTokenType::STRUCT,
-                ASTTokenKind::Key => SemanticTokenType::PROPERTY,
-                ASTTokenKind::TreeKey => SemanticTokenType::TYPE,
-                ASTTokenKind::NumericValue => SemanticTokenType::NUMBER,
-                ASTTokenKind::InfNan => SemanticTokenType::KEYWORD,
-                ASTTokenKind::StringValue => SemanticTokenType::STRING,
-                ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
-                ASTTokenKind::Comment => SemanticTokenType::COMMENT,
-            };
-            for token in span
-                .as_utf8_byte_range()
-                .to_lsp_semantic_token(&source_code)
-            {
-                semantic_tokens.push((kind.clone(), token));
+                let mut semantic_tokens = Vec::new();
+                for (kind, span) in tokens.values() {
+                    let kind = match kind {
+                        ASTTokenKind::Section => SemanticTokenType::STRUCT,
+                        ASTTokenKind::Key => SemanticTokenType::PROPERTY,
+                        ASTTokenKind::TreeKey => SemanticTokenType::TYPE,
+                        ASTTokenKind::NumericValue => SemanticTokenType::NUMBER,
+                        ASTTokenKind::InfNan => SemanticTokenType::KEYWORD,
+                        ASTTokenKind::StringValue => SemanticTokenType::STRING,
+                        ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
+                        ASTTokenKind::Comment => SemanticTokenType::COMMENT,
+                    };
+                    for token in span
+                        .as_utf8_byte_range()
+                        .to_lsp_semantic_token(&source_code)
+                    {
+                        semantic_tokens.push((kind.clone(), token));
+                    }
+                }
+                *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
+
+                *self.tyml.lock().unwrap() = Some((tyml, header));
+
+                *self.language_style.lock().unwrap() = language;
+            }
+            None => {
+                let url = self.url.to_string();
+                let style = url.split(".").last().unwrap_or("");
+
+                let language = STYLE_REGISTRY
+                    .resolve(style)
+                    .unwrap_or(STYLE_REGISTRY.resolve("").unwrap());
+
+                // empty tyml
+                let tyml =
+                    TymlContext::new(SourceCode::new("".to_string(), "*: any".to_string())).parse();
+
+                let mut tokens = BTreeMap::new();
+
+                let tyml = tyml.ml_parse_and_validate(
+                    &language,
+                    &SourceCode::new(source_code_name, source_code.clone()),
+                    Some(&mut tokens),
+                );
+
+                let dummy_header = TymlHeader::parse("!tyml").unwrap();
+
+                let mut semantic_tokens = Vec::new();
+                for (kind, span) in tokens.values() {
+                    let kind = match kind {
+                        ASTTokenKind::Section => SemanticTokenType::STRUCT,
+                        ASTTokenKind::Key => SemanticTokenType::PROPERTY,
+                        ASTTokenKind::TreeKey => SemanticTokenType::TYPE,
+                        ASTTokenKind::NumericValue => SemanticTokenType::NUMBER,
+                        ASTTokenKind::InfNan => SemanticTokenType::KEYWORD,
+                        ASTTokenKind::StringValue => SemanticTokenType::STRING,
+                        ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
+                        ASTTokenKind::Comment => SemanticTokenType::COMMENT,
+                    };
+                    for token in span
+                        .as_utf8_byte_range()
+                        .to_lsp_semantic_token(&source_code)
+                    {
+                        semantic_tokens.push((kind.clone(), token));
+                    }
+                }
+                *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
+
+                *self.tyml.lock().unwrap() = Some((tyml, dummy_header));
+
+                *self.language_style.lock().unwrap() = language;
             }
         }
-        *self.tokens.lock().unwrap() = Arc::new(semantic_tokens);
-
-        *self.tyml.lock().unwrap() = Some((tyml, header));
-
-        *self.language_style.lock().unwrap() = language;
-
-        Ok(())
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
