@@ -430,6 +430,11 @@ test: {
     test: [int]
 }
 
+test1: {
+    test2: int
+    test3: int
+}
+
 type Setting {
     ip: string
     port: int
@@ -444,6 +449,8 @@ enum Mode {
 
         let ini_source = r#"
 test.test = [0xFF, ""]
+
+test1 = { test2 = 100, test3 = "aaa" }
 
 [[settings]]
 ip = "192.168.1.1"

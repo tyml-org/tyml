@@ -62,6 +62,7 @@ static COLOR_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"%color:\w+\{(\\\}|[^\}])*\}").unwrap());
 static COLOR_GROUP_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"%color:(\w+)\{((\\\}|[^\}])*)\}").unwrap());
+static ESCAPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\(.)").unwrap());
 
 pub fn replace_message(mut message: String, arguments: &Vec<String>, colored: bool) -> String {
     for (index, replace) in arguments.iter().enumerate() {
@@ -89,7 +90,11 @@ pub fn replace_message(mut message: String, arguments: &Vec<String>, colored: bo
 
                 message = message.replace(
                     matched.as_str(),
-                    text.to_string().fg(color).to_string().as_str(),
+                    ESCAPE
+                        .replace_all(text, "$1")
+                        .fg(color)
+                        .to_string()
+                        .as_str(),
                 );
             }
             false => {

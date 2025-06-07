@@ -1252,6 +1252,7 @@ dependencies = [
  "shellexpand",
  "toml",
  "tyml_source",
+ "tyml_type",
  "tyml_validate",
 ]
 

@@ -9,7 +9,8 @@ use allocator_api2::vec::Vec;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tyml_source::AsUtf8ByteRange;
-use tyml_validate::validate::{SetValue, ValidateValue, ValueTree};
+use tyml_type::types::{NamedTypeMap, Type, TypeTree};
+use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeChecker};
 
 use crate::{
     lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText},
@@ -244,19 +245,14 @@ impl ParserPart for ValueParser {
     }
 }
 
-impl<'input> AST<'input> for ValueAST<'input> {
-    fn span(&self) -> std::ops::Range<usize> {
-        self.span.clone()
-    }
-
-    fn take_value(
+impl<'input> ValueAST<'input> {
+    fn create_value(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
-    ) {
+    ) -> ValueTree<'input, 'input> {
         let value = match &self.kind {
             ValueASTKind::String { kind } => {
                 let quotes_kind = self
@@ -362,10 +358,10 @@ impl<'input> AST<'input> for ValueAST<'input> {
                 ValidateValue::String(value.into())
             }
             ValueASTKind::Array { array } => {
-                return array.take_value(section_name_stack, validator);
+                return array.create_value(section_name_stack);
             }
             ValueASTKind::InlineSection { inline_section } => {
-                return inline_section.take_value(section_name_stack, validator);
+                return inline_section.create_value(section_name_stack);
             }
         };
 
@@ -375,11 +371,28 @@ impl<'input> AST<'input> for ValueAST<'input> {
             None => self.span.clone(),
         };
 
-        let value_tree = ValueTree::Value {
+        ValueTree::Value {
             value,
             key_span: key_span.as_utf8_byte_range(),
             span: self.span.as_utf8_byte_range(),
-        };
+        }
+    }
+}
+
+impl<'input> AST<'input> for ValueAST<'input> {
+    fn span(&self) -> std::ops::Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        let value_tree = self.create_value(section_name_stack);
 
         validator.set_value(
             section_name_stack
@@ -604,6 +617,33 @@ impl ParserPart for ArrayValueParser {
     }
 }
 
+impl<'input> ArrayValueAST<'input> {
+    fn create_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+    ) -> ValueTree<'input, 'input> {
+        let mut elements = Vec::new();
+        for value in self.values.iter() {
+            elements.push(value.create_value(section_name_stack));
+        }
+
+        // take last section(maybe key)'s span
+        let key_span = match section_name_stack.last() {
+            Some((_, span, _, _)) => span.clone(),
+            None => self.span.clone(),
+        };
+
+        ValueTree::Array {
+            elements,
+            key_span: key_span.as_utf8_byte_range(),
+            span: self.span.as_utf8_byte_range(),
+        }
+    }
+}
+
 impl<'input> AST<'input> for ArrayValueAST<'input> {
     fn span(&self) -> Range<usize> {
         self.span.clone()
@@ -611,18 +651,10 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
 
     fn take_value(
         &self,
-        section_name_stack: &mut Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
-            &bumpalo::Bump,
-        >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &bumpalo::Bump>,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        // as array
-        section_name_stack.last_mut().unwrap().3 = true;
-
-        for value in self.values.iter() {
-            value.take_value(section_name_stack, validator);
-        }
+        unreachable!()
     }
 
     fn take_token(
@@ -728,6 +760,7 @@ impl<'input> InlineSectionParser {
                 if !lexer.current_contains(*brace_left) {
                     return None;
                 }
+                lexer.next();
 
                 let mut key_values = Vec::new();
 
@@ -850,6 +883,66 @@ impl ParserPart for InlineSectionParser {
     }
 }
 
+impl<'input> InlineSectionAST<'input> {
+    fn create_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+    ) -> ValueTree<'input, 'input> {
+        // take last section(maybe key)'s span
+        let key_span = match section_name_stack.last() {
+            Some((_, span, _, _)) => span.clone(),
+            None => self.span.clone(),
+        };
+
+        let mut section_name_stack = Vec::new_in(*section_name_stack.allocator());
+
+        let dummy_tree = TypeTree::Leaf {
+            ty: Type::Unknown,
+            documents: Vec::new_in(*section_name_stack.allocator()),
+            span: 0..0,
+        };
+        let dummy_named_map = NamedTypeMap::new(section_name_stack.allocator());
+
+        // dummy validator for create value tree
+        let mut validator = ValueTypeChecker::new(&dummy_tree, &dummy_named_map);
+
+        for key_value in self.key_values.iter() {
+            key_value.take_value(&mut section_name_stack, &mut validator);
+        }
+
+        // get root section
+        if let ValueTree::Section {
+            mut elements,
+            name_span: _,
+            define_span: _,
+        } = validator.value_tree
+        {
+            if let Some(mut root) = elements.remove("root") {
+                if let ValueTree::Section {
+                    elements,
+                    name_span: _,
+                    define_span: _,
+                } = root.remove(0)
+                {
+                    return ValueTree::Section {
+                        elements,
+                        name_span: key_span.as_utf8_byte_range(),
+                        define_span: self.span.as_utf8_byte_range(),
+                    };
+                }
+            }
+        }
+        ValueTree::Section {
+            elements: Default::default(),
+            name_span: key_span.as_utf8_byte_range(),
+            define_span: self.span.as_utf8_byte_range(),
+        }
+    }
+}
+
 impl<'input> AST<'input> for InlineSectionAST<'input> {
     fn span(&self) -> Range<usize> {
         self.span.clone()
@@ -857,15 +950,10 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
 
     fn take_value(
         &self,
-        section_name_stack: &mut Vec<
-            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
-            &bumpalo::Bump,
-        >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &bumpalo::Bump>,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
     ) {
-        for key_value in self.key_values.iter() {
-            key_value.take_value(section_name_stack, validator);
-        }
+        unreachable!()
     }
 
     fn take_token(
