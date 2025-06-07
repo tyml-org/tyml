@@ -426,7 +426,24 @@ impl GeneratedLanguageServer {
             return (String::new(), Vec::new());
         };
 
+        if let Ok(tyml) = &header.tyml {
+            if tyml.is_empty() {
+                return (String::new(), Vec::new());
+            }
+        }
+
         let byte_position = position.to_byte_position(&tyml.ml_source_code().code);
+
+        if header.span.to_inclusive().contains(&byte_position) {
+            return (
+                header.tyml.unwrap_or_default(),
+                vec![
+                    (0..tyml.tyml_source.code.len())
+                        .as_utf8_byte_range()
+                        .to_lsp_span(&tyml.tyml_source.code),
+                ],
+            );
+        }
 
         let defines = tyml
             .validator()
