@@ -1514,7 +1514,7 @@ fn goto_define_and_documents_recursive<'a>(
                             span: _,
                         } = tree
                         else {
-                            return;
+                            continue;
                         };
 
                         for (element_name, element) in elements.iter() {
@@ -1538,9 +1538,18 @@ fn goto_define_and_documents_recursive<'a>(
                 }
                 MergedValueTree::Array {
                     elements,
-                    key_span: _,
+                    key_span,
                     span: _,
                 } => {
+                    if key_span
+                        .to_byte_span(code)
+                        .to_inclusive()
+                        .contains(&position)
+                    {
+                        result.push((define_span.clone(), documents.as_slice()));
+                        return;
+                    }
+
                     for element in elements.iter() {
                         if let MergedValueTree::Section {
                             elements: _,
@@ -1554,6 +1563,31 @@ fn goto_define_and_documents_recursive<'a>(
                                 result.push((define_span.clone(), documents));
                                 return;
                             }
+                        }
+                    }
+
+                    for element in elements.iter() {
+                        if let MergedValueTree::Value {
+                            value,
+                            key_span: _,
+                            span,
+                        } = element
+                        {
+                            if !span.to_byte_span(code).to_inclusive().contains(&position) {
+                                continue;
+                            }
+
+                            // goto enum define
+                            let ValidateValue::String(value) = value else {
+                                continue;
+                            };
+
+                            return find_enum_define_and_documents(
+                                ty,
+                                named_type_map,
+                                value.as_ref(),
+                                result,
+                            );
                         }
                     }
 
@@ -1588,16 +1622,20 @@ fn goto_define_and_documents_recursive<'a>(
                     key_span,
                     span,
                 } => {
-                    if !span.to_byte_span(code).to_inclusive().contains(&position) {
-                        return;
-                    }
-
                     if key_span
                         .to_byte_span(code)
                         .to_inclusive()
                         .contains(&position)
                     {
                         result.push((define_span.clone(), documents.as_slice()));
+                        return;
+                    }
+
+                    // TODO : better check logic?
+                    if !(key_span.to_byte_span(code).start..span.to_byte_span(code).end)
+                        .to_inclusive()
+                        .contains(&position)
+                    {
                         return;
                     }
 
