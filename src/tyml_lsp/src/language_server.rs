@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::Read,
     ops::{Range, RangeInclusive},
+    path::Path,
     sync::{
         Arc, LazyLock, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -65,12 +66,32 @@ impl GeneratedLanguageServer {
     pub fn on_change(&self, source_code_name: Arc<String>, source_code: Arc<String>) {
         let header = TymlHeader::parse(&source_code);
 
+        let mut other_file_name = None;
+
         match header {
-            Some(header) => {
+            Some(mut header) => {
                 let file = header
                     .tyml
                     .as_ref()
-                    .map(|tyml| File::open(tyml).ok())
+                    .map(|tyml| {
+                        dbg!(source_code_name.as_str());
+                        File::open(tyml)
+                            .ok()
+                            .or(Path::new(source_code_name.as_str())
+                                .parent()
+                                .map(|parent| {
+                                    dbg!(parent.join(tyml.as_str()));
+                                    let other_file_name_temp = parent
+                                        .join(tyml.as_str())
+                                        .to_string_lossy()
+                                        .to_string()
+                                        .replacen("file://", "", 1);
+                                    other_file_name = Some(other_file_name_temp.clone());
+
+                                    File::open(other_file_name_temp).ok()
+                                })
+                                .flatten())
+                    })
                     .ok()
                     .flatten()
                     .filter(|file| {
@@ -78,6 +99,13 @@ impl GeneratedLanguageServer {
                             .map(|metadata| metadata.is_file())
                             .unwrap_or(false)
                     });
+
+                if let Some(other_file_name) = other_file_name {
+                    if let Ok(tyml) = header.tyml.as_mut() {
+                        *tyml = other_file_name;
+                    }
+                }
+
                 let file_open_result = file.is_some();
 
                 let mut tyml_source = String::new();
