@@ -1,132 +1,120 @@
 use std::{
     collections::HashMap,
-    fs::{self, File, OpenOptions},
-    io::{self},
+    io,
     path::{Path, PathBuf},
-    sync::{Arc, Condvar, LazyLock, Mutex, OnceLock},
+    sync::{Arc, LazyLock},
 };
 
-use fs2::FileExt;
-use reqwest::blocking;
+use fs2::FileExt; // lock_exclusive / unlock :contentReference[oaicite:5]{index=5}
 use sha2::{Digest, Sha256};
+use tokio::{
+    fs,
+    sync::{Mutex, Notify, OnceCell},
+};
 
-/// Path equivalent to `~/.cache/tyml`
+/// Equivalent to ~/.cache/tyml
 static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    dirs::cache_dir() // Appropriate OS-specific cache directory citeturn0search5
+    dirs::cache_dir() // OS-specific cache directory :contentReference[oaicite:6]{index=6}
         .unwrap_or_else(|| std::env::temp_dir())
         .join("tyml")
 });
 
-/// Stores the result of the one-time “clean cache on startup” operation
-static INIT_RESULT: OnceLock<io::Result<()>> = OnceLock::new();
+/// Initialize the cache only once at startup
+static INIT_DONE: OnceCell<()> = OnceCell::const_new();
 
-/// Shared map URL → wait handle `(Mutex<bool>, Condvar)`
-static INFLIGHT: LazyLock<Mutex<HashMap<String, Arc<(Mutex<bool>, Condvar)>>>> =
+/// Map URL → Notify used to prevent duplicate downloads within the same process
+static INFLIGHT: LazyLock<Mutex<HashMap<String, Arc<Notify>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// fetch the file for the given `url` and return the local path (synchronous)
-pub fn get_cached_file(url: &str) -> io::Result<PathBuf> {
-    ensure_cache_ready()?; // Clean only once at startup
+/// Public API — asynchronous cache retrieval
+pub async fn get_cached_file(url: &str) -> io::Result<PathBuf> {
+    ensure_cache_ready().await?; // Clear cache on first call after startup
 
-    let cache_path = CACHE_DIR.join(hash_url(url));
+    let cache_path = CACHE_DIR.join(format!("{}.tyml", hash_url(url)));
     if cache_path.exists() {
-        return Ok(cache_path); // Immediate hit
+        return Ok(cache_path); // Cache hit
     }
 
-    // ---------- Prevent duplicate downloads inside the same process ----------
-    let (wait_arc, downloader) = {
-        let mut map = INFLIGHT.lock().unwrap();
-        match map.entry(url.to_string()) {
-            std::collections::hash_map::Entry::Occupied(e) => (e.get().clone(), false),
-            std::collections::hash_map::Entry::Vacant(e) => {
-                let w = Arc::new((Mutex::new(false), Condvar::new()));
-                e.insert(w.clone());
-                (w, true) // This thread becomes the downloader
-            }
-        }
+    // ------- Prevent duplicate downloads inside this process -------
+    let notify = {
+        let mut map = INFLIGHT.lock().await;
+        map.entry(url.to_string())
+            .or_insert_with(|| Arc::new(Notify::new()))
+            .clone()
     };
 
-    // If not the downloader, wait until the download is finished
-    if !downloader {
-        let (lock, cvar) = &*wait_arc;
-        let mut done = lock.lock().unwrap();
-        while !*done {
-            done = cvar.wait(done).unwrap();
-        }
-        return Ok(cache_path);
-    }
+    // ------- Inter-process exclusive lock (run blocking I/O in a dedicated thread) -------
+    let lock_path = cache_path.with_extension("tyml.lock");
+    let _file_lock = tokio::task::spawn_blocking(move || acquire_file_lock(&lock_path))
+        .await
+        .expect("join failure")?;
 
-    // ---------- Inter-process exclusive lock ----------
-    let lock_file = acquire_file_lock(&cache_path.with_extension("lock"))?;
-
-    // Double-check if another process finished first
+    // Double-check: another process may have completed already
     if cache_path.exists() {
-        finish_waiters(url, &wait_arc);
-        drop(lock_file);
         return Ok(cache_path);
     }
 
-    // ---------- Execute the download ----------
-    let bytes = blocking::get(url)
+    // ------- This task becomes the downloader -------
+    let bytes = reqwest::Client::new()
+        .get(url)
+        .send()
+        .await
         .map_err(|e| io::Error::other(e))?
         .bytes()
+        .await
         .map_err(|e| io::Error::other(e))?;
 
-    let tmp = cache_path.with_extension("tmp");
-    fs::write(&tmp, &bytes)?;
-    fs::rename(&tmp, &cache_path)?; // On the same filesystem `rename` is atomic citeturn0search9
+    let tmp = cache_path.with_extension("tyml.tmp");
+    fs::write(&tmp, &bytes).await?; // Asynchronous file write :contentReference[oaicite:7]{index=7}
+    fs::rename(&tmp, &cache_path).await?; // Atomic if on the same filesystem :contentReference[oaicite:8]{index=8}
 
-    finish_waiters(url, &wait_arc); // Notify waiters
-    drop(lock_file); // `lock_exclusive` is released automatically
+    notify.notify_waiters(); // Wake up waiting tasks
+    INFLIGHT.lock().await.remove(url);
     Ok(cache_path)
 }
 
-/// Delete the entire cache at startup (exactly once across processes)
-fn ensure_cache_ready() -> io::Result<()> {
-    INIT_RESULT
-        .get_or_init(|| {
-            // Shared lock file
-            let lock = acquire_file_lock(&CACHE_DIR.join(".init.lock"))?;
-            if CACHE_DIR.exists() {
-                fs::remove_dir_all(&*CACHE_DIR)?; // Recursive deletion citeturn0search7
-            }
-            fs::create_dir_all(&*CACHE_DIR)?;
-            drop(lock);
-            Ok(())
-        })
-        .as_ref()
-        .map_err(|error| io::Error::new(error.kind(), error.to_string()))
-        .cloned()
+//
+// ---------- Internal helpers ----------
+//
+async fn ensure_cache_ready() -> io::Result<()> {
+    INIT_DONE.get_or_try_init(init_once).await.map(|_| ())
 }
 
-/// Release all waiters for the given URL
-fn finish_waiters(url: &str, wait_arc: &Arc<(Mutex<bool>, Condvar)>) {
-    {
-        let (lock, cvar) = &**wait_arc;
-        let mut done = lock.lock().unwrap();
-        *done = true;
-        cvar.notify_all();
+async fn init_once() -> io::Result<()> {
+    // Acquire .init.lock (spawn_blocking because it's blocking I/O)
+    let init_lock = {
+        let path = CACHE_DIR.join(".init.lock");
+        tokio::task::spawn_blocking(move || acquire_file_lock(&path))
+            .await
+            .expect("join failure")?
+    };
+
+    // Delete and recreate the cache folder
+    if CACHE_DIR.exists() {
+        fs::remove_dir_all(&*CACHE_DIR).await?; // Asynchronous recursive delete :contentReference[oaicite:9]{index=9}
     }
-    INFLIGHT.lock().unwrap().remove(url);
+    fs::create_dir_all(&*CACHE_DIR).await?; // Precreate to avoid NotFound errors later :contentReference[oaicite:10]{index=10}
+
+    drop(init_lock); // Release the lock
+    Ok(())
 }
 
-/// Simple helper to acquire an exclusive file lock
-fn acquire_file_lock(lock_path: &Path) -> io::Result<File> {
+/// Ensure parent directories exist, then acquire an exclusive lock
+fn acquire_file_lock(lock_path: &Path) -> io::Result<std::fs::File> {
     if let Some(parent) = lock_path.parent() {
-        fs::create_dir_all(parent)?; // Create parent directories first
+        std::fs::create_dir_all(parent)?; // open fails if the parent folder is missing :contentReference[oaicite:11]{index=11}
     }
-    let f = OpenOptions::new()
+    let f = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .open(lock_path)?;
-    f.lock_exclusive()?; // Obtain exclusive file lock via flock / LockFileEx
+    f.lock_exclusive()?; // Blocking exclusive lock :contentReference[oaicite:12]{index=12}
     Ok(f)
 }
 
-/// SHA-256 for a collision-free file name
+/// URL → collision-free hashed filename
 fn hash_url(u: &str) -> String {
-    let mut h = Sha256::new();
-    h.update(u.as_bytes());
-    format!("{:x}", h.finalize()) // Hex string citeturn0search6
+    let mut hasher = Sha256::new();
+    hasher.update(u.as_bytes());
+    format!("{:x}", hasher.finalize()) // Hex string :contentReference[oaicite:13]{index=13}
 }
-

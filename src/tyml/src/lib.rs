@@ -481,10 +481,13 @@ port = 25565
 
     #[test]
     fn cache_test() {
-        let file_path = get_cached_file(
-            "https://raw.githubusercontent.com/tyml-org/tyml/refs/heads/main/Cargo.toml",
-        )
-        .unwrap();
+        let file_path = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            get_cached_file(
+                "https://raw.githubusercontent.com/tyml-org/tyml/refs/heads/main/Cargo.toml",
+            )
+            .await
+            .unwrap()
+        });
         let mut file = File::open(file_path).unwrap();
 
         let mut content = String::new();

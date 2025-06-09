@@ -6,7 +6,8 @@ use tyml_diagnostic::message::{get_text, Lang};
 use tyml_generator::registry::STYLE_REGISTRY;
 use tyml_source::SourceCode;
 
-fn main() -> Result<(), String> {
+#[tokio::main]
+async fn main() -> Result<(), String> {
     let args = std::env::args().collect::<Vec<_>>();
 
     if args.len() < 2 {
@@ -21,7 +22,7 @@ fn main() -> Result<(), String> {
     file.read_to_string(&mut source)
         .map_err(|_| get_text("binary.message.failed_to_read_file", Lang::system()))?;
 
-    let Some(header) = TymlHeader::parse(&source) else {
+    let Some(header) = TymlHeader::parse(&source).await else {
         return Err(get_text("binary.message.no_header_found", Lang::system()));
     };
 

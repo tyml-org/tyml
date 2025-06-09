@@ -1798,6 +1798,7 @@ dependencies = [
  "reqwest",
  "sha2",
  "shellexpand",
+ "tokio",
  "tyml_diagnostic",
  "tyml_generator",
  "tyml_grammar",

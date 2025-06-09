@@ -64,8 +64,8 @@ impl GeneratedLanguageServer {
         }
     }
 
-    pub fn on_change(&self, source_code_name: Arc<String>, source_code: Arc<String>) {
-        let header = TymlHeader::parse(&source_code);
+    pub async fn on_change(&self, source_code_name: Arc<String>, source_code: Arc<String>) {
+        let header = TymlHeader::parse(&source_code).await;
 
         let mut other_file_name = None;
 
@@ -202,7 +202,7 @@ impl GeneratedLanguageServer {
                     Some(&mut tokens),
                 );
 
-                let dummy_header = TymlHeader::parse("!tyml").unwrap();
+                let dummy_header = TymlHeader::parse("!tyml").await.unwrap();
 
                 let mut semantic_tokens = Vec::new();
                 for (kind, span) in tokens.values() {

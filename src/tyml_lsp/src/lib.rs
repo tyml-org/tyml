@@ -118,10 +118,12 @@ impl LanguageServer for LSPBackend {
 
         match server {
             Either::Left(server) => {
-                server.on_change(
-                    Arc::new(params.text_document.uri.to_string()),
-                    Arc::new(params.text_document.text),
-                );
+                server
+                    .on_change(
+                        Arc::new(params.text_document.uri.to_string()),
+                        Arc::new(params.text_document.text),
+                    )
+                    .await;
 
                 server.publish_diagnostics(&self.client).await;
             }
@@ -148,10 +150,12 @@ impl LanguageServer for LSPBackend {
 
             match server {
                 Either::Left(server) => {
-                    server.on_change(
-                        Arc::new(params.text_document.uri.to_string()),
-                        Arc::new(change.text),
-                    );
+                    server
+                        .on_change(
+                            Arc::new(params.text_document.uri.to_string()),
+                            Arc::new(change.text),
+                        )
+                        .await;
 
                     server.publish_diagnostics(&self.client).await;
                 }

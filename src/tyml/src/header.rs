@@ -14,7 +14,7 @@ pub struct TymlHeader {
 }
 
 impl TymlHeader {
-    pub fn parse(source: &str) -> Option<Self> {
+    pub async fn parse(source: &str) -> Option<Self> {
         // !tyml is header of tyml
         static TYML_HEADER_REGEX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"\!tyml").unwrap());
@@ -70,7 +70,7 @@ impl TymlHeader {
 
         let tyml_path = header.tyml.as_ref().unwrap();
         if tyml_path.starts_with("http://") || tyml_path.starts_with("https://") {
-            header.tyml = get_cached_file(tyml_path.as_str())
+            header.tyml = get_cached_file(tyml_path.as_str()).await
                 .map(|cache| cache.to_string_lossy().to_string())
                 .map_err(|error| Either::Right(error.to_string()));
         } else {
