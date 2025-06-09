@@ -1,12 +1,15 @@
 use std::{env::VarError, ops::Range, sync::LazyLock};
 
+use either::Either;
 use regex::Regex;
 use shellexpand::{full, LookupError};
+
+use crate::cache::get_cached_file;
 
 #[derive(Debug, Clone)]
 pub struct TymlHeader {
     pub style: Option<Result<String, LookupError<VarError>>>,
-    pub tyml: Result<String, LookupError<VarError>>,
+    pub tyml: Result<String, Either<LookupError<VarError>, String>>,
     pub span: Range<usize>,
 }
 
@@ -64,7 +67,17 @@ impl TymlHeader {
             .style
             .as_ref()
             .map(|style| full(style.as_ref().unwrap()).map(|resolved| resolved.into()));
-        header.tyml = full(header.tyml.as_ref().unwrap()).map(|resolved| resolved.into());
+
+        let tyml_path = header.tyml.as_ref().unwrap();
+        if tyml_path.starts_with("http://") || tyml_path.starts_with("https://") {
+            header.tyml = get_cached_file(tyml_path.as_str())
+                .map(|cache| cache.to_string_lossy().to_string())
+                .map_err(|error| Either::Right(error.to_string()));
+        } else {
+            header.tyml = full(tyml_path)
+                .map(|resolved| resolved.into())
+                .map_err(|error| Either::Left(error));
+        }
 
         Some(header)
     }

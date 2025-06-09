@@ -10,6 +10,7 @@ use std::{
     },
 };
 
+use either::Either;
 use extension_fn::extension_fn;
 use regex::Regex;
 use tower_lsp::{
@@ -74,13 +75,11 @@ impl GeneratedLanguageServer {
                     .tyml
                     .as_ref()
                     .map(|tyml| {
-                        dbg!(source_code_name.as_str());
                         File::open(tyml)
                             .ok()
                             .or(Path::new(source_code_name.as_str())
                                 .parent()
                                 .map(|parent| {
-                                    dbg!(parent.join(tyml.as_str()));
                                     let other_file_name_temp = parent
                                         .join(tyml.as_str())
                                         .to_string_lossy()
@@ -259,22 +258,30 @@ impl GeneratedLanguageServer {
                     )
                     .await;
             } else if let Err(error) = header.tyml {
-                client
-                    .publish_diagnostics(
-                        self.url.clone(),
-                        vec![Diagnostic {
-                            range: header
-                                .span
-                                .as_utf8_byte_range()
-                                .to_lsp_span(&tyml.ml_source_code().code),
-                            severity: Some(DiagnosticSeverity::WARNING),
-                            message: get_text("lsp.message.header_var_lookup_error", self.lang)
-                                .replace("%0", &error.var_name),
-                            ..Default::default()
-                        }],
-                        None,
-                    )
-                    .await;
+                match error {
+                    Either::Left(lookup_error) => {
+                        client
+                            .publish_diagnostics(
+                                self.url.clone(),
+                                vec![Diagnostic {
+                                    range: header
+                                        .span
+                                        .as_utf8_byte_range()
+                                        .to_lsp_span(&tyml.ml_source_code().code),
+                                    severity: Some(DiagnosticSeverity::WARNING),
+                                    message: get_text(
+                                        "lsp.message.header_var_lookup_error",
+                                        self.lang,
+                                    )
+                                    .replace("%0", &lookup_error.var_name),
+                                    ..Default::default()
+                                }],
+                                None,
+                            )
+                            .await;
+                    }
+                    Either::Right(_) => todo!(),
+                }
             } else if self.style_not_found.load(Ordering::Relaxed) {
                 client
                     .publish_diagnostics(

@@ -1,3 +1,4 @@
+pub(crate) mod cache;
 pub mod header;
 
 use std::{
@@ -416,11 +417,13 @@ unsafe impl Sync for TymlInner {}
 #[cfg(test)]
 mod tests {
 
+    use std::{fs::File, io::Read};
+
     use tyml_diagnostic::message::Lang;
     use tyml_generator::registry::STYLE_REGISTRY;
     use tyml_source::SourceCode;
 
-    use crate::TymlContext;
+    use crate::{cache::get_cached_file, TymlContext};
 
     #[test]
     fn lib_test() {
@@ -474,5 +477,19 @@ port = 25565
         tyml.print_tyml_error(Lang::system());
         tyml.print_ml_parse_error(Lang::system());
         tyml.print_ml_validate_error(Lang::system());
+    }
+
+    #[test]
+    fn cache_test() {
+        let file_path = get_cached_file(
+            "https://raw.githubusercontent.com/tyml-org/tyml/refs/heads/main/Cargo.toml",
+        )
+        .unwrap();
+        let mut file = File::open(file_path).unwrap();
+
+        let mut content = String::new();
+        file.read_to_string(&mut content).unwrap();
+
+        dbg!(content);
     }
 }

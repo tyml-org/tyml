@@ -1,5 +1,6 @@
 use std::{fs::File, io::Read, path::Path};
 
+use either::Either;
 use tyml::{header::TymlHeader, TymlContext};
 use tyml_diagnostic::message::{get_text, Lang};
 use tyml_generator::registry::STYLE_REGISTRY;
@@ -31,10 +32,15 @@ fn main() -> Result<(), String> {
         );
     }
     if let Err(error) = &header.tyml {
-        return Err(
-            get_text("binary.message.header_var_lookup_error", Lang::system())
-                .replace("%0", &error.var_name),
-        );
+        match error {
+            Either::Left(lookup_error) => {
+                return Err(
+                    get_text("binary.message.header_var_lookup_error", Lang::system())
+                        .replace("%0", &lookup_error.var_name),
+                );
+            }
+            Either::Right(_) => todo!(),
+        }
     }
 
     let style = match &header.style {

@@ -21,3 +21,10 @@ either = "1.13.0"
 hashbrown = "0.15.2"
 shellexpand = "3.1.1"
 regex = "1.11.1"
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+] }
+fs2 = "0.4"
+sha2 = "0.10"
+dirs = "5"
