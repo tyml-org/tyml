@@ -11,3 +11,9 @@ members = [
     "src/tyml_type",
     "src/tyml_validate",
 ]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
