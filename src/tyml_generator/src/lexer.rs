@@ -96,7 +96,7 @@ impl TokenizerRegistry {
         let mut default = Vec::new();
         default.push(GeneratorTokenizer::Function(Box::new(|_| 0))); // None
         default.push(GeneratorTokenizer::regex(r"[ 　\t]+")); // Whitespace
-        default.push(GeneratorTokenizer::regex(r"\n|\r|\r\n"));
+        default.push(GeneratorTokenizer::regex(r"(\n|\r)"));
 
         Self {
             registry: Either::Left(default),

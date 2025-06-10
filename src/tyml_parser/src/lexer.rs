@@ -84,7 +84,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::Literal, r"\w+"),
     Tokenizer::Regex(TokenKind::StringLiteral, r#""([^"\\]|\\.)*""#),
     Tokenizer::Regex(TokenKind::StringLiteral, r"'([^'\\]|\\.)*'"),
-    Tokenizer::Regex(TokenKind::LineFeed, r"\n|\r"),
+    Tokenizer::Regex(TokenKind::LineFeed, r"(\n|\r)"),
     Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
     Tokenizer::Regex(TokenKind::Comment, r"//[^/\n\r]*(\n|\r|\r\n|$)"),
     Tokenizer::Regex(TokenKind::Comment, r"/\*(.|\n|\r)*\*/"),

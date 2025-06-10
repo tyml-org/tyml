@@ -1108,7 +1108,7 @@ fn to_lsp_semantic_token(&self, code: &str) -> impl Iterator<Item = (Position, u
 }
 
 static LINE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r|\r\n|$)").unwrap());
+    LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r\n|$)").unwrap());
 
 fn to_line_column(code: &str, byte: usize) -> Position {
     let mut last_line_index = 0;
