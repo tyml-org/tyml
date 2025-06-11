@@ -23,11 +23,25 @@ pub fn toml() -> LanguageStyle {
             unicode: UnicodeFormatKind::Normal,
         },
     };
-    let single_quote_string = StringLiteral {
-        quotes_kind: QuotesKind::SingleQuote,
+    let triple_double_quotes_string = StringLiteral {
+        quotes_kind: QuotesKind::TripleDoubleQuotes,
         escape: EscapeOption {
             allow_escape: true,
             unicode: UnicodeFormatKind::Normal,
+        },
+    };
+    let single_quote_string = StringLiteral {
+        quotes_kind: QuotesKind::SingleQuote,
+        escape: EscapeOption {
+            allow_escape: false,
+            unicode: UnicodeFormatKind::None,
+        },
+    };
+    let triple_single_quote_string = StringLiteral {
+        quotes_kind: QuotesKind::TripleQuotes,
+        escape: EscapeOption {
+            allow_escape: false,
+            unicode: UnicodeFormatKind::None,
         },
     };
 
@@ -49,7 +63,12 @@ pub fn toml() -> LanguageStyle {
             key: section_key_literal,
             kind: KeyValueKind::Equal,
             value: Value {
-                strings: vec![double_quotes_string, single_quote_string],
+                strings: vec![
+                    double_quotes_string,
+                    triple_double_quotes_string,
+                    single_quote_string,
+                    triple_single_quote_string,
+                ],
                 float: Some(FloatLiteral {
                     allow_e: true,
                     inf_nan_kind: InfNanKind::LowerCase,
