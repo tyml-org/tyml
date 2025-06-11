@@ -3,7 +3,6 @@ use std::{
     fs::File,
     io::Read,
     ops::{Range, RangeInclusive},
-    path::Path,
     sync::{
         Arc, LazyLock, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -64,7 +63,10 @@ impl GeneratedLanguageServer {
         }
     }
 
-    pub async fn on_change(&self, source_code_name: Arc<String>, source_code: Arc<String>) {
+    pub async fn on_change(&self, source_code_url: Url, source_code: Arc<String>) {
+        let source_code_path = source_code_url.to_file_path().unwrap();
+        let source_code_name = Arc::new(source_code_path.to_string_lossy().to_string());
+
         let header = TymlHeader::parse(&source_code).await;
 
         let mut other_file_name = None;
@@ -75,21 +77,16 @@ impl GeneratedLanguageServer {
                     .tyml
                     .as_ref()
                     .map(|tyml| {
-                        File::open(tyml)
-                            .ok()
-                            .or(Path::new(source_code_name.as_str())
-                                .parent()
-                                .map(|parent| {
-                                    let other_file_name_temp = parent
-                                        .join(tyml.as_str())
-                                        .to_string_lossy()
-                                        .to_string()
-                                        .replacen("file://", "", 1);
-                                    other_file_name = Some(other_file_name_temp.clone());
+                        File::open(tyml).ok().or(source_code_path
+                            .parent()
+                            .map(|parent| {
+                                let other_file_name_temp =
+                                    parent.join(tyml.as_str()).to_string_lossy().to_string();
+                                other_file_name = Some(other_file_name_temp.clone());
 
-                                    File::open(other_file_name_temp).ok()
-                                })
-                                .flatten())
+                                File::open(other_file_name_temp).ok()
+                            })
+                            .flatten())
                     })
                     .ok()
                     .flatten()
@@ -1107,8 +1104,7 @@ fn to_lsp_semantic_token(&self, code: &str) -> impl Iterator<Item = (Position, u
         })
 }
 
-static LINE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r\n|$)").unwrap());
+static LINE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^\n\r]*(\n|\r\n|$)").unwrap());
 
 fn to_line_column(code: &str, byte: usize) -> Position {
     let mut last_line_index = 0;

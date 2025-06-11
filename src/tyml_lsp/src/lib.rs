@@ -120,7 +120,7 @@ impl LanguageServer for LSPBackend {
             Either::Left(server) => {
                 server
                     .on_change(
-                        Arc::new(params.text_document.uri.to_string()),
+                        params.text_document.uri,
                         Arc::new(params.text_document.text),
                     )
                     .await;
@@ -152,7 +152,7 @@ impl LanguageServer for LSPBackend {
                 Either::Left(server) => {
                     server
                         .on_change(
-                            Arc::new(params.text_document.uri.to_string()),
+                            params.text_document.uri,
                             Arc::new(change.text),
                         )
                         .await;
