@@ -48,7 +48,7 @@ impl NormalLiteral {
         let mut regex = r"(\w".to_string();
 
         if self.allow_line {
-            regex += r"|\\-";
+            regex += r"|\-";
         }
         if let Some(symbol) = &self.symbol_regex {
             regex += format!("|({})", symbol).as_str();
