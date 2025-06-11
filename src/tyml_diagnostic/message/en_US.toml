@@ -1,0 +1,162 @@
+[parse_error]
+name = "%color:red{[SE%0] TYML syntax error}"
+[parse_error.0001]
+message = "The element definition format is invalid"
+label_0 = "Unknown token"
+label_1 = "An %color:cyan{element definition} or %color:cyan{type definition} is required here"
+[parse_error.0002]
+message = "Character '%color:red{%0}' is not a valid delimiter"
+label_0 = "'%color:yellow{%0}' is an unknown delimiter"
+label_1 = "The only valid delimiters are '%color:cyan{,}' and '%color:cyan{\\n}' (newline)"
+[parse_error.0003]
+message = "Cannot determine the type of the element definition"
+label_0 = "Cannot identify the element type due to invalid format"
+label_1 = "You must specify a %color:cyan{type} or %color:cyan{default value}"
+[parse_error.0004]
+message = "The element type format is invalid"
+label_0 = "Unknown token"
+label_1 = "A %color:cyan{type name} or %color:cyan{inline type} is required here"
+[parse_error.0005]
+message = "Bracket '%color:yellow{{}' is not closed"
+label_0 = "It must be closed with '%color:cyan{\\}}'"
+[parse_error.0006]
+message = "The default value syntax is invalid"
+label_0 = "Unknown value"
+[parse_error.0007]
+message = "Type name is not specified"
+label_0 = "A %color:cyan{name} of the type is required after '%color:yellow{type}'"
+[parse_error.0008]
+message = "Type element block is missing"
+label_0 = "An element block surrounded by '%color:cyan{{}' and '%color:cyan{\\}}' is required after the type name"
+[parse_error.0009]
+message = "Enum name is not specified"
+label_0 = "A %color:cyan{name} of the type is required after '%color:yellow{enum}'"
+[parse_error.0010]
+message = "Enum element block is missing"
+label_0 = "An element block surrounded by '%color:cyan{{}' and '%color:cyan{\\}}' is required after the type name"
+[parse_error.0011]
+message = "The enum element format is invalid"
+label_0 = "This is not a valid enum element"
+note = "Enum elements must be in the form '%color:cyan{\"Element\"}'"
+[parse_error.0012]
+message = "Invalid enum element delimiter"
+label_0 = "'%color:yellow{%0}' is an unknown delimiter"
+label_1 = "The only valid delimiters are '%color:cyan{,}' and '%color:cyan{\\n}' (newline)"
+[parse_error.0013]
+message = "The union type candidate format is invalid"
+label_0 = "A union type candidate should be specified here"
+[parse_error.0014]
+message = "Array base type is not specified"
+label_0 = "A base type for the array is required here"
+label_1 = "An array must be specified in the form '%color:cyan{[int]}'"
+[parse_error.0015]
+message = "Bracket '%color:yellow{[}' is not closed"
+label_0 = "It must be closed with '%color:cyan{]}'"
+
+[type_error]
+name = "%color:red{[TE%0] Type error}"
+[type_error.0001]
+message = "Unknown type specified"
+label_0 = "Type named '%color:red{%0}' cannot be found"
+[type_error.0002]
+message = "Default value is incompatible with the type"
+label_0 = "This value is inferred as type '%color:yellow{%0}'"
+label_1 = "The value is not compatible with type '%color:yellow{%1}'"
+[type_error.0003]
+message = "Default value does not satisfy the type attributes"
+label_0 = "This value does not match the type attributes"
+label_1 = "The value does not match the attributes of type '%color:yellow{%0}'"
+
+[validate_error]
+name = "%color:red{[VE%0] Validation error}"
+[validate_error.0001]
+message = "A non-struct value is specified"
+label_0 = "'%color:yellow{%0}' must be a struct"
+label_1 = "Because it is defined as a struct, neither a scalar value nor an array can be specified"
+[validate_error.0002]
+message = "Required value '%color:yellow{%0}' not found"
+label_0 = "Tried to find '%color:yellow{%0}' in this section but it was not found"
+label_1 = "'%color:yellow{%0}' is defined here but no value is specified"
+note = "If it is optional, you can mark the type with '%color:cyan{?}' to treat it as Optional"
+[validate_error.0003]
+message = "Element '%color:red{%0}' is duplicated"
+label_0 = "This value is duplicated"
+label_1 = "It is already specified here"
+[validate_error.0004]
+message = "Unknown element '%color:red{%0}' is specified"
+label_0 = "This element is not defined"
+[validate_error.0005]
+message = "The value of element '%color:yellow{%0}' does not match its type '%color:yellow{%1}'"
+label_0 = "This value does not match the defined type '%color:yellow{%1}'"
+label_1 = "Element '%color:yellow{%0}' is defined as type '%color:yellow{%1}'"
+note = "Child elements with mismatching types: %color:yellow{%2}"
+[validate_error.0006]
+message = "Element '%color:yellow{%0}' contains a non-array value for array type '%color:yellow{%1}'"
+label_0 = "The value specified here does not match the defined type"
+label_1 = "Element '%color:yellow{%0}' is defined as array type '%color:yellow{%1}'"
+
+[ml_parse_error]
+name = "%color:red{[GE%0] Grammar error}"
+[ml_parse_error.0001]
+message = "The overall format is invalid"
+label_0 = "Unknown token"
+label_1 = "The whole description must follow the specified format"
+note = "This error usually occurs where a recursive structure like JSON is expected"
+[ml_parse_error.0002]
+message = "The key–value format is invalid"
+label_0 = "Unknown token"
+label_1 = "Keys and values must follow the format '%color:cyan{%0}'"
+[ml_parse_error.0003]
+message = "The section format is invalid"
+label_0 = "Unknown token"
+label_1 = "A section must follow the format '%color:cyan{%0}'"
+[ml_parse_error.0004]
+message = "The value format is invalid"
+label_0 = "Unknown token"
+label_1 = "A value is required here"
+[ml_parse_error.0005]
+message = "No newline found"
+label_0 = "Unknown token"
+label_1 = "A newline is required here"
+[ml_parse_error.0006]
+message = "Colon '%color:yellow{:}' is missing"
+label_0 = "A colon is required"
+label_1 = "Try inserting a colon '%color:cyan{:}' between the key and the value"
+[ml_parse_error.0007]
+message = "Equal sign '%color:yellow{=}' is missing"
+label_0 = "An equal sign is required"
+label_1 = "Try inserting an equal sign '%color:cyan{=}' between the key and the value"
+[ml_parse_error.0008]
+message = "The array format is invalid"
+label_0 = "Unknown token"
+label_1 = "Arrays must follow the format '%color:cyan{%0}'"
+[ml_parse_error.0009]
+message = "The inline section format is invalid"
+label_0 = "Unknown token"
+label_1 = "This format is not valid"
+[ml_parse_error.0010]
+message = "Bracket '%color:yellow{{}' is not closed"
+label_0 = "Unknown token"
+label_1 = "The bracket must be closed with '%color:cyan{\\}}'"
+[ml_parse_error.0011]
+message = "An extra delimiter is specified"
+label_0 = "This delimiter is unnecessary"
+label_1 = "Please try removing it"
+
+[lsp.message]
+header_var_lookup_error = "Could not resolve environment variable '%0'"
+tyml_file_error = "Failed to read TYML file '%0'"
+style_not_found = "Language definition '%0' not found"
+array_error_diagnostic = "For arrays, errors from other elements may be shown"
+
+[binary.message]
+no_file_specified = "No file specified"
+failed_to_read_file = "Failed to read file"
+no_header_found = "Header not found"
+header_var_lookup_error = "Could not resolve environment variable '%0' in header"
+header_no_style_found = "Language definition '%0' specified in header not found"
+header_no_tyml_found = "TYML file '%0' specified in header not found"
+header_tyml_is_not_file = "'%0' specified in header is not a file"
+failed_to_read_tyml = "Failed to read TYML file '%0'"
+has_error = "File '%0' contains errors"
+
