@@ -1343,9 +1343,10 @@ fn provide_completion_recursive_for_type_tree(
             }
 
             for (element_name, element) in elements.iter() {
-                let Some(type_tree) = node
+                let Some((type_tree, is_any_node)) = node
                     .get(element_name.as_ref())
-                    .or(any_node.as_ref().map(|boxed| boxed.as_ref()))
+                    .map(|element| (element, false))
+                    .or(any_node.as_ref().map(|boxed| (boxed.as_ref(), true)))
                 else {
                     continue;
                 };
@@ -1363,13 +1364,17 @@ fn provide_completion_recursive_for_type_tree(
                         });
 
                         if cursor_in_spans {
-                            return self.provide_completion_recursive_for_type_tree(
+                            self.provide_completion_recursive_for_type_tree(
                                 type_tree,
                                 element,
                                 code,
                                 byte_position,
                                 completions,
                             );
+
+                            if !is_any_node {
+                                return;
+                            }
                         }
                     }
                     MergedValueTree::Array {
@@ -1435,13 +1440,17 @@ fn provide_completion_recursive_for_type_tree(
                             .to_inclusive()
                             .contains(&byte_position)
                         {
-                            return self.provide_completion_recursive_for_type_tree(
+                            self.provide_completion_recursive_for_type_tree(
                                 type_tree,
                                 element,
                                 code,
                                 byte_position,
                                 completions,
                             );
+
+                            if !is_any_node {
+                                return;
+                            }
                         }
                     }
                 }
