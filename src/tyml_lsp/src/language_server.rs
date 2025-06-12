@@ -277,7 +277,27 @@ impl GeneratedLanguageServer {
                             )
                             .await;
                     }
-                    Either::Right(_) => todo!(),
+                    Either::Right(error) => {
+                        client
+                            .publish_diagnostics(
+                                self.url.clone(),
+                                vec![Diagnostic {
+                                    range: header
+                                        .span
+                                        .as_utf8_byte_range()
+                                        .to_lsp_span(&tyml.ml_source_code().code),
+                                    severity: Some(DiagnosticSeverity::WARNING),
+                                    message: get_text(
+                                        "lsp.message.failed_to_download_tyml",
+                                        self.lang,
+                                    )
+                                    .replace("%0", error.as_str()),
+                                    ..Default::default()
+                                }],
+                                None,
+                            )
+                            .await;
+                    }
                 }
             } else if self.style_not_found.load(Ordering::Relaxed) {
                 client

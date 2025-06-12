@@ -145,6 +145,7 @@ label_1 = "Please try removing it"
 
 [lsp.message]
 header_var_lookup_error = "Could not resolve environment variable '%0'"
+failed_to_download_tyml = "Could not download TYML file: %0"
 tyml_file_error = "Failed to read TYML file '%0'"
 style_not_found = "Language definition '%0' not found"
 array_error_diagnostic = "For arrays, errors from other elements may be shown"
@@ -154,9 +155,9 @@ no_file_specified = "No file specified"
 failed_to_read_file = "Failed to read file"
 no_header_found = "Header not found"
 header_var_lookup_error = "Could not resolve environment variable '%0' in header"
+failed_to_download_tyml = "Could not download TYML file in header: %0"
 header_no_style_found = "Language definition '%0' specified in header not found"
 header_no_tyml_found = "TYML file '%0' specified in header not found"
 header_tyml_is_not_file = "'%0' specified in header is not a file"
 failed_to_read_tyml = "Failed to read TYML file '%0'"
 has_error = "File '%0' contains errors"
-

@@ -40,7 +40,12 @@ async fn main() -> Result<(), String> {
                         .replace("%0", &lookup_error.var_name),
                 );
             }
-            Either::Right(_) => todo!(),
+            Either::Right(error) => {
+                return Err(
+                    get_text("binary.message.failed_to_download_tyml", Lang::system())
+                        .replace("%0", error.as_str()),
+                )
+            }
         }
     }
 

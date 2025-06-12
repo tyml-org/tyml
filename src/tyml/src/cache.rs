@@ -1,41 +1,38 @@
+use bytes::Bytes;
+use fs2::FileExt;
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     io,
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
-
-use fs2::FileExt; // lock_exclusive / unlock :contentReference[oaicite:5]{index=5}
-use sha2::{Digest, Sha256};
 use tokio::{
     fs,
     sync::{Mutex, Notify, OnceCell},
 };
 
-/// Equivalent to ~/.cache/tyml
+/// Path equivalent to `~/.cache/tyml`
 static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    dirs::cache_dir() // OS-specific cache directory :contentReference[oaicite:6]{index=6}
+    dirs::cache_dir()
         .unwrap_or_else(|| std::env::temp_dir())
         .join("tyml")
 });
 
-/// Initialize the cache only once at startup
+/// Ensures initialization is run only once per process
 static INIT_DONE: OnceCell<()> = OnceCell::const_new();
 
-/// Map URL → Notify used to prevent duplicate downloads within the same process
+/// Map URL → `Notify` (suppresses duplicate downloads within the same process)
 static INFLIGHT: LazyLock<Mutex<HashMap<String, Arc<Notify>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Public API — asynchronous cache retrieval
+/// ---------------------------------------------------------------------------
+/// Public API
 pub async fn get_cached_file(url: &str) -> io::Result<PathBuf> {
-    ensure_cache_ready().await?; // Clear cache on first call after startup
-
+    ensure_cache_ready().await?;
     let cache_path = CACHE_DIR.join(format!("{}.tyml", hash_url(url)));
-    if cache_path.exists() {
-        return Ok(cache_path); // Cache hit
-    }
 
-    // ------- Prevent duplicate downloads inside this process -------
+    // ---------- Prevent duplicate downloads inside this process ----------
     let notify = {
         let mut map = INFLIGHT.lock().await;
         map.entry(url.to_string())
@@ -43,78 +40,100 @@ pub async fn get_cached_file(url: &str) -> io::Result<PathBuf> {
             .clone()
     };
 
-    // ------- Inter-process exclusive lock (run blocking I/O in a dedicated thread) -------
+    // ---------- Inter-process exclusive lock ----------
     let lock_path = cache_path.with_extension("tyml.lock");
     let _file_lock = tokio::task::spawn_blocking(move || acquire_file_lock(&lock_path))
         .await
         .expect("join failure")?;
 
-    // Double-check: another process may have completed already
-    if cache_path.exists() {
-        return Ok(cache_path);
+    // ---------- Always attempt to fetch from the network ----------
+    match try_download(url).await {
+        Ok(bytes) => {
+            // On success, update the cache
+            write_atomically(&cache_path, &bytes).await?;
+        }
+        Err(net_err) => {
+            // On failure: fall back to cache if it exists
+            if cache_path.exists() {
+                // Notify waiters and return
+                finish_waiters(url, &notify).await;
+                return Ok(cache_path);
+            } else {
+                // No cache either → return the original error
+                finish_waiters(url, &notify).await;
+                return Err(net_err);
+            }
+        }
     }
 
-    // ------- This task becomes the downloader -------
-    let bytes = reqwest::Client::new()
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| io::Error::other(e))?
-        .bytes()
-        .await
-        .map_err(|e| io::Error::other(e))?;
-
-    let tmp = cache_path.with_extension("tyml.tmp");
-    fs::write(&tmp, &bytes).await?; // Asynchronous file write :contentReference[oaicite:7]{index=7}
-    fs::rename(&tmp, &cache_path).await?; // Atomic if on the same filesystem :contentReference[oaicite:8]{index=8}
-
-    notify.notify_waiters(); // Wake up waiting tasks
-    INFLIGHT.lock().await.remove(url);
+    finish_waiters(url, &notify).await;
     Ok(cache_path)
 }
 
-//
-// ---------- Internal helpers ----------
-//
-async fn ensure_cache_ready() -> io::Result<()> {
-    INIT_DONE.get_or_try_init(init_once).await.map(|_| ())
+/// ---------------------------------------------------------------------------
+/// Network fetch (HTTP 4xx/5xx are treated as `Err`)
+async fn try_download(url: &str) -> io::Result<Bytes> {
+    let resp = reqwest::Client::new()
+        .get(url)
+        .send()
+        .await
+        .map_err(io::Error::other)?;
+
+    if !resp.status().is_success() {
+        return Err(io::Error::other(format!("HTTP error: {}", resp.status())));
+    }
+
+    resp.bytes().await.map_err(io::Error::other)
 }
 
-async fn init_once() -> io::Result<()> {
-    // Acquire .init.lock (spawn_blocking because it's blocking I/O)
-    let init_lock = {
-        let path = CACHE_DIR.join(".init.lock");
-        tokio::task::spawn_blocking(move || acquire_file_lock(&path))
-            .await
-            .expect("join failure")?
-    };
+/// ---------------------------------------------------------------------------
+/// Create the cache directory once
+async fn ensure_cache_ready() -> io::Result<()> {
+    INIT_DONE
+        .get_or_try_init(|| async {
+            if !CACHE_DIR.exists() {
+                fs::create_dir_all(&*CACHE_DIR).await?;
+            }
+            Ok(())
+        })
+        .await
+        .map(|_| ())
+}
 
-    // Delete and recreate the cache folder
-    if CACHE_DIR.exists() {
-        fs::remove_dir_all(&*CACHE_DIR).await?; // Asynchronous recursive delete :contentReference[oaicite:9]{index=9}
-    }
-    fs::create_dir_all(&*CACHE_DIR).await?; // Precreate to avoid NotFound errors later :contentReference[oaicite:10]{index=10}
-
-    drop(init_lock); // Release the lock
+/// ---------------------------------------------------------------------------
+/// Atomic update via temporary file + `rename()`
+async fn write_atomically(path: &Path, bytes: &Bytes) -> io::Result<()> {
+    let tmp = path.with_extension("tyml.tmp");
+    fs::write(&tmp, bytes).await?;
+    fs::rename(&tmp, path).await?;
     Ok(())
 }
 
-/// Ensure parent directories exist, then acquire an exclusive lock
+/// ---------------------------------------------------------------------------
+/// Wake waiting tasks and remove entry from `INFLIGHT`
+async fn finish_waiters(url: &str, notify: &Notify) {
+    notify.notify_waiters();
+    INFLIGHT.lock().await.remove(url);
+}
+
+/// ---------------------------------------------------------------------------
+/// Acquire a file lock
 fn acquire_file_lock(lock_path: &Path) -> io::Result<std::fs::File> {
-    if let Some(parent) = lock_path.parent() {
-        std::fs::create_dir_all(parent)?; // open fails if the parent folder is missing :contentReference[oaicite:11]{index=11}
+    if let Some(p) = lock_path.parent() {
+        std::fs::create_dir_all(p)?;
     }
     let f = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .open(lock_path)?;
-    f.lock_exclusive()?; // Blocking exclusive lock :contentReference[oaicite:12]{index=12}
+    f.lock_exclusive()?;
     Ok(f)
 }
 
-/// URL → collision-free hashed filename
+/// ---------------------------------------------------------------------------
+/// URL → SHA-256 → hex string
 fn hash_url(u: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(u.as_bytes());
-    format!("{:x}", hasher.finalize()) // Hex string :contentReference[oaicite:13]{index=13}
+    let mut h = Sha256::new();
+    h.update(u.as_bytes());
+    format!("{:x}", h.finalize())
 }

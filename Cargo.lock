@@ -1765,6 +1765,7 @@ version = "0.1.0"
 dependencies = [
  "allocator-api2",
  "bumpalo",
+ "bytes",
  "dirs 5.0.1",
  "either",
  "fs2",
