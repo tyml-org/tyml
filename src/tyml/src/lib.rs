@@ -434,7 +434,7 @@ test: {
 }
 
 test1: {
-    test2: int
+    test2: bool
     test3: int
 }
 
@@ -453,7 +453,7 @@ enum Mode {
         let ini_source = r#"
 test.test = [0xFF, ""]
 
-test1 = { test2 = 100, test3 = "aaa" }
+test1 = { test2 = false, test3 = "aaa" }
 
 [[settings]]
 ip = "192.168.1.1"

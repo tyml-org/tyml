@@ -84,7 +84,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::Literal, r"(\w|-)+"),
     Tokenizer::Regex(TokenKind::StringLiteral, r#""([^"\\]|\\.)*""#),
     Tokenizer::Regex(TokenKind::StringLiteral, r"'([^'\\]|\\.)*'"),
-    Tokenizer::Regex(TokenKind::LineFeed, r"(\n|\r)"),
+    Tokenizer::Regex(TokenKind::LineFeed, r"\n|\r"),
     Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
     Tokenizer::Regex(TokenKind::Comment, r"//[^\n\r]*"),
     Tokenizer::Regex(TokenKind::Comment, r"/\*(.|\n|\r)*\*/"),
@@ -127,7 +127,7 @@ impl Tokenizer {
             }
             Tokenizer::Regex(kind, regex) => {
                 let regex = (&mut regex_cache[index])
-                    .get_or_insert_with(|| Regex::new(format!("^{}", regex).as_str()).unwrap());
+                    .get_or_insert_with(|| Regex::new(format!("^({})", regex).as_str()).unwrap());
 
                 let length = match regex.find(current_input) {
                     Some(matched) => matched.end(),

@@ -14,7 +14,7 @@ pub enum GeneratorTokenizer {
 
 impl GeneratorTokenizer {
     pub fn regex(regex_str: &str) -> Self {
-        Self::Regex(Regex::new(format!("^{}", regex_str).as_str()).unwrap())
+        Self::Regex(Regex::new(format!("^({})", regex_str).as_str()).unwrap())
     }
 
     pub fn tokenize(&self, input: &str) -> usize {
