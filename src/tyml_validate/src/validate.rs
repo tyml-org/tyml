@@ -519,6 +519,14 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                     };
                                     errors.push(error);
                                 } else {
+                                    non_matched_name_stack.push((
+                                        section_name_stack
+                                            .iter()
+                                            .map(|name| name.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join("."),
+                                        Type::Unknown,
+                                    ));
                                     return false;
                                 }
                             }
