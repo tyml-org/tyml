@@ -1,4 +1,4 @@
-# !tyml ~/Documents/development/registry/cargo/Cargo.tyml
+# !tyml @cargo/Cargo
 
 [workspace]
 resolver = "2"
