@@ -70,7 +70,17 @@ impl TymlHeader {
 
         let tyml_path = header.tyml.as_ref().unwrap();
         if tyml_path.starts_with("http://") || tyml_path.starts_with("https://") {
-            header.tyml = get_cached_file(tyml_path.as_str()).await
+            header.tyml = get_cached_file(tyml_path.as_str())
+                .await
+                .map(|cache| cache.to_string_lossy().to_string())
+                .map_err(|error| Either::Right(error.to_string()));
+        } else if tyml_path.starts_with("@") {
+            let url = format!(
+                "https://raw.githubusercontent.com/tyml-org/registry/refs/heads/main/{}.tyml",
+                tyml_path.replace("@", "")
+            );
+            header.tyml = get_cached_file(url.as_str())
+                .await
                 .map(|cache| cache.to_string_lossy().to_string())
                 .map_err(|error| Either::Right(error.to_string()));
         } else {
