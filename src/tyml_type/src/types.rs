@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::Display,
     ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive},
     sync::Arc,
@@ -295,7 +296,7 @@ impl ToTypeName for StringAttribute {
 #[derive(Debug)]
 pub enum TypeTree<'input, 'ty> {
     Node {
-        node: HashMap<&'input str, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
+        node: HashMap<Cow<'input, str>, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
         any_node: Option<Box<TypeTree<'input, 'ty>, &'ty Bump>>,
         documents: Vec<&'input str, &'ty Bump>,
         span: Range<usize>,

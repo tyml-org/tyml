@@ -430,7 +430,7 @@ mod tests {
         let source = r#"
 settings: [Setting] | int
 test: {
-    test: [int]
+    "test\"": [int]
 }
 
 test1: {
@@ -451,7 +451,7 @@ enum Mode {
 "#;
 
         let ini_source = r#"
-test.test = [0xFF, ""]
+test."test\"" = [0xFF, ""]
 
 test1 = { test2 = false, test3 = "aaa" }
 

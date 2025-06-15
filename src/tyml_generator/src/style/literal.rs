@@ -88,61 +88,136 @@ pub enum UnicodeFormatKind {
 
 impl EscapeOption {
     pub fn resolve_escape<'input>(&self, input: &'input str) -> Cow<'input, str> {
-        match self.allow_escape {
-            true => {
-                let mut new_string = String::new();
+        if !self.allow_escape || !input.contains('\\') {
+            return Cow::Borrowed(input);
+        }
 
-                let mut prev = '\0';
-                let mut chars = input.chars();
-                loop {
-                    let Some(char) = chars.next() else { break };
+        let mut out = String::with_capacity(input.len());
+        let mut it = input.chars().peekable();
+        let mut chars = input.chars().peekable();
 
-                    if prev == '\\' {
-                        if char == 'u' || char == 'U' {
-                            let mut unicode = String::new();
+        while let Some(c) = chars.next() {
+            if c != '\\' {
+                out.push(c);
+                continue;
+            }
 
-                            for _ in 0..4 {
-                                let Some(char) = chars.next() else { break };
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('t') => out.push('\t'),
+                Some('\\') => out.push('\\'),
+                Some('\'') => out.push('\''),
+                Some('"') => out.push('"'),
 
-                                unicode.push(char);
-                            }
-
-                            match u32::from_str_radix(unicode.as_str(), 16)
-                                .ok()
-                                .map(|code| char::from_u32(code))
-                                .flatten()
-                            {
-                                Some(char) => new_string.push(char),
-                                None => {
-                                    new_string.push('\\');
-                                    new_string.push(char);
-                                    new_string += unicode.as_str();
-                                }
-                            }
-                            continue;
-                        }
-
-                        let replace = match char {
-                            'b' => '\x08',
-                            't' => '\t',
-                            'n' => '\n',
-                            'r' => '\r',
-                            '0' => '\0',
-                            '\\' => '\\',
-                            _ => char,
-                        };
-                        new_string.push(replace);
-
-                        continue;
-                    }
-
-                    new_string.push(char);
-                    prev = char;
+                // ---------- \xNN  ----------------------
+                Some('x') => {
+                    read_n_hex(&mut it, 2)
+                        .and_then(char::from_u32)
+                        .map(|ch| out.push(ch));
                 }
 
-                input.into()
+                // ---------- \u～～ ---------------------
+                Some('u') => match self.unicode {
+                    UnicodeFormatKind::Normal => {
+                        decode_hex4(&mut it).map(|ch| out.push(ch));
+                    }
+                    UnicodeFormatKind::WithBrace => {
+                        if matches!(it.peek(), Some('{')) {
+                            decode_braced(&mut it).map(|ch| out.push(ch));
+                        } else {
+                            out.push('u');
+                        }
+                    }
+                    UnicodeFormatKind::None => out.push('u'),
+                },
+
+                // ---------- \U～～ ---------------------
+                Some('U') => match self.unicode {
+                    UnicodeFormatKind::Normal => {
+                        decode_u8(&mut it, &mut out);
+                    }
+                    UnicodeFormatKind::WithBrace => {
+                        if matches!(it.peek(), Some('{')) {
+                            decode_braced(&mut it).map(|ch| out.push(ch));
+                        } else {
+                            out.push('U');
+                        }
+                    }
+                    UnicodeFormatKind::None => out.push('U'),
+                },
+
+                Some(other) => out.push(other),
+                None => {}
             }
-            false => input.into(),
+        }
+
+        Cow::Owned(out)
+    }
+}
+
+fn read_n_hex<I>(it: &mut std::iter::Peekable<I>, n: usize) -> Option<u32>
+where
+    I: Iterator<Item = char>,
+{
+    let mut v = 0u32;
+    for _ in 0..n {
+        v = (v << 4) | it.next()?.to_digit(16)?;
+    }
+    Some(v)
+}
+
+fn decode_hex4<I>(it: &mut std::iter::Peekable<I>) -> Option<char>
+where
+    I: Iterator<Item = char>,
+{
+    read_n_hex(it, 4).and_then(char::from_u32)
+}
+
+fn decode_braced<I>(it: &mut std::iter::Peekable<I>) -> Option<char>
+where
+    I: Iterator<Item = char>,
+{
+    it.next()?; // consume '{'
+    let mut buf = String::new();
+    while let Some(&c) = it.peek() {
+        it.next();
+        if c == '}' {
+            break;
+        }
+        if c.is_ascii_hexdigit() {
+            buf.push(c);
+        } else {
+            return None; // 不正
+        }
+    }
+    u32::from_str_radix(&buf, 16).ok().and_then(char::from_u32)
+}
+
+fn decode_u8<I: Clone>(it: &mut std::iter::Peekable<I>, out: &mut String)
+where
+    I: Iterator<Item = char>,
+{
+    let hi = read_n_hex(it, 8);
+    if let Some(hi_val) = hi {
+        if (0xD800..=0xDBFF).contains(&hi_val) {
+            let save = it.clone();
+            if matches!(it.next(), Some('\\')) && matches!(it.next(), Some('U')) {
+                if let Some(lo_val) = read_n_hex(it, 8) {
+                    if (0xDC00..=0xDFFF).contains(&lo_val) {
+                        // combine UTF-16
+                        let cp = 0x10000 + ((hi_val - 0xD800) << 10) + (lo_val - 0xDC00);
+                        if let Some(ch) = char::from_u32(cp) {
+                            out.push(ch);
+                            return;
+                        }
+                    }
+                }
+            }
+            *it = save; // 差し戻し
+        }
+        if let Some(ch) = char::from_u32(hi_val) {
+            out.push(ch);
         }
     }
 }

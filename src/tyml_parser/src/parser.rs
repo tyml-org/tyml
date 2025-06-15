@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use either::Either;
@@ -5,8 +7,9 @@ use either::Either;
 use crate::{
     ast::{
         ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
-        ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, FloatLiteral,
-        IntoLiteral, NamedType, NodeLiteral, OrType, StructDefine, TypeDefine, ValueLiteral,
+        ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, EscapedLiteral,
+        FloatLiteral, IntoLiteral, Literal, NamedType, NodeLiteral, OrType, Spanned, StructDefine,
+        TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -177,10 +180,91 @@ fn parse_node_literal<'input>(lexer: &mut Lexer<'input>) -> Option<NodeLiteral<'
     let token = lexer.current();
 
     match token.get_kind() {
-        TokenKind::Literal => Some(NodeLiteral::Literal(lexer.next().unwrap().into_literal())),
+        TokenKind::Literal => Some(NodeLiteral::Literal(
+            lexer.next().unwrap().into_literal().map(|text| text.into()),
+        )),
+        TokenKind::StringLiteral => Some(NodeLiteral::Literal(escape_literal(
+            lexer
+                .next()
+                .unwrap()
+                .into_literal()
+                .map(|text| &text[1..(text.len() - 1)]), // trim quotes
+        ))),
         TokenKind::Asterisk => Some(NodeLiteral::Asterisk(lexer.next().unwrap().into_literal())),
         _ => None,
     }
+}
+
+fn escape_literal<'input>(literal: Literal<'input>) -> EscapedLiteral<'input> {
+    let input = literal.value;
+    let span = literal.span();
+
+    if !input.contains('\\') {
+        return Spanned::new(Cow::Borrowed(input), span);
+    }
+
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('\\') => out.push('\\'),
+            Some('\'') => out.push('\''),
+            Some('"') => out.push('"'),
+
+            // \xNN
+            Some('x') => {
+                let hi = chars.next();
+                let lo = chars.next();
+                if let (Some(hi), Some(lo)) = (
+                    hi.and_then(|c| c.to_digit(16)),
+                    lo.and_then(|c| c.to_digit(16)),
+                ) {
+                    out.push(char::from_u32((hi * 16 + lo) as u32).unwrap());
+                } else {
+                    // unknown format
+                    out.push_str("\\x");
+                    if let Some(h) = hi {
+                        out.push(h);
+                    }
+                    if let Some(l) = lo {
+                        out.push(l);
+                    }
+                }
+            }
+
+            // \u{...}
+            Some('u') if matches!(chars.peek(), Some('{')) => {
+                chars.next(); // '{' を消費
+                let mut buf = String::new();
+                while let Some(&ch) = chars.peek() {
+                    chars.next();
+                    if ch == '}' {
+                        break;
+                    }
+                    buf.push(ch);
+                }
+                if let Ok(code) = u32::from_str_radix(&buf, 16) {
+                    if let Some(ch) = char::from_u32(code) {
+                        out.push(ch);
+                    }
+                }
+            }
+
+            Some(other) => out.push(other),
+            None => {}
+        }
+    }
+
+    Spanned::new(Cow::Owned(out), span)
 }
 
 fn parse_element_inline_type<'input, 'allocator>(

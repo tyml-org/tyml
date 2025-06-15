@@ -74,7 +74,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
 
                 match &element_define.node {
                     NodeLiteral::Literal(name) => {
-                        node.insert(name.value, element_type);
+                        node.insert(name.value.clone(), element_type);
                     }
                     NodeLiteral::Asterisk(_) => {
                         any_node = Some(Box::new_in(element_type, ty));

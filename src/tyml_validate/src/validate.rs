@@ -417,7 +417,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         errors: &mut Option<&mut Vec<TymlValueValidateError>>,
         type_tree: &'tree TypeTree<'input, 'ty>,
         value_tree: &MergedValueTree<'section, 'value>,
-        section_name_stack: &mut Vec<&'input str, &'temp Bump>,
+        section_name_stack: &mut Vec<Cow<'input, str>, &'temp Bump>,
         non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
     ) -> bool {
         match type_tree {
@@ -434,9 +434,9 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                 } => {
                     let mut has_error = false;
                     for (element_name, element_type) in node.iter() {
-                        match elements.get(*element_name) {
+                        match elements.get(element_name.as_ref()) {
                             Some(element_value) => {
-                                section_name_stack.push(*element_name);
+                                section_name_stack.push(element_name.clone());
 
                                 let result = self.validate_tree(
                                     errors,
@@ -459,7 +459,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                             required: Spanned::new(
                                                 section_name_stack
                                                     .iter()
-                                                    .chain([element_name].into_iter())
+                                                    .chain([&element_name.clone()].into_iter())
                                                     .map(|name| name.to_string())
                                                     .collect::<Vec<_>>()
                                                     .join("."),
@@ -490,7 +490,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
 
                         match &any_node {
                             Some(any_node_type) => {
-                                section_name_stack.push("*");
+                                section_name_stack.push("*".into());
 
                                 let result = self.validate_tree(
                                     errors,
@@ -512,7 +512,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                         values: value_element.spans().cloned().collect(),
                                         path: section_name_stack
                                             .iter()
-                                            .chain([&value_element_name.as_ref()].into_iter())
+                                            .chain([&value_element_name.clone()].into_iter())
                                             .map(|name| name.to_string())
                                             .collect::<Vec<_>>()
                                             .join("."),
@@ -802,7 +802,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         &self,
         ty: &Type,
         value_tree: &MergedValueTree<'section, 'value>,
-        section_name_stack: &mut Vec<&'input str, &'temp Bump>,
+        section_name_stack: &mut Vec<Cow<'input, str>, &'temp Bump>,
         non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
     ) -> bool {
         match ty {

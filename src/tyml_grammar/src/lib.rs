@@ -42,8 +42,8 @@ mod tests {
         enum_define        ::= "enum" literal [ lf ] "{" enum_elements "}"
         enum_elements      ::= [ lf ] { documents string_literal ( lf | "," [ lf ] ) }
 
-        literal            ::= r"\w+"
+        literal            ::= r"(\w|-)+" | string_literal
 
-        lf                 ::= r"\n|\r|\r\n"
+        lf                 ::= r"(\n|\r|\r\n)+"
     }
 }

@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Range};
+use std::{borrow::Cow, fmt::Debug, ops::Range};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
@@ -60,6 +60,14 @@ impl<T> Spanned<T> {
     pub fn new(value: T, span: Range<usize>) -> Self {
         Self { value, span }
     }
+
+    pub fn span(&self) -> Range<usize> {
+        self.span.clone()
+    }
+
+    pub fn map<N>(self, f: impl FnOnce(T) -> N) -> Spanned<N> {
+        Spanned::new(f(self.value), self.span)
+    }
 }
 
 pub type Literal<'input> = Spanned<&'input str>;
@@ -99,9 +107,11 @@ pub struct Documents<'input, 'allocator> {
 
 #[derive(Debug)]
 pub enum NodeLiteral<'input> {
-    Literal(Literal<'input>),
+    Literal(EscapedLiteral<'input>),
     Asterisk(Literal<'input>),
 }
+
+pub type EscapedLiteral<'input> = Spanned<Cow<'input, str>>;
 
 #[derive(Debug)]
 pub struct ElementType<'input, 'allocator> {

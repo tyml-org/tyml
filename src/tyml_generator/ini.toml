@@ -1,28 +1,52 @@
-[Section.section]
-kind = "Bracket"
+[Section]
+allow_non_section_key_value = true
 
-[Section.section.literal.Custom]
-regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
+[[Section.section.literal.strings]]
+quotes_kind = "DoubleQuotes"
 
-[Section.section.literal.Custom.option]
+[Section.section.literal.strings.escape]
+allow_escape = true
+unicode = "None"
+
+[Section.section.literal.custom]
+regex = '[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*'
+
+[Section.section.literal.custom.option]
 trim_space = true
 
-[Section.section.literal.Custom.option.escape]
+[Section.section.literal.custom.option.escape]
 allow_escape = true
 unicode = "Normal"
+
+[Section.section.kind.Bracket]
+allow_space_split = true
+allow_double_bracket_array = true
 
 [Section.key_value]
 kind = "Equal"
 
-[Section.key_value.key.Custom]
-regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
+[Section.key_value.key]
+strings = []
 
-[Section.key_value.key.Custom.option]
+[Section.key_value.key.custom]
+regex = '[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*'
+
+[Section.key_value.key.custom.option]
 trim_space = true
 
-[Section.key_value.key.Custom.option.escape]
+[Section.key_value.key.custom.option.escape]
 allow_escape = true
 unicode = "Normal"
+
+[Section.key_value.key_option]
+allow_dot_section_split = false
+
+[[Section.key_value.value.strings]]
+quotes_kind = "DoubleQuotes"
+
+[Section.key_value.value.strings.escape]
+allow_escape = true
+unicode = "None"
 
 [Section.key_value.value.float]
 allow_e = true
@@ -30,8 +54,18 @@ inf_nan_kind = "Insensitive"
 allow_plus_minus = true
 allow_under_line = true
 
+[Section.key_value.value.binary]
+allow_bit = true
+allow_oct = true
+allow_hex = true
+allow_plus_minus = true
+allow_under_line = true
+
+[Section.key_value.value.bool]
+kind = "Insensitive"
+
 [Section.key_value.value.any_string.Custom]
-regex = '[^ 　\t\[\]\n\r=;][^\[\]\n\r=;]*'
+regex = '[^ 　\t\[\]\n\r=;"][^\[\]\n\r=;"]*'
 
 [Section.key_value.value.any_string.Custom.option]
 trim_space = true
