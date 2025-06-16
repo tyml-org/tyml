@@ -6,7 +6,7 @@ use tyml_validate::error::TymlValueValidateError;
 
 use crate::{
     Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
-    TymlDiagnositcMessage,
+    TymlDiagnosticMessage,
 };
 
 impl DiagnosticBuilder for TymlValueValidateError {
@@ -17,7 +17,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 path,
                 tyml_span,
             } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ValidateError,
                     code: 0001,
                     arguments: vec![path.clone()],
@@ -41,7 +41,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 required,
                 required_in,
             } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ValidateError,
                     code: 0002,
                     arguments: vec![required.value.clone()],
@@ -67,7 +67,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 duplicated,
                 path,
             } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ValidateError,
                     code: 0003,
                     arguments: vec![path.clone()],
@@ -87,7 +87,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 .collect(),
             },
             TymlValueValidateError::UnknownValue { values, path } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ValidateError,
                     code: 0004,
                     arguments: vec![path.clone()],
@@ -117,7 +117,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                         .join(", ")
                 );
                 Diagnostic {
-                    message: TymlDiagnositcMessage {
+                    message: TymlDiagnosticMessage {
                         section: MessageSection::ValidateError,
                         code: 0005,
                         arguments: vec![path.clone(), expected.value.clone(), caused_by],
@@ -144,7 +144,7 @@ impl DiagnosticBuilder for TymlValueValidateError {
                 expected,
                 path,
             } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ValidateError,
                     code: 0006,
                     arguments: vec![path.clone(), expected.value.clone()],

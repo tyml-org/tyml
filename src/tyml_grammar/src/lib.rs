@@ -19,9 +19,13 @@ mod tests {
 
         element_type       ::= ":" or_type
         or_type            ::= base_type { "|" [ lf ] base_type }
-        base_type          ::= ( named_type | array_type ) [ "?" ]
+        base_type          ::= ( named_type | array_type ) [ "?" ] [ type_attribute ]
         array_type         ::= "[" [ lf ] or_type [ lf ] "]"
         named_type         ::= literal
+
+        type_attribute     ::= int_attribute | regex_attribute
+        int_attribute      ::= ( "@value" | "@length" | "@u8size" ) [ r"\d+" ] ( "..<" | "..=" | ".." ) [ r"\d+" ]
+        regex_attribute    ::= "@regex" string_literal
 
         inline_type_define ::= ":" "{" defines "}"
 

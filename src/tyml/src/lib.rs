@@ -435,7 +435,7 @@ test: {
 
 test1: {
     test2: bool
-    test3: int
+    test3: int @ value 0..<100
 }
 
 type Setting {

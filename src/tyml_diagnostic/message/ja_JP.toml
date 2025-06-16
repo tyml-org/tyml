@@ -1,3 +1,5 @@
+# !tyml message.tyml
+
 [parse_error]
 name = "%color:red{[SE%0] TYML構文エラー}"
 [parse_error.0001]
@@ -41,7 +43,7 @@ note = "列挙型の要素は'%color:cyan{\"Element\"}'の形式です"
 [parse_error.0012]
 message = "列挙型の要素の区切り文字が正しくありません"
 label_0 = "'%color:yellow{%0}'は不明な区切り文字です"
-label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\n}'(改行)のみです"
+label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\\\n}'(改行)のみです"
 [parse_error.0013]
 message = "ユニオン型の要素の記述形式が正しくありません"
 label_0 = "ここにはユニオン型の型候補を記述すべきです"
@@ -52,6 +54,22 @@ label_1 = "配列は'%color:cyan{[int]}'のような形式で指定する必要�
 [parse_error.0015]
 message = "括弧'%color:yellow{[}'が閉じられていません"
 label_0 = "'%color:cyan{]}'で閉じる必要があります"
+[parse_error.0016]
+message = "正規表現属性の記述形式が正しくありません"
+label_0 = "'%color:yellow{@regex}'の後には文字列リテラルが必要です"
+[parse_error.0017]
+message = "数値属性の記述方法が正しくありません"
+label_0 = "ここには'%color:cyan{..}'か'%color:cyan{..<}'か'%color:cyan{..=}'が必要です"
+[parse_error.0018]
+message = "数値属性の記述形式が正しくありません"
+label_0 = "正しい形式ではありません"
+note = "詳しくはドキュメントを参照してください"
+[parse_error.0019]
+message = "数値として有効ではありません"
+label_0 = "数値としてのパースに失敗しました"
+[parse_error.0020]
+message = "大小関係が正しくありません"
+label_0 = "左側の数値の方が大きいです"
 
 [type_error]
 name = "%color:red{[TE%0] 型エラー}"

@@ -37,6 +37,20 @@ pub enum TokenKind {
     BracketRight,
     /// |
     VerticalLine,
+    /// ..
+    FromTo,
+    /// ..<
+    FromToExclusive,
+    /// ..=
+    FromToInclusive,
+    /// @value
+    AtValue,
+    /// @length
+    AtLength,
+    /// @u8size
+    AtU8Size,
+    /// @regex
+    AtRegex,
     /// e.g. -6.3, +5E+2
     FloatNumeric,
     /// e.g. 0xFF, 0b0101, 0o1234567
@@ -74,6 +88,13 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),
     Tokenizer::Keyword(TokenKind::BracketRight, "]"),
     Tokenizer::Keyword(TokenKind::VerticalLine, "|"),
+    Tokenizer::Keyword(TokenKind::FromTo, ".."),
+    Tokenizer::Keyword(TokenKind::FromToExclusive, "..<"),
+    Tokenizer::Keyword(TokenKind::FromToInclusive, "..="),
+    Tokenizer::Regex(TokenKind::AtValue, r"@[ 　\t]*value"),
+    Tokenizer::Regex(TokenKind::AtLength, r"@[ 　\t]*length"),
+    Tokenizer::Regex(TokenKind::AtU8Size, r"@[ 　\t]*u8size"),
+    Tokenizer::Regex(TokenKind::AtRegex, r"@[ 　\t]*regex"),
     Tokenizer::Regex(
         TokenKind::FloatNumeric,
         r"[+-]?[\d_]+(\.[\d_]+)?([eE][+-][\d_]+)?",

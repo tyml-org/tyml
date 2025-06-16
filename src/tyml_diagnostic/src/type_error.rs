@@ -7,14 +7,14 @@ use tyml_type::{
 
 use crate::{
     Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
-    TymlDiagnositcMessage,
+    TymlDiagnosticMessage,
 };
 
 impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
     fn build(&self, named_type_map: &NamedTypeMap) -> crate::Diagnostic {
         match &self.kind {
             TypeErrorKind::UnknownNamedType { name } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::TypeError,
                     code: 0001,
                     arguments: vec![name.value.to_string()],
@@ -31,7 +31,7 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                 value_type,
                 expected,
             } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::TypeError,
                     code: 0002,
                     arguments: vec![
@@ -55,7 +55,7 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                 ],
             },
             TypeErrorKind::IncompatibleValueForAttribute { value, expected } => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::TypeError,
                     code: 0003,
                     arguments: vec![expected.value.to_type_name(named_type_map)],

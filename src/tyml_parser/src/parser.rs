@@ -8,8 +8,9 @@ use crate::{
     ast::{
         ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
         ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, EscapedLiteral,
-        FloatLiteral, IntoLiteral, Literal, NamedType, NodeLiteral, OrType, Spanned, StructDefine,
-        TypeDefine, ValueLiteral,
+        FloatLiteral, FromTo, IntAttributeKind, IntoLiteral, Literal, NamedType, NodeLiteral,
+        NumericAttribute, OrType, RegexAttribute, Spanned, StructDefine, TypeAttribute, TypeDefine,
+        ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -435,9 +436,224 @@ fn parse_base_type<'input, 'allocator>(
         _ => None,
     };
 
+    let attribute = parse_type_attribute(lexer, errors, allocator);
+
     Some(BaseType {
         ty,
         optional,
+        attribute,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_type_attribute<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<TypeAttribute<'input>> {
+    if let Some(attribute) = parse_numeric_attribute(lexer, errors, allocator) {
+        return Some(TypeAttribute::IntAttribute(attribute));
+    }
+    if let Some(attribute) = parse_regex_attribute(lexer, errors, allocator) {
+        return Some(TypeAttribute::RegexAttribute(attribute));
+    }
+
+    None
+}
+
+fn parse_numeric_attribute<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<NumericAttribute> {
+    let anchor = lexer.cast_anchor();
+
+    let kind = match lexer.current().get_kind() {
+        TokenKind::AtValue => Spanned::new(IntAttributeKind::Value, lexer.next().unwrap().span),
+        TokenKind::AtLength => Spanned::new(IntAttributeKind::Length, lexer.next().unwrap().span),
+        TokenKind::AtU8Size => Spanned::new(IntAttributeKind::U8Size, lexer.next().unwrap().span),
+        _ => return None,
+    };
+
+    let from_to_anchor = lexer.cast_anchor();
+
+    let from = match lexer.current().get_kind() {
+        TokenKind::FloatNumeric => Some(lexer.next().unwrap()),
+        _ => None,
+    };
+
+    let from_to_kind = match lexer.current().get_kind() {
+        TokenKind::FromTo | TokenKind::FromToInclusive | TokenKind::FromToExclusive => {
+            lexer.next().get_kind()
+        }
+        _ => {
+            let error = recover_until(
+                ParseErrorKind::NonFromTo,
+                lexer,
+                &[TokenKind::LineFeed, TokenKind::VerticalLine],
+                Expected::FromTo,
+                Scope::TypeAttribute,
+                allocator,
+            );
+            errors.push(error);
+            return None;
+        }
+    };
+
+    let to = match lexer.current().get_kind() {
+        TokenKind::FloatNumeric => Some(lexer.next().unwrap()),
+        _ => None,
+    };
+
+    let from_to_span = from_to_anchor.elapsed(lexer);
+
+    let from_to = match from_to_kind {
+        TokenKind::FromTo => {
+            let Some(from) = from else {
+                let error = ParseError {
+                    kind: ParseErrorKind::InvalidFromToFormat,
+                    scope: Scope::TypeAttribute,
+                    expected: Expected::NumericLiteral,
+                    error_tokens: Vec::new_in(allocator),
+                    span: from_to_span,
+                };
+                errors.push(error);
+
+                return None;
+            };
+
+            let Ok(from) = from.text.parse::<f64>() else {
+                let error = ParseError {
+                    kind: ParseErrorKind::NonNumeric,
+                    scope: Scope::TypeAttribute,
+                    expected: Expected::NumericLiteral,
+                    error_tokens: Vec::new_in(allocator),
+                    span: from.span,
+                };
+                errors.push(error);
+                return None;
+            };
+
+            if let Some(_) = to {
+                let error = ParseError {
+                    kind: ParseErrorKind::InvalidFromToFormat,
+                    scope: Scope::TypeAttribute,
+                    expected: Expected::Unnecessary,
+                    error_tokens: Vec::new_in(allocator),
+                    span: from_to_span,
+                };
+                errors.push(error);
+                return None;
+            }
+
+            FromTo::From { from }
+        }
+        TokenKind::FromToExclusive | TokenKind::FromToInclusive => {
+            let Some(to) = to else {
+                let error = ParseError {
+                    kind: ParseErrorKind::InvalidFromToFormat,
+                    scope: Scope::TypeAttribute,
+                    expected: Expected::NumericLiteral,
+                    error_tokens: Vec::new_in(allocator),
+                    span: from_to_span,
+                };
+                errors.push(error);
+
+                return None;
+            };
+
+            let Ok(to) = to.text.parse::<f64>() else {
+                let error = ParseError {
+                    kind: ParseErrorKind::NonNumeric,
+                    scope: Scope::TypeAttribute,
+                    expected: Expected::NumericLiteral,
+                    error_tokens: Vec::new_in(allocator),
+                    span: to.span,
+                };
+                errors.push(error);
+                return None;
+            };
+
+            match from {
+                Some(from) => {
+                    let Ok(from) = from.text.parse::<f64>() else {
+                        let error = ParseError {
+                            kind: ParseErrorKind::NonNumeric,
+                            scope: Scope::TypeAttribute,
+                            expected: Expected::NumericLiteral,
+                            error_tokens: Vec::new_in(allocator),
+                            span: from_to_span,
+                        };
+                        errors.push(error);
+                        return None;
+                    };
+
+                    if from > to {
+                        let error = ParseError {
+                            kind: ParseErrorKind::BiggerFrom,
+                            scope: Scope::TypeAttribute,
+                            expected: Expected::SmallerNumericLiteral,
+                            error_tokens: Vec::new_in(allocator),
+                            span: from_to_span,
+                        };
+                        errors.push(error);
+                        return None;
+                    }
+
+                    match from_to_kind {
+                        TokenKind::FromToExclusive => FromTo::FromToExclusive { from, to },
+                        TokenKind::FromToInclusive => FromTo::FromToInclusive { from, to },
+                        _ => unreachable!(),
+                    }
+                }
+                None => match from_to_kind {
+                    TokenKind::FromToExclusive => FromTo::ToExclusive { to },
+                    TokenKind::FromToInclusive => FromTo::ToInclusive { to },
+                    _ => unreachable!(),
+                },
+            }
+        }
+        _ => unreachable!(),
+    };
+
+    Some(NumericAttribute {
+        kind,
+        from_to,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_regex_attribute<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<RegexAttribute<'input>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::AtRegex {
+        return None;
+    }
+    lexer.next();
+
+    let regex_literal = match lexer.current().get_kind() {
+        TokenKind::StringLiteral => escape_literal(lexer.current().unwrap().into_literal()),
+        _ => {
+            let error = recover_until(
+                ParseErrorKind::InvalidRegexAttributeFormat,
+                lexer,
+                &[TokenKind::LineFeed, TokenKind::VerticalLine],
+                Expected::StringLiteral,
+                Scope::TypeAttribute,
+                allocator,
+            );
+            errors.push(error);
+
+            return None;
+        }
+    };
+
+    Some(RegexAttribute {
+        regex_literal,
         span: anchor.elapsed(lexer),
     })
 }

@@ -1,3 +1,5 @@
+# !tyml message.tyml
+
 [parse_error]
 name = "%color:red{[SE%0] TYML Syntax Error}"
 [parse_error.0001]
@@ -52,6 +54,23 @@ label_1 = "An array must be specified in the form '%color:cyan{[int]}'"
 [parse_error.0015]
 message = "Bracket '%color:yellow{[}' is not closed"
 label_0 = "It must be closed with '%color:cyan{]}'"
+[parse_error.0016]
+message = "The regular expression attribute format is invalid"
+label_0 = "A string literal is required after '%color:yellow{@regex}'"
+[parse_error.0017]
+message = "The numeric attribute syntax is incorrect"
+label_0 = "You must use '%color:cyan{..}', '%color:cyan{..<}', or '%color:cyan{..=}' here"
+[parse_error.0018]
+message = "The numeric attribute format is invalid"
+label_0 = "Invalid format"
+note = "See the documentation for details"
+[parse_error.0019]
+message = "Not a valid number"
+label_0 = "Failed to parse as a number"
+[parse_error.0020]
+message = "The ordering relationship is incorrect"
+label_0 = "The left-hand number is larger"
+
 
 [type_error]
 name = "%color:red{[TE%0] Type Error}"

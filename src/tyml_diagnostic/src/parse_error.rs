@@ -5,14 +5,14 @@ use tyml_type::types::NamedTypeMap;
 
 use crate::{
     Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
-    TymlDiagnositcMessage,
+    TymlDiagnosticMessage,
 };
 
 impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
     fn build(&self, _: &NamedTypeMap) -> Diagnostic {
         match self.kind {
             ParseErrorKind::InvalidDefineElement => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0001,
                     arguments: vec![],
@@ -33,7 +33,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::InvalidDefineSeparator => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0002,
                     arguments: vec![self.error_tokens[0].text.to_string()],
@@ -54,7 +54,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::NotFoundElementTypeAndDefaultValue => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0003,
                     arguments: vec![],
@@ -75,7 +75,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::InvalidElementTypeFormat => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0004,
                     arguments: vec![],
@@ -96,7 +96,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::NonClosedBrace => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0005,
                     arguments: vec![],
@@ -109,7 +109,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::UnknownDefaultValueFormat => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0006,
                     arguments: vec![],
@@ -122,7 +122,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::NotFoundStructName => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0007,
                     arguments: vec![],
@@ -135,7 +135,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::NotFoundStructBlock => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0008,
                     arguments: vec![],
@@ -148,7 +148,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::NotFoundEnumName => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0009,
                     arguments: vec![],
@@ -161,7 +161,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::NotFoundEnumBlock => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0010,
                     arguments: vec![],
@@ -174,7 +174,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::InvalidEnumElement => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0011,
                     arguments: vec![],
@@ -187,7 +187,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::InvalidEnumElementSeparator => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0012,
                     arguments: vec![self.error_tokens[0].text.to_string()],
@@ -208,7 +208,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::InvalidOrTypeFormat => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0013,
                     arguments: vec![],
@@ -221,7 +221,7 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 }],
             },
             ParseErrorKind::NotFoundArrayBaseType => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0014,
                     arguments: vec![],
@@ -242,9 +242,74 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 ],
             },
             ParseErrorKind::NonClosedBracket => Diagnostic {
-                message: TymlDiagnositcMessage {
+                message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0015,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidRegexAttributeFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0016,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::NonFromTo => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0017,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidFromToFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0018,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::NonNumeric => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0019,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::BiggerFrom => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0020,
                     arguments: vec![],
                 },
                 labels: vec![DiagnosticLabel {

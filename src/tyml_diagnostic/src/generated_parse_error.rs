@@ -4,13 +4,13 @@ use tyml_source::AsUtf8ByteRange;
 
 use crate::{
     Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
-    TymlDiagnositcMessage,
+    TymlDiagnosticMessage,
 };
 
 impl DiagnosticBuilder for GeneratedParseError {
     fn build(&self, _: &tyml_type::types::NamedTypeMap) -> crate::Diagnostic {
         Diagnostic {
-            message: TymlDiagnositcMessage {
+            message: TymlDiagnosticMessage {
                 section: MessageSection::MLParseError,
                 code: self.parse_error_code,
                 arguments: vec![

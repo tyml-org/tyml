@@ -129,6 +129,47 @@ pub struct OrType<'input, 'allocator> {
 pub struct BaseType<'input, 'allocator> {
     pub ty: Either<NamedType<'input>, ArrayType<'input, 'allocator>>,
     pub optional: Option<Range<usize>>,
+    pub attribute: Option<TypeAttribute<'input>>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub enum TypeAttribute<'input> {
+    IntAttribute(NumericAttribute),
+    RegexAttribute(RegexAttribute<'input>),
+}
+
+#[derive(Debug)]
+pub struct NumericAttribute {
+    pub kind: Spanned<IntAttributeKind>,
+    pub from_to: FromTo,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntAttributeKind {
+    Value,
+    Length,
+    U8Size,
+}
+
+#[derive(Debug)]
+pub enum FromTo {
+    /// 0..<10
+    FromToExclusive { from: f64, to: f64 },
+    /// 0..=9
+    FromToInclusive { from: f64, to: f64 },
+    /// 0..
+    From { from: f64 },
+    /// ..<10
+    ToExclusive { to: f64 },
+    /// ..=10
+    ToInclusive { to: f64 },
+}
+
+#[derive(Debug)]
+pub struct RegexAttribute<'input> {
+    pub regex_literal: EscapedLiteral<'input>,
     pub span: Range<usize>,
 }
 

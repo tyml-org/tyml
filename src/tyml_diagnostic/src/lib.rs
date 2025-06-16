@@ -11,13 +11,13 @@ pub mod parse_error;
 pub mod type_error;
 pub mod validate_error;
 
-pub struct TymlDiagnositcMessage {
+pub struct TymlDiagnosticMessage {
     pub section: MessageSection,
     pub code: usize,
     pub arguments: Vec<String>,
 }
 
-impl TymlDiagnositcMessage {
+impl TymlDiagnosticMessage {
     pub fn section_name(&self, lang: &str, colored: bool) -> String {
         replace_message(
             get_text(format!("{}.name", self.section.section()).as_str(), lang),
@@ -105,7 +105,7 @@ pub enum SourceCodeKind {
 }
 
 pub struct Diagnostic {
-    pub message: TymlDiagnositcMessage,
+    pub message: TymlDiagnosticMessage,
     pub labels: Vec<DiagnosticLabel>,
 }
 

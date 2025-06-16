@@ -20,6 +20,7 @@ pub enum Scope {
     ElementDefine,
     StructDefine,
     EnumDefine,
+    TypeAttribute,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +39,11 @@ pub enum Expected {
     EnumElementSeparator,
     BraceRight,
     BracketRight,
+    StringLiteral,
+    FromTo,
+    NumericLiteral,
+    SmallerNumericLiteral,
+    Unnecessary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +63,11 @@ pub enum ParseErrorKind {
     InvalidOrTypeFormat,
     NotFoundArrayBaseType,
     NonClosedBracket,
+    InvalidRegexAttributeFormat,
+    NonFromTo,
+    InvalidFromToFormat,
+    NonNumeric,
+    BiggerFrom,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

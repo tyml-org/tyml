@@ -1,0 +1,88 @@
+parse_error: {
+    name: string
+    "0001": Diagnostic
+    "0002": Diagnostic
+    "0003": Diagnostic
+    "0004": Diagnostic
+    "0005": Diagnostic
+    "0006": Diagnostic
+    "0007": Diagnostic
+    "0008": Diagnostic
+    "0009": Diagnostic
+    "0010": Diagnostic
+    "0011": Diagnostic
+    "0012": Diagnostic
+    "0013": Diagnostic
+    "0014": Diagnostic
+    "0015": Diagnostic
+    "0016": Diagnostic
+    "0017": Diagnostic
+    "0018": Diagnostic
+    "0019": Diagnostic
+    "0020": Diagnostic
+}
+
+type_error: {
+    name: string
+    "0001": Diagnostic
+    "0002": Diagnostic
+    "0003": Diagnostic
+}
+
+validate_error: {
+    name: string
+    "0001": Diagnostic
+    "0002": Diagnostic
+    "0003": Diagnostic
+    "0004": Diagnostic
+    "0005": Diagnostic
+    "0006": Diagnostic
+}
+
+ml_parse_error: {
+    name: string
+    "0001": Diagnostic
+    "0002": Diagnostic
+    "0003": Diagnostic
+    "0004": Diagnostic
+    "0005": Diagnostic
+    "0006": Diagnostic
+    "0007": Diagnostic
+    "0008": Diagnostic
+    "0009": Diagnostic
+    "0010": Diagnostic
+    "0011": Diagnostic
+}
+
+type Diagnostic {
+    message: string
+    label_0: string
+    label_1: string?
+    note: string?
+    help: string?
+}
+
+lsp: {
+    message: {
+        header_var_lookup_error: string
+        failed_to_download_tyml: string
+        tyml_file_error: string
+        style_not_found: string
+        array_error_diagnostic: string
+    }
+}
+
+binary: {
+    message: {
+        no_file_specified: string
+        failed_to_read_file: string
+        no_header_found: string
+        header_var_lookup_error: string
+        failed_to_download_tyml: string
+        header_no_style_found: string
+        header_no_tyml_found: string
+        header_tyml_is_not_file: string
+        failed_to_read_tyml: string
+        has_error: string
+    }
+}
