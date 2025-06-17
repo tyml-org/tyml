@@ -27,6 +27,10 @@ pub enum TokenKind {
     Type,
     /// enum
     Enum,
+    /// or
+    Or,
+    /// and
+    And,
     /// {
     BraceLeft,
     /// }
@@ -83,6 +87,8 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Nan, "nan"),
     Tokenizer::Keyword(TokenKind::Type, "type"),
     Tokenizer::Keyword(TokenKind::Enum, "enum"),
+    Tokenizer::Keyword(TokenKind::Or, "or"),
+    Tokenizer::Keyword(TokenKind::And, "and"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),

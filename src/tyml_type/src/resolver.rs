@@ -463,7 +463,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
         Either::Left(base_type) => {
             match base_type.name.value {
                 "int" => {
-                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
                         TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
                             NumericAttributeKind::Value => match to_int_range(attribute) {
                                 Some(attribute) => IntAttribute { range: attribute },
@@ -490,7 +490,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                     Type::Int(attribute.unwrap_or_default())
                 }
                 "uint" => {
-                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
                         TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
                             NumericAttributeKind::Value => match to_int_range(attribute) {
                                 Some(attribute) => UnsignedIntAttribute { range: attribute },
@@ -517,7 +517,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                     Type::UnsignedInt(attribute.unwrap_or_default())
                 }
                 "float" => {
-                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
                         TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
                             NumericAttributeKind::Value => match to_float_range(attribute) {
                                 Some(attribute) => FloatAttribute { range: attribute },
@@ -544,7 +544,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                     Type::Float(attribute.unwrap_or_default())
                 }
                 "string" => {
-                    let attribute = match &ast.attributes {
+                    let attribute = match &ast.attribute {
                         Some(attribute) => match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
                                 match attribute.kind.value {

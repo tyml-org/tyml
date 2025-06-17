@@ -6,11 +6,11 @@ use either::Either;
 
 use crate::{
     ast::{
-        ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
-        ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, EscapedLiteral,
-        FloatLiteral, FromTo, IntoLiteral, Literal, NamedType, NodeLiteral, NumericAttribute,
-        NumericAttributeKind, OrType, RegexAttribute, Spanned, StructDefine, TypeAttribute,
-        TypeDefine, ValueLiteral,
+        ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
+        Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
+        EscapedLiteral, FloatLiteral, FromTo, IntoLiteral, Literal, NamedType, NodeLiteral,
+        NumericAttribute, NumericAttributeKind, OrType, RegexAttribute, Spanned, StructDefine,
+        TypeAttribute, TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -436,17 +436,95 @@ fn parse_base_type<'input, 'allocator>(
         _ => None,
     };
 
-    let mut attributes = Vec::new_in(allocator);
-    loop {
-        let Some(attribute) = parse_type_attribute(lexer, errors, allocator) else {
-            break;
-        };
-        attributes.push(attribute);
-    }
+    let attribute = parse_attribute_or(lexer, errors, allocator);
 
     Some(BaseType {
         ty,
         optional,
+        attribute,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_attribute_or<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<AttributeOr<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let Some(first) = parse_attribute_and(lexer, errors, allocator) else {
+        return None;
+    };
+
+    let mut attributes = Vec::new_in(allocator);
+    attributes.push(first);
+
+    loop {
+        if lexer.current().get_kind() != TokenKind::Or {
+            break;
+        }
+        lexer.next();
+
+        let Some(next) = parse_attribute_and(lexer, errors, allocator) else {
+            let error = recover_until(
+                ParseErrorKind::InvalidAndOrAttributeFormat,
+                lexer,
+                &[TokenKind::LineFeed],
+                Expected::TypeAttribute,
+                Scope::TypeAttribute,
+                allocator,
+            );
+            errors.push(error);
+
+            break;
+        };
+        attributes.push(next);
+    }
+
+    Some(AttributeOr {
+        attributes,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_attribute_and<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<AttributeAnd<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let Some(first) = parse_type_attribute(lexer, errors, allocator) else {
+        return None;
+    };
+
+    let mut attributes = Vec::new_in(allocator);
+    attributes.push(first);
+
+    loop {
+        if lexer.current().get_kind() != TokenKind::And {
+            break;
+        }
+        lexer.next();
+
+        let Some(next) = parse_type_attribute(lexer, errors, allocator) else {
+            let error = recover_until(
+                ParseErrorKind::InvalidAndOrAttributeFormat,
+                lexer,
+                &[TokenKind::LineFeed, TokenKind::Comma],
+                Expected::TypeAttribute,
+                Scope::TypeAttribute,
+                allocator,
+            );
+            errors.push(error);
+
+            break;
+        };
+        attributes.push(next);
+    }
+
+    Some(AttributeAnd {
         attributes,
         span: anchor.elapsed(lexer),
     })
@@ -456,12 +534,15 @@ fn parse_type_attribute<'input, 'allocator>(
     lexer: &mut Lexer<'input>,
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
     allocator: &'allocator Bump,
-) -> Option<TypeAttribute<'input>> {
+) -> Option<TypeAttribute<'input, 'allocator>> {
     if let Some(attribute) = parse_numeric_attribute(lexer, errors, allocator) {
         return Some(TypeAttribute::NumericAttribute(attribute));
     }
     if let Some(attribute) = parse_regex_attribute(lexer, errors, allocator) {
         return Some(TypeAttribute::RegexAttribute(attribute));
+    }
+    if let Some(attribute) = parse_attribute_or(lexer, errors, allocator) {
+        return Some(TypeAttribute::AttributeTree(attribute));
     }
 
     None

@@ -31,6 +31,13 @@ pub enum Type<'ty> {
     Unknown,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttributeTree<T> {
+    Or { attributes: Vec<T> },
+    And { attributes: Vec<T> },
+    Tree { attribute: Arc<T> },
+}
+
 impl<'ty> Type<'ty> {
     /// accept if `self ⊃ other`, but exceptions for optional
     pub(crate) fn try_override_with(

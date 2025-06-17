@@ -49,6 +49,11 @@ impl_ast!(BinaryLiteral<'_>, enum: Hex, Oct, Bin);
 impl_ast!(TypeDefine<'_, '_>, enum: Struct, Enum);
 impl_ast!(StructDefine<'_, '_>, span = self.span);
 impl_ast!(EnumDefine<'_, '_>, span = self.span);
+impl_ast!(AttributeOr<'_, '_>, span = self.span);
+impl_ast!(AttributeAnd<'_, '_>, span = self.span);
+impl_ast!(TypeAttribute<'_, '_>, enum: NumericAttribute, RegexAttribute, AttributeTree);
+impl_ast!(NumericAttribute, span = self.span);
+impl_ast!(RegexAttribute<'_>, span = self.span);
 
 #[derive(Debug, Clone)]
 pub struct Spanned<T> {
@@ -129,7 +134,7 @@ pub struct OrType<'input, 'allocator> {
 pub struct BaseType<'input, 'allocator> {
     pub ty: Either<NamedType<'input>, ArrayType<'input, 'allocator>>,
     pub optional: Option<Range<usize>>,
-    pub attributes: AttributeOr<'input, 'allocator>,
+    pub attribute: Option<AttributeOr<'input, 'allocator>>,
     pub span: Range<usize>,
 }
 

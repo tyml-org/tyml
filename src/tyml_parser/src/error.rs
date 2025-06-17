@@ -44,6 +44,7 @@ pub enum Expected {
     NumericLiteral,
     SmallerNumericLiteral,
     Unnecessary,
+    TypeAttribute,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +69,7 @@ pub enum ParseErrorKind {
     InvalidFromToFormat,
     NonNumeric,
     BiggerFrom,
+    InvalidAndOrAttributeFormat,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(
