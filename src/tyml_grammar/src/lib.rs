@@ -19,11 +19,14 @@ mod tests {
 
         element_type       ::= ":" or_type
         or_type            ::= base_type { "|" [ lf ] base_type }
-        base_type          ::= ( named_type | array_type ) [ "?" ] [ type_attribute ]
+        base_type          ::= ( named_type | array_type ) [ "?" ] attribute_or
         array_type         ::= "[" [ lf ] or_type [ lf ] "]"
         named_type         ::= literal
 
-        type_attribute     ::= int_attribute | regex_attribute
+        attribute_or       ::= attribute_and { "or" attribute_and }
+        attribute_and      ::= type_attribute { "and" type_attribute }
+
+        type_attribute     ::= int_attribute | regex_attribute | "(" attribute_or ")"
         int_attribute      ::= ( "@value" | "@length" | "@u8size" ) [ r"\d+" ] ( "..<" | "..=" | ".." ) [ r"\d+" ]
         regex_attribute    ::= "@regex" string_literal
 

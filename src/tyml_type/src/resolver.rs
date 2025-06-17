@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{fmt::Display, ops::Range};
 
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
@@ -6,15 +6,16 @@ use either::Either;
 use hashbrown::HashMap;
 use tyml_parser::ast::{
     BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents, ElementDefine, FloatLiteral,
-    Literal, NodeLiteral, OrType, Spanned, TypeDefine, ValueLiteral,
+    FromTo, Literal, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, Spanned,
+    TypeAttribute, TypeDefine, ValueLiteral,
 };
 
 use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree, StringAttribute, Type, TypeTree,
-        UnsignedIntAttribute,
+        FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree, NumericalValueRange,
+        StringAttribute, Type, TypeTree, UnsignedIntAttribute,
     },
 };
 
@@ -366,6 +367,90 @@ fn resolve_or_type<'input, 'env, 'ast_allocator>(
     }
 }
 
+fn add_attribute_incompatible<'input, 'ast_allocator>(
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    span: Range<usize>,
+    ty: &'static str,
+) {
+    let error = TypeError {
+        kind: TypeErrorKind::IncompatibleAttributeForType { ty },
+        span,
+    };
+    errors.push(error);
+}
+
+fn to_int_range<T: TryFrom<i128> + Display>(
+    attribute: &NumericAttribute,
+) -> Option<NumericalValueRange<T>> {
+    match &attribute.from_to {
+        FromTo::FromToExclusive { from, to } => match (
+            from.right().map(|int| int.try_into().ok()).flatten(),
+            to.right().map(|int| int.try_into().ok()).flatten(),
+        ) {
+            (Some(from), Some(to)) => Some(NumericalValueRange::Range(from..to)),
+            _ => None,
+        },
+        FromTo::FromToInclusive { from, to } => match (
+            from.right().map(|int| int.try_into().ok()).flatten(),
+            to.right().map(|int| int.try_into().ok()).flatten(),
+        ) {
+            (Some(from), Some(to)) => Some(NumericalValueRange::RangeInclusive(from..=to)),
+            _ => None,
+        },
+        FromTo::From { from } => from
+            .right()
+            .map(|int| int.try_into().ok())
+            .flatten()
+            .map(|int| NumericalValueRange::RangeFrom(int..)),
+        FromTo::ToExclusive { to } => to
+            .right()
+            .map(|int| int.try_into().ok())
+            .flatten()
+            .map(|int| NumericalValueRange::RangeTo(..int)),
+        FromTo::ToInclusive { to } => to
+            .right()
+            .map(|int| int.try_into().ok())
+            .flatten()
+            .map(|int| NumericalValueRange::RangeToInclusive(..=int)),
+    }
+}
+
+fn to_float_range<T: TryFrom<f64> + Display>(
+    attribute: &NumericAttribute,
+) -> Option<NumericalValueRange<T>> {
+    match &attribute.from_to {
+        FromTo::FromToExclusive { from, to } => match (
+            from.left().map(|float| float.try_into().ok()).flatten(),
+            to.left().map(|float| float.try_into().ok()).flatten(),
+        ) {
+            (Some(from), Some(to)) => Some(NumericalValueRange::Range(from..to)),
+            _ => None,
+        },
+        FromTo::FromToInclusive { from, to } => match (
+            from.left().map(|float| float.try_into().ok()).flatten(),
+            to.left().map(|float| float.try_into().ok()).flatten(),
+        ) {
+            (Some(from), Some(to)) => Some(NumericalValueRange::RangeInclusive(from..=to)),
+            _ => None,
+        },
+        FromTo::From { from } => from
+            .left()
+            .map(|float| float.try_into().ok())
+            .flatten()
+            .map(|float| NumericalValueRange::RangeFrom(float..)),
+        FromTo::ToExclusive { to } => to
+            .left()
+            .map(|float| float.try_into().ok())
+            .flatten()
+            .map(|float| NumericalValueRange::RangeTo(..float)),
+        FromTo::ToInclusive { to } => to
+            .left()
+            .map(|float| float.try_into().ok())
+            .flatten()
+            .map(|float| NumericalValueRange::RangeToInclusive(..=float)),
+    }
+}
+
 fn resolve_type_base<'input, 'env, 'ast_allocator>(
     ast: &BaseType<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
@@ -377,10 +462,125 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
     let ty = match &ast.ty {
         Either::Left(base_type) => {
             match base_type.name.value {
-                "int" => Type::Int(IntAttribute::default()),
-                "uint" => Type::UnsignedInt(UnsignedIntAttribute::default()),
-                "float" => Type::Float(FloatAttribute::default()),
-                "string" => Type::String(StringAttribute::default()),
+                "int" => {
+                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
+                            NumericAttributeKind::Value => match to_int_range(attribute) {
+                                Some(attribute) => IntAttribute { range: attribute },
+                                None => {
+                                    add_attribute_incompatible(
+                                        errors,
+                                        attribute.span.clone(),
+                                        "int",
+                                    );
+                                    IntAttribute::default()
+                                }
+                            },
+                            _ => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "int");
+                                IntAttribute::default()
+                            }
+                        },
+                        TypeAttribute::RegexAttribute(attribute) => {
+                            add_attribute_incompatible(errors, attribute.span.clone(), "int");
+                            IntAttribute::default()
+                        }
+                    });
+
+                    Type::Int(attribute.unwrap_or_default())
+                }
+                "uint" => {
+                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
+                            NumericAttributeKind::Value => match to_int_range(attribute) {
+                                Some(attribute) => UnsignedIntAttribute { range: attribute },
+                                None => {
+                                    add_attribute_incompatible(
+                                        errors,
+                                        attribute.span.clone(),
+                                        "uint",
+                                    );
+                                    UnsignedIntAttribute::default()
+                                }
+                            },
+                            _ => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "uint");
+                                UnsignedIntAttribute::default()
+                            }
+                        },
+                        TypeAttribute::RegexAttribute(attribute) => {
+                            add_attribute_incompatible(errors, attribute.span.clone(), "uint");
+                            UnsignedIntAttribute::default()
+                        }
+                    });
+
+                    Type::UnsignedInt(attribute.unwrap_or_default())
+                }
+                "float" => {
+                    let attribute = ast.attributes.as_ref().map(|attribute| match attribute {
+                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
+                            NumericAttributeKind::Value => match to_float_range(attribute) {
+                                Some(attribute) => FloatAttribute { range: attribute },
+                                None => {
+                                    add_attribute_incompatible(
+                                        errors,
+                                        attribute.span.clone(),
+                                        "float",
+                                    );
+                                    FloatAttribute::default()
+                                }
+                            },
+                            _ => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "float");
+                                FloatAttribute::default()
+                            }
+                        },
+                        TypeAttribute::RegexAttribute(attribute) => {
+                            add_attribute_incompatible(errors, attribute.span.clone(), "float");
+                            FloatAttribute::default()
+                        }
+                    });
+
+                    Type::Float(attribute.unwrap_or_default())
+                }
+                "string" => {
+                    let attribute = match &ast.attributes {
+                        Some(attribute) => match attribute {
+                            TypeAttribute::NumericAttribute(attribute) => {
+                                match attribute.kind.value {
+                                    NumericAttributeKind::Value => {
+                                        add_attribute_incompatible(
+                                            errors,
+                                            attribute.span.clone(),
+                                            "string",
+                                        );
+                                        StringAttribute::default()
+                                    }
+                                    NumericAttributeKind::Length => match to_int_range(attribute) {
+                                        Some(range) => StringAttribute {
+                                            length: Some(()),
+                                            size: todo!(),
+                                            regex: todo!(),
+                                        },
+                                        None => {
+                                            add_attribute_incompatible(
+                                                errors,
+                                                attribute.span.clone(),
+                                                "string",
+                                            );
+                                            StringAttribute::default()
+                                        }
+                                    },
+                                    NumericAttributeKind::U8Size => todo!(),
+                                }
+                            }
+                            TypeAttribute::RegexAttribute(regex_attribute) => todo!(),
+                        },
+                        None => StringAttribute::default(),
+                    };
+
+                    Type::String(attribute)
+                }
                 "bool" => Type::Bool,
                 "any" => Type::Any,
                 _ => {

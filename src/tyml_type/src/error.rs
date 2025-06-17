@@ -24,4 +24,7 @@ pub enum TypeErrorKind<'input, 'ty> {
         value: Spanned<&'input str>,
         expected: Spanned<Type<'ty>>,
     },
+    IncompatibleAttributeForType {
+        ty: &'static str,
+    },
 }

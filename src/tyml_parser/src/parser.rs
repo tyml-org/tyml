@@ -8,9 +8,9 @@ use crate::{
     ast::{
         ArrayType, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
         ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement, EscapedLiteral,
-        FloatLiteral, FromTo, IntAttributeKind, IntoLiteral, Literal, NamedType, NodeLiteral,
-        NumericAttribute, OrType, RegexAttribute, Spanned, StructDefine, TypeAttribute, TypeDefine,
-        ValueLiteral,
+        FloatLiteral, FromTo, IntoLiteral, Literal, NamedType, NodeLiteral, NumericAttribute,
+        NumericAttributeKind, OrType, RegexAttribute, Spanned, StructDefine, TypeAttribute,
+        TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -436,12 +436,18 @@ fn parse_base_type<'input, 'allocator>(
         _ => None,
     };
 
-    let attribute = parse_type_attribute(lexer, errors, allocator);
+    let mut attributes = Vec::new_in(allocator);
+    loop {
+        let Some(attribute) = parse_type_attribute(lexer, errors, allocator) else {
+            break;
+        };
+        attributes.push(attribute);
+    }
 
     Some(BaseType {
         ty,
         optional,
-        attribute,
+        attributes,
         span: anchor.elapsed(lexer),
     })
 }
@@ -452,7 +458,7 @@ fn parse_type_attribute<'input, 'allocator>(
     allocator: &'allocator Bump,
 ) -> Option<TypeAttribute<'input>> {
     if let Some(attribute) = parse_numeric_attribute(lexer, errors, allocator) {
-        return Some(TypeAttribute::IntAttribute(attribute));
+        return Some(TypeAttribute::NumericAttribute(attribute));
     }
     if let Some(attribute) = parse_regex_attribute(lexer, errors, allocator) {
         return Some(TypeAttribute::RegexAttribute(attribute));
@@ -469,9 +475,13 @@ fn parse_numeric_attribute<'input, 'allocator>(
     let anchor = lexer.cast_anchor();
 
     let kind = match lexer.current().get_kind() {
-        TokenKind::AtValue => Spanned::new(IntAttributeKind::Value, lexer.next().unwrap().span),
-        TokenKind::AtLength => Spanned::new(IntAttributeKind::Length, lexer.next().unwrap().span),
-        TokenKind::AtU8Size => Spanned::new(IntAttributeKind::U8Size, lexer.next().unwrap().span),
+        TokenKind::AtValue => Spanned::new(NumericAttributeKind::Value, lexer.next().unwrap().span),
+        TokenKind::AtLength => {
+            Spanned::new(NumericAttributeKind::Length, lexer.next().unwrap().span)
+        }
+        TokenKind::AtU8Size => {
+            Spanned::new(NumericAttributeKind::U8Size, lexer.next().unwrap().span)
+        }
         _ => return None,
     };
 
@@ -522,7 +532,12 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 return None;
             };
 
-            let Ok(from) = from.text.parse::<f64>() else {
+            let Ok(from) = from
+                .text
+                .parse::<i128>()
+                .map(|int| Either::Right(int))
+                .or(from.text.parse::<f64>().map(|float| Either::Left(float)))
+            else {
                 let error = ParseError {
                     kind: ParseErrorKind::NonNumeric,
                     scope: Scope::TypeAttribute,
@@ -562,7 +577,12 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 return None;
             };
 
-            let Ok(to) = to.text.parse::<f64>() else {
+            let Ok(to) = to
+                .text
+                .parse::<i128>()
+                .map(|int| Either::Right(int))
+                .or(to.text.parse::<f64>().map(|float| Either::Left(float)))
+            else {
                 let error = ParseError {
                     kind: ParseErrorKind::NonNumeric,
                     scope: Scope::TypeAttribute,
@@ -576,7 +596,12 @@ fn parse_numeric_attribute<'input, 'allocator>(
 
             match from {
                 Some(from) => {
-                    let Ok(from) = from.text.parse::<f64>() else {
+                    let Ok(from) = from
+                        .text
+                        .parse::<i128>()
+                        .map(|int| Either::Right(int))
+                        .or(from.text.parse::<f64>().map(|float| Either::Left(float)))
+                    else {
                         let error = ParseError {
                             kind: ParseErrorKind::NonNumeric,
                             scope: Scope::TypeAttribute,
@@ -588,7 +613,14 @@ fn parse_numeric_attribute<'input, 'allocator>(
                         return None;
                     };
 
-                    if from > to {
+                    let bigger = match (from, to) {
+                        (Either::Left(from), Either::Left(to)) => from > to,
+                        (Either::Left(from), Either::Right(to)) => from > to as f64,
+                        (Either::Right(from), Either::Left(to)) => from as f64 > to,
+                        (Either::Right(from), Either::Right(to)) => from > to,
+                    };
+
+                    if bigger {
                         let error = ParseError {
                             kind: ParseErrorKind::BiggerFrom,
                             scope: Scope::TypeAttribute,

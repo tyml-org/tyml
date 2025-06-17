@@ -11,3 +11,4 @@ bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
 proc-macro-regex = "1.1.0"
 either = "1.13.0"
+regex = "1.11.1"

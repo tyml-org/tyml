@@ -1865,6 +1865,7 @@ dependencies = [
  "either",
  "hashbrown 0.15.4",
  "proc-macro-regex",
+ "regex",
  "tyml_parser",
 ]
 

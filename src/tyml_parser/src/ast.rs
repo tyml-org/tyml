@@ -129,25 +129,38 @@ pub struct OrType<'input, 'allocator> {
 pub struct BaseType<'input, 'allocator> {
     pub ty: Either<NamedType<'input>, ArrayType<'input, 'allocator>>,
     pub optional: Option<Range<usize>>,
-    pub attribute: Option<TypeAttribute<'input>>,
+    pub attributes: AttributeOr<'input, 'allocator>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
-pub enum TypeAttribute<'input> {
-    IntAttribute(NumericAttribute),
+pub struct AttributeOr<'input, 'allocator> {
+    pub attributes: Vec<AttributeAnd<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct AttributeAnd<'input, 'allocator> {
+    pub attributes: Vec<TypeAttribute<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub enum TypeAttribute<'input, 'allocator> {
+    NumericAttribute(NumericAttribute),
     RegexAttribute(RegexAttribute<'input>),
+    AttributeTree(AttributeOr<'input, 'allocator>),
 }
 
 #[derive(Debug)]
 pub struct NumericAttribute {
-    pub kind: Spanned<IntAttributeKind>,
+    pub kind: Spanned<NumericAttributeKind>,
     pub from_to: FromTo,
     pub span: Range<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IntAttributeKind {
+pub enum NumericAttributeKind {
     Value,
     Length,
     U8Size,
@@ -156,15 +169,21 @@ pub enum IntAttributeKind {
 #[derive(Debug)]
 pub enum FromTo {
     /// 0..<10
-    FromToExclusive { from: f64, to: f64 },
+    FromToExclusive {
+        from: Either<f64, i128>,
+        to: Either<f64, i128>,
+    },
     /// 0..=9
-    FromToInclusive { from: f64, to: f64 },
+    FromToInclusive {
+        from: Either<f64, i128>,
+        to: Either<f64, i128>,
+    },
     /// 0..
-    From { from: f64 },
+    From { from: Either<f64, i128> },
     /// ..<10
-    ToExclusive { to: f64 },
+    ToExclusive { to: Either<f64, i128> },
     /// ..=10
-    ToInclusive { to: f64 },
+    ToInclusive { to: Either<f64, i128> },
 }
 
 #[derive(Debug)]

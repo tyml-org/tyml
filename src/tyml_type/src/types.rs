@@ -8,15 +8,16 @@ use std::{
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
+use regex::bytes::Regex;
 use tyml_parser::ast::Literal;
 
 use crate::name::NameID;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type<'ty> {
-    Int(IntAttribute),
-    UnsignedInt(UnsignedIntAttribute),
-    Float(FloatAttribute),
+    Int(Arc<Vec<IntAttribute>>),
+    UnsignedInt(Arc<Vec<UnsignedIntAttribute>>),
+    Float(Arc<Vec<FloatAttribute>>),
     Bool,
     String(StringAttribute),
     MaybeInt,
@@ -276,14 +277,30 @@ impl ToTypeName for FloatAttribute {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct StringAttribute {
-    pub tags: Arc<Vec<String>>,
+    pub length: NumericalValueRange<u64>,
+    pub size: NumericalValueRange<u64>,
+    pub regex: Option<Arc<String>>,
 }
 
 impl Attribute<&str> for StringAttribute {
-    fn validate(&self, _: &str) -> bool {
-        true // TODO : impl attrivute
+    fn validate(&self, value: &str) -> bool {
+        if !self.length.validate(value.chars().count() as _) {
+            return false;
+        }
+        if !self.size.validate(value.len() as _) {
+            return false;
+        }
+        if let Some(regex) = &self.regex {
+            if !Regex::new(regex.as_str())
+                .unwrap()
+                .is_match(value.as_bytes())
+            {
+                return false;
+            }
+        }
+        true
     }
 }
 
