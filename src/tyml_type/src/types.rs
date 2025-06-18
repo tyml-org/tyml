@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     fmt::Display,
+    marker::PhantomData,
     ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive},
     sync::Arc,
 };
@@ -15,9 +16,9 @@ use crate::name::NameID;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type<'ty> {
-    Int(Arc<Vec<IntAttribute>>),
-    UnsignedInt(Arc<Vec<UnsignedIntAttribute>>),
-    Float(Arc<Vec<FloatAttribute>>),
+    Int(Arc<AttributeTree>),
+    UnsignedInt(Arc<AttributeTree>),
+    Float(Arc<AttributeTree>),
     Bool,
     String(StringAttribute),
     MaybeInt,
@@ -32,10 +33,76 @@ pub enum Type<'ty> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AttributeTree<T> {
-    Or { attributes: Vec<T> },
-    And { attributes: Vec<T> },
-    Tree { attribute: Arc<T> },
+pub enum AttributeTree {
+    Or { attributes: Vec<AttributeTree> },
+    And { attributes: Vec<AttributeTree> },
+    Tree { attributes: Arc<AttributeTree> },
+    Base { attribute: Arc<AttributeSet> },
+}
+
+impl AttributeTree {
+    pub fn validate_as_int_value(&self, value: i64) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => todo!(),
+            AttributeTree::And { attributes } => todo!(),
+            AttributeTree::Tree { attributes } => todo!(),
+            AttributeTree::Base { attribute } => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttributeSet {
+    Length(UnsignedIntAttribute),
+    U8Size(UnsignedIntAttribute),
+    IntValue(IntAttribute),
+    UIntValue(UnsignedIntAttribute),
+    FloatValue(FloatAttribute),
+    Regex(Arc<String>),
+}
+
+impl ToTypeName for AttributeTree {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .map(|attribute| attribute.to_type_name(named_type_map))
+                .collect::<Vec<_>>()
+                .join(" or "),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .map(|attribute| attribute.to_type_name(named_type_map))
+                .collect::<Vec<_>>()
+                .join(" and "),
+            AttributeTree::Tree { attributes } => {
+                format!("( {} )", attributes.to_type_name(named_type_map))
+            }
+            AttributeTree::Base { attribute } => attribute.to_type_name(named_type_map),
+        }
+    }
+}
+
+impl ToTypeName for AttributeSet {
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        match self {
+            AttributeSet::Length(attribute) => {
+                format!("@length {}", attribute.to_type_name(named_type_map))
+            }
+            AttributeSet::U8Size(attribute) => {
+                format!("@u8size {}", attribute.to_type_name(named_type_map))
+            }
+            AttributeSet::IntValue(attribute) => {
+                format!("@value {}", attribute.to_type_name(named_type_map))
+            }
+            AttributeSet::UIntValue(attribute) => {
+                format!("@value {}", attribute.to_type_name(named_type_map))
+            }
+            AttributeSet::FloatValue(attribute) => {
+                format!("@value {}", attribute.to_type_name(named_type_map))
+            }
+            AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex),
+        }
+    }
 }
 
 impl<'ty> Type<'ty> {
