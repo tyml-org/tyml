@@ -165,19 +165,19 @@ impl ToTypeName for AttributeSet {
     fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
         match self {
             AttributeSet::Length(attribute) => {
-                format!(" @ length {}", attribute.to_type_name(named_type_map))
+                format!(" @length {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::U8Size(attribute) => {
-                format!(" @ u8size {}", attribute.to_type_name(named_type_map))
+                format!(" @u8size {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::IntValue(attribute) => {
-                format!(" @ value {}", attribute.to_type_name(named_type_map))
+                format!(" @value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::UIntValue(attribute) => {
-                format!(" @ value {}", attribute.to_type_name(named_type_map))
+                format!(" @value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::FloatValue(attribute) => {
-                format!(" @ value {}", attribute.to_type_name(named_type_map))
+                format!(" @value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex.as_str()),
         }
