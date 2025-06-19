@@ -20,6 +20,7 @@ parse_error: {
     "0018": Diagnostic
     "0019": Diagnostic
     "0020": Diagnostic
+    "0021": Diagnostic
 }
 
 type_error: {
@@ -27,6 +28,8 @@ type_error: {
     "0001": Diagnostic
     "0002": Diagnostic
     "0003": Diagnostic
+    "0004": Diagnostic
+    "0005": Diagnostic
 }
 
 validate_error: {

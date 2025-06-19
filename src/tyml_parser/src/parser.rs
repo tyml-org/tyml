@@ -541,9 +541,9 @@ fn parse_type_attribute<'input, 'allocator>(
     if let Some(attribute) = parse_regex_attribute(lexer, errors, allocator) {
         return Some(TypeAttribute::RegexAttribute(attribute));
     }
-    if let Some(attribute) = parse_attribute_or(lexer, errors, allocator) {
+    /*if let Some(attribute) = parse_attribute_or(lexer, errors, allocator) {
         return Some(TypeAttribute::AttributeTree(attribute));
-    }
+    }*/
 
     None
 }

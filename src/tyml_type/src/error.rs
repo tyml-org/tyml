@@ -27,4 +27,5 @@ pub enum TypeErrorKind<'input, 'ty> {
     IncompatibleAttributeForType {
         ty: &'static str,
     },
+    InvalidRegexAttribute,
 }

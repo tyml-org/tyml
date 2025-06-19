@@ -75,6 +75,32 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     },
                 ],
             },
+            TypeErrorKind::IncompatibleAttributeForType { ty } => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::TypeError,
+                    code: 0004,
+                    arguments: vec![ty.to_string()],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            TypeErrorKind::InvalidRegexAttribute => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::TypeError,
+                    code: 0005,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
         }
     }
 }

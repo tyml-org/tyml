@@ -70,6 +70,9 @@ label_0 = "数値としてのパースに失敗しました"
 [parse_error.0020]
 message = "大小関係が正しくありません"
 label_0 = "左側の数値の方が大きいです"
+[parse_error.0021]
+message = "属性の'%color:yellow{or}'や'%color:yellow{and}'の記述方法が正しくありません"
+label_0 = "属性を記述する必要があります"
 
 [type_error]
 name = "%color:red{[TE%0] 型エラー}"
@@ -84,6 +87,13 @@ label_1 = "値はこの型'%color:yellow{%1}'と互換性がありません"
 message = "既定値が型の属性に適合しません"
 label_0 = "この値は型の属性と一致しません"
 label_1 = "値はこの型'%color:yellow{%0}'の属性と一致しません"
+[type_error.0004]
+message = "有効ではない属性が指定されています"
+label_0 = "この属性は型'%color:yellow{%0}'の属性として有効ではありません"
+note = "属性の種類と数値が有効かどうか再度確かめてみてください"
+[type_error.0005]
+message = "正規表現として有効ではない文字列が指定されています"
+label_0 = "正規表現として有効ではありません"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

@@ -70,6 +70,9 @@ label_0 = "Failed to parse as a number"
 [parse_error.0020]
 message = "The ordering relationship is incorrect"
 label_0 = "The left-hand number is larger"
+[parse_error.0021]
+message = "The usage of '%color:yellow{or}' or '%color:yellow{and}' attributes is incorrect"
+label_0 = "An attribute must be specified here"
 
 
 [type_error]
@@ -85,6 +88,14 @@ label_1 = "The value is not compatible with type '%color:yellow{%1}'"
 message = "Default value does not satisfy the type attributes"
 label_0 = "This value does not match the type attributes"
 label_1 = "The value does not match the attributes of type '%color:yellow{%0}'"
+[type_error.0004]
+message = "An invalid attribute is specified"
+label_0 = "This attribute is not valid for type '%color:yellow{%0}'"
+note = "Please double-check whether the attribute kind and its numeric value are valid"
+[type_error.0005]
+message = "The specified string is not a valid regular expression"
+label_0 = "This is not a valid regular expression"
+
 
 [validate_error]
 name = "%color:red{[VE%0] Validation Error}"

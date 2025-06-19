@@ -453,7 +453,7 @@ enum Mode {
         let ini_source = r#"
 test."test\"" = [0xFF, ""]
 
-test1 = { test2 = false, test3 = "aaa" }
+test1 = { test2 = false, test3 = 200 }
 
 [[settings]]
 ip = "192.168.1.1"

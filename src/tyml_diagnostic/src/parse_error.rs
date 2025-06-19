@@ -319,6 +319,19 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     message_override: None,
                 }],
             },
+            ParseErrorKind::InvalidAndOrAttributeFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0021,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
         }
     }
 }

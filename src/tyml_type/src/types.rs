@@ -8,7 +8,7 @@ use std::{
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
-use regex::bytes::Regex;
+use regex::Regex;
 use tyml_parser::ast::Literal;
 
 use crate::name::NameID;
@@ -101,40 +101,6 @@ impl AttributeTree {
         }
     }
 
-    pub fn validate_as_length(&self, value: u64) -> bool {
-        match self {
-            AttributeTree::Or { attributes } => attributes
-                .iter()
-                .any(|attribute| attribute.validate_as_length(value)),
-            AttributeTree::And { attributes } => attributes
-                .iter()
-                .all(|attribute| attribute.validate_as_length(value)),
-            AttributeTree::Tree { attribute } => attribute.validate_as_length(value),
-            AttributeTree::Base { attribute } => match attribute.as_ref() {
-                AttributeSet::Length(attribute) => attribute.validate(value),
-                _ => true,
-            },
-            AttributeTree::None => true,
-        }
-    }
-
-    pub fn validate_as_u8size(&self, value: u64) -> bool {
-        match self {
-            AttributeTree::Or { attributes } => attributes
-                .iter()
-                .any(|attribute| attribute.validate_as_u8size(value)),
-            AttributeTree::And { attributes } => attributes
-                .iter()
-                .all(|attribute| attribute.validate_as_u8size(value)),
-            AttributeTree::Tree { attribute } => attribute.validate_as_u8size(value),
-            AttributeTree::Base { attribute } => match attribute.as_ref() {
-                AttributeSet::Length(attribute) => attribute.validate(value),
-                _ => true,
-            },
-            AttributeTree::None => true,
-        }
-    }
-
     pub fn validate_as_string_value(&self, value: &str) -> bool {
         match self {
             AttributeTree::Or { attributes } => attributes
@@ -145,7 +111,9 @@ impl AttributeTree {
                 .all(|attribute| attribute.validate_as_string_value(value)),
             AttributeTree::Tree { attribute } => attribute.validate_as_string_value(value),
             AttributeTree::Base { attribute } => match attribute.as_ref() {
-                AttributeSet::Regex(attribute) => attribute.is_match(value.as_bytes()),
+                AttributeSet::Length(attribute) => attribute.validate(value.chars().count() as _),
+                AttributeSet::U8Size(attribute) => attribute.validate(value.len() as _),
+                AttributeSet::Regex(attribute) => attribute.is_match(value),
                 _ => true,
             },
             AttributeTree::None => true,
@@ -197,19 +165,19 @@ impl ToTypeName for AttributeSet {
     fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
         match self {
             AttributeSet::Length(attribute) => {
-                format!("@length {}", attribute.to_type_name(named_type_map))
+                format!(" @ length {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::U8Size(attribute) => {
-                format!("@u8size {}", attribute.to_type_name(named_type_map))
+                format!(" @ u8size {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::IntValue(attribute) => {
-                format!("@value {}", attribute.to_type_name(named_type_map))
+                format!(" @ value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::UIntValue(attribute) => {
-                format!("@value {}", attribute.to_type_name(named_type_map))
+                format!(" @ value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::FloatValue(attribute) => {
-                format!("@value {}", attribute.to_type_name(named_type_map))
+                format!(" @ value {}", attribute.to_type_name(named_type_map))
             }
             AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex.as_str()),
         }
@@ -420,12 +388,12 @@ pub enum NumericalValueRange<T: Display> {
 impl<T: Display> ToTypeName for NumericalValueRange<T> {
     fn to_type_name(&self, _: &NamedTypeMap) -> String {
         match self {
-            NumericalValueRange::Range(range) => format!("{}..{}", range.start, range.end),
+            NumericalValueRange::Range(range) => format!("{}..<{}", range.start, range.end),
             NumericalValueRange::RangeInclusive(range) => {
                 format!("{}..={}", range.start(), range.end())
             }
             NumericalValueRange::RangeFrom(range) => format!("{}..", range.start),
-            NumericalValueRange::RangeTo(range) => format!("..{}", range.end),
+            NumericalValueRange::RangeTo(range) => format!("..<{}", range.end),
             NumericalValueRange::RangeToInclusive(range) => format!("..={}", range.end),
             NumericalValueRange::None => String::new(),
         }
@@ -464,23 +432,12 @@ impl ToTypeName for FloatAttribute {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct StringAttribute {
-    pub length: AttributeTree,
-    pub size: AttributeTree,
-    pub regex: AttributeTree,
+    pub attribute: AttributeTree,
 }
 
 impl Attribute<&str> for StringAttribute {
     fn validate(&self, value: &str) -> bool {
-        if !self.length.validate_as_length(value.chars().count() as _) {
-            return false;
-        }
-        if !self.size.validate_as_u8size(value.len() as _) {
-            return false;
-        }
-        if !self.regex.validate_as_string_value(value) {
-            return false;
-        }
-        true
+        self.attribute.validate_as_string_value(value)
     }
 }
 

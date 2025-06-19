@@ -31,6 +31,10 @@ pub enum TokenKind {
     Or,
     /// and
     And,
+    /// (
+    ParenthesisLeft,
+    /// )
+    ParenthesisRight,
     /// {
     BraceLeft,
     /// }
@@ -93,6 +97,8 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),
     Tokenizer::Keyword(TokenKind::BracketRight, "]"),
+    Tokenizer::Keyword(TokenKind::ParenthesisLeft, "("),
+    Tokenizer::Keyword(TokenKind::ParenthesisRight, ")"),
     Tokenizer::Keyword(TokenKind::VerticalLine, "|"),
     Tokenizer::Keyword(TokenKind::FromTo, ".."),
     Tokenizer::Keyword(TokenKind::FromToExclusive, "..<"),

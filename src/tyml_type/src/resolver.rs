@@ -1,13 +1,14 @@
-use std::{fmt::Display, ops::Range};
+use std::{fmt::Display, ops::Range, sync::Arc};
 
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use either::Either;
 use hashbrown::HashMap;
+use regex::Regex;
 use tyml_parser::ast::{
-    AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents, ElementDefine,
-    FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
-    Spanned, TypeAttribute, TypeDefine, ValueLiteral,
+    AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
+    ElementDefine, FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute,
+    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, ValueLiteral, AST,
 };
 
 use crate::{
@@ -463,104 +464,169 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
         Either::Left(base_type) => {
             match base_type.name.value {
                 "int" => {
-                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
-                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
-                            NumericAttributeKind::Value => match to_int_range(attribute) {
-                                Some(attribute) => IntAttribute { range: attribute },
-                                None => {
-                                    add_attribute_incompatible(
-                                        errors,
-                                        attribute.span.clone(),
-                                        "int",
-                                    );
-                                    IntAttribute::default()
-                                }
-                            },
-                            _ => {
-                                add_attribute_incompatible(errors, attribute.span.clone(), "int");
-                                IntAttribute::default()
-                            }
-                        },
-                        TypeAttribute::RegexAttribute(attribute) => {
-                            add_attribute_incompatible(errors, attribute.span.clone(), "int");
-                            IntAttribute::default()
-                        }
-                    });
-
-                    Type::Int(attribute.unwrap_or_default())
-                }
-                "uint" => {
-                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
-                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
-                            NumericAttributeKind::Value => match to_int_range(attribute) {
-                                Some(attribute) => UnsignedIntAttribute { range: attribute },
-                                None => {
-                                    add_attribute_incompatible(
-                                        errors,
-                                        attribute.span.clone(),
-                                        "uint",
-                                    );
-                                    UnsignedIntAttribute::default()
-                                }
-                            },
-                            _ => {
-                                add_attribute_incompatible(errors, attribute.span.clone(), "uint");
-                                UnsignedIntAttribute::default()
-                            }
-                        },
-                        TypeAttribute::RegexAttribute(attribute) => {
-                            add_attribute_incompatible(errors, attribute.span.clone(), "uint");
-                            UnsignedIntAttribute::default()
-                        }
-                    });
-
-                    Type::UnsignedInt(attribute.unwrap_or_default())
-                }
-                "float" => {
-                    let attribute = ast.attribute.as_ref().map(|attribute| match attribute {
-                        TypeAttribute::NumericAttribute(attribute) => match attribute.kind.value {
-                            NumericAttributeKind::Value => match to_float_range(attribute) {
-                                Some(attribute) => FloatAttribute { range: attribute },
-                                None => {
-                                    add_attribute_incompatible(
-                                        errors,
-                                        attribute.span.clone(),
-                                        "float",
-                                    );
-                                    FloatAttribute::default()
-                                }
-                            },
-                            _ => {
-                                add_attribute_incompatible(errors, attribute.span.clone(), "float");
-                                FloatAttribute::default()
-                            }
-                        },
-                        TypeAttribute::RegexAttribute(attribute) => {
-                            add_attribute_incompatible(errors, attribute.span.clone(), "float");
-                            FloatAttribute::default()
-                        }
-                    });
-
-                    Type::Float(attribute.unwrap_or_default())
-                }
-                "string" => {
-                    let attribute = match &ast.attribute {
-                        Some(attribute) => match attribute {
+                    fn int_attribute_processor<'input, 'ast_allocator>(
+                        attribute: &TypeAttribute<'input, 'ast_allocator>,
+                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                    ) -> AttributeTree {
+                        match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
                                 match attribute.kind.value {
-                                    NumericAttributeKind::Value => {
+                                    NumericAttributeKind::Value => match to_int_range(attribute) {
+                                        Some(attribute) => AttributeTree::Base {
+                                            attribute: Arc::new(AttributeSet::IntValue(attribute)),
+                                        },
+                                        None => {
+                                            add_attribute_incompatible(
+                                                errors,
+                                                attribute.span.clone(),
+                                                "int",
+                                            );
+                                            AttributeTree::None
+                                        }
+                                    },
+                                    _ => {
                                         add_attribute_incompatible(
                                             errors,
                                             attribute.span.clone(),
-                                            "string",
+                                            "int",
                                         );
-                                        StringAttribute::default()
+                                        AttributeTree::None
                                     }
+                                }
+                            }
+                            TypeAttribute::RegexAttribute(attribute) => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "int");
+                                AttributeTree::None
+                            }
+                            TypeAttribute::AttributeTree(attribute_or) => {
+                                resolve_attribute_or(attribute_or, int_attribute_processor, errors)
+                            }
+                        }
+                    }
+
+                    let attribute = ast.attribute.as_ref().map(|attribute| {
+                        resolve_attribute_or(attribute, int_attribute_processor, errors)
+                    });
+
+                    Type::Int(IntAttribute {
+                        range: attribute.unwrap_or_default(),
+                    })
+                }
+                "uint" => {
+                    fn uint_attribute_processor<'input, 'ast_allocator>(
+                        attribute: &TypeAttribute<'input, 'ast_allocator>,
+                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                    ) -> AttributeTree {
+                        match attribute {
+                            TypeAttribute::NumericAttribute(attribute) => {
+                                match attribute.kind.value {
+                                    NumericAttributeKind::Value => match to_int_range(attribute) {
+                                        Some(attribute) => AttributeTree::Base {
+                                            attribute: Arc::new(AttributeSet::UIntValue(attribute)),
+                                        },
+                                        None => {
+                                            add_attribute_incompatible(
+                                                errors,
+                                                attribute.span.clone(),
+                                                "uint",
+                                            );
+                                            AttributeTree::None
+                                        }
+                                    },
+                                    _ => {
+                                        add_attribute_incompatible(
+                                            errors,
+                                            attribute.span.clone(),
+                                            "uint",
+                                        );
+                                        AttributeTree::None
+                                    }
+                                }
+                            }
+                            TypeAttribute::RegexAttribute(attribute) => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "uint");
+                                AttributeTree::None
+                            }
+                            TypeAttribute::AttributeTree(attribute_or) => {
+                                resolve_attribute_or(attribute_or, uint_attribute_processor, errors)
+                            }
+                        }
+                    }
+
+                    let attribute = ast.attribute.as_ref().map(|attribute| {
+                        resolve_attribute_or(attribute, uint_attribute_processor, errors)
+                    });
+
+                    Type::UnsignedInt(UnsignedIntAttribute {
+                        range: attribute.unwrap_or_default(),
+                    })
+                }
+                "float" => {
+                    fn float_attribute_processor<'input, 'ast_allocator>(
+                        attribute: &TypeAttribute<'input, 'ast_allocator>,
+                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                    ) -> AttributeTree {
+                        match attribute {
+                            TypeAttribute::NumericAttribute(attribute) => {
+                                match attribute.kind.value {
+                                    NumericAttributeKind::Value => {
+                                        match to_float_range(attribute) {
+                                            Some(attribute) => AttributeTree::Base {
+                                                attribute: Arc::new(AttributeSet::FloatValue(
+                                                    attribute,
+                                                )),
+                                            },
+                                            None => {
+                                                add_attribute_incompatible(
+                                                    errors,
+                                                    attribute.span.clone(),
+                                                    "float",
+                                                );
+                                                AttributeTree::None
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        add_attribute_incompatible(
+                                            errors,
+                                            attribute.span.clone(),
+                                            "float",
+                                        );
+                                        AttributeTree::None
+                                    }
+                                }
+                            }
+                            TypeAttribute::RegexAttribute(attribute) => {
+                                add_attribute_incompatible(errors, attribute.span.clone(), "float");
+                                AttributeTree::None
+                            }
+                            TypeAttribute::AttributeTree(attribute_or) => resolve_attribute_or(
+                                attribute_or,
+                                float_attribute_processor,
+                                errors,
+                            ),
+                        }
+                    }
+
+                    let attribute = ast.attribute.as_ref().map(|attribute| {
+                        resolve_attribute_or(attribute, float_attribute_processor, errors)
+                    });
+
+                    Type::Float(FloatAttribute {
+                        range: attribute.unwrap_or_default(),
+                    })
+                }
+                "string" => {
+                    fn string_attribute_processor<'input, 'ast_allocator>(
+                        attribute: &TypeAttribute<'input, 'ast_allocator>,
+                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                    ) -> AttributeTree {
+                        match attribute {
+                            TypeAttribute::NumericAttribute(attribute) => {
+                                match attribute.kind.value {
                                     NumericAttributeKind::Length => match to_int_range(attribute) {
-                                        Some(range) => StringAttribute {
-                                            length: Some(()),
-                                            size: todo!(),
-                                            regex: todo!(),
+                                        Some(attribute) => AttributeTree::Base {
+                                            attribute: Arc::new(AttributeSet::IntValue(attribute)),
                                         },
                                         None => {
                                             add_attribute_incompatible(
@@ -568,18 +634,61 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                                 attribute.span.clone(),
                                                 "string",
                                             );
-                                            StringAttribute::default()
+                                            AttributeTree::None
                                         }
                                     },
-                                    NumericAttributeKind::U8Size => todo!(),
+                                    NumericAttributeKind::U8Size => match to_int_range(attribute) {
+                                        Some(attribute) => AttributeTree::Base {
+                                            attribute: Arc::new(AttributeSet::IntValue(attribute)),
+                                        },
+                                        None => {
+                                            add_attribute_incompatible(
+                                                errors,
+                                                attribute.span.clone(),
+                                                "string",
+                                            );
+                                            AttributeTree::None
+                                        }
+                                    },
+                                    _ => {
+                                        add_attribute_incompatible(
+                                            errors,
+                                            attribute.span.clone(),
+                                            "string",
+                                        );
+                                        AttributeTree::None
+                                    }
                                 }
                             }
-                            TypeAttribute::RegexAttribute(regex_attribute) => todo!(),
-                        },
-                        None => StringAttribute::default(),
-                    };
+                            TypeAttribute::RegexAttribute(attribute) => {
+                                match Regex::new(attribute.regex_literal.value.as_ref()) {
+                                    Ok(regex) => AttributeTree::Base {
+                                        attribute: Arc::new(AttributeSet::Regex(Arc::new(regex))),
+                                    },
+                                    Err(_) => {
+                                        let error = TypeError {
+                                            kind: TypeErrorKind::InvalidRegexAttribute,
+                                            span: attribute.span(),
+                                        };
+                                        errors.push(error);
 
-                    Type::String(attribute)
+                                        AttributeTree::None
+                                    }
+                                }
+                            }
+                            TypeAttribute::AttributeTree(attribute_or) => {
+                                resolve_attribute_or(attribute_or, string_attribute_processor, errors)
+                            }
+                        }
+                    }
+
+                    let attribute = ast.attribute.as_ref().map(|attribute| {
+                        resolve_attribute_or(attribute, string_attribute_processor, errors)
+                    });
+
+                    Type::String(StringAttribute {
+                        attribute: attribute.unwrap_or_default(),
+                    })
                 }
                 "bool" => Type::Bool,
                 "any" => Type::Any,
@@ -625,7 +734,36 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
 
 fn resolve_attribute_or<'input, 'ast_allocator>(
     ast: &AttributeOr<'input, 'ast_allocator>,
+    processor: impl Fn(
+            &TypeAttribute<'input, 'ast_allocator>,
+            &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+        ) -> AttributeTree
+        + Clone,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
 ) -> AttributeTree {
-    
+    AttributeTree::Or {
+        attributes: ast
+            .attributes
+            .iter()
+            .map(|attribute| resolve_attribute_and(attribute, processor.clone(), errors))
+            .collect(),
+    }
+}
+
+fn resolve_attribute_and<'input, 'ast_allocator>(
+    ast: &AttributeAnd<'input, 'ast_allocator>,
+    processor: impl Fn(
+            &TypeAttribute<'input, 'ast_allocator>,
+            &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+        ) -> AttributeTree
+        + Clone,
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+) -> AttributeTree {
+    AttributeTree::And {
+        attributes: ast
+            .attributes
+            .iter()
+            .map(|attribute| processor.clone()(attribute, errors))
+            .collect(),
+    }
 }
