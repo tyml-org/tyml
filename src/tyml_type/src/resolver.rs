@@ -5,17 +5,17 @@ use bumpalo::Bump;
 use either::Either;
 use hashbrown::HashMap;
 use tyml_parser::ast::{
-    BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents, ElementDefine, FloatLiteral,
-    FromTo, Literal, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, Spanned,
-    TypeAttribute, TypeDefine, ValueLiteral,
+    AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents, ElementDefine,
+    FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
+    Spanned, TypeAttribute, TypeDefine, ValueLiteral,
 };
 
 use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree, NumericalValueRange,
-        StringAttribute, Type, TypeTree, UnsignedIntAttribute,
+        AttributeSet, AttributeTree, FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree,
+        NumericalValueRange, StringAttribute, Type, TypeTree, UnsignedIntAttribute,
     },
 };
 
@@ -621,4 +621,11 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
         true => Type::Optional(Box::new_in(ty, ty_allocator)),
         false => ty,
     }
+}
+
+fn resolve_attribute_or<'input, 'ast_allocator>(
+    ast: &AttributeOr<'input, 'ast_allocator>,
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+) -> AttributeTree {
+    
 }

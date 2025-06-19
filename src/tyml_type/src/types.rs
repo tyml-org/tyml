@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     fmt::Display,
-    marker::PhantomData,
     ops::{Range, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive},
     sync::Arc,
 };
@@ -16,9 +15,9 @@ use crate::name::NameID;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type<'ty> {
-    Int(Arc<AttributeTree>),
-    UnsignedInt(Arc<AttributeTree>),
-    Float(Arc<AttributeTree>),
+    Int(IntAttribute),
+    UnsignedInt(UnsignedIntAttribute),
+    Float(FloatAttribute),
     Bool,
     String(StringAttribute),
     MaybeInt,
@@ -32,33 +31,142 @@ pub enum Type<'ty> {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum AttributeTree {
-    Or { attributes: Vec<AttributeTree> },
-    And { attributes: Vec<AttributeTree> },
-    Tree { attributes: Arc<AttributeTree> },
-    Base { attribute: Arc<AttributeSet> },
+    Or {
+        attributes: Vec<AttributeTree>,
+    },
+    And {
+        attributes: Vec<AttributeTree>,
+    },
+    Tree {
+        attribute: Arc<AttributeTree>,
+    },
+    Base {
+        attribute: Arc<AttributeSet>,
+    },
+    #[default]
+    None,
 }
 
 impl AttributeTree {
     pub fn validate_as_int_value(&self, value: i64) -> bool {
         match self {
-            AttributeTree::Or { attributes } => todo!(),
-            AttributeTree::And { attributes } => todo!(),
-            AttributeTree::Tree { attributes } => todo!(),
-            AttributeTree::Base { attribute } => todo!(),
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_int_value(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_int_value(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_int_value(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::IntValue(attribute) => attribute.validate(value),
+                _ => true,
+            },
+            AttributeTree::None => true,
+        }
+    }
+
+    pub fn validate_as_uint_value(&self, value: u64) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_uint_value(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_uint_value(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_uint_value(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::UIntValue(attribute) => attribute.validate(value),
+                _ => true,
+            },
+            AttributeTree::None => true,
+        }
+    }
+
+    pub fn validate_as_float_value(&self, value: f64) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_float_value(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_float_value(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_float_value(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::FloatValue(attribute) => attribute.validate(value),
+                _ => true,
+            },
+            AttributeTree::None => true,
+        }
+    }
+
+    pub fn validate_as_length(&self, value: u64) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_length(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_length(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_length(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::Length(attribute) => attribute.validate(value),
+                _ => true,
+            },
+            AttributeTree::None => true,
+        }
+    }
+
+    pub fn validate_as_u8size(&self, value: u64) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_u8size(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_u8size(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_u8size(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::Length(attribute) => attribute.validate(value),
+                _ => true,
+            },
+            AttributeTree::None => true,
+        }
+    }
+
+    pub fn validate_as_string_value(&self, value: &str) -> bool {
+        match self {
+            AttributeTree::Or { attributes } => attributes
+                .iter()
+                .any(|attribute| attribute.validate_as_string_value(value)),
+            AttributeTree::And { attributes } => attributes
+                .iter()
+                .all(|attribute| attribute.validate_as_string_value(value)),
+            AttributeTree::Tree { attribute } => attribute.validate_as_string_value(value),
+            AttributeTree::Base { attribute } => match attribute.as_ref() {
+                AttributeSet::Regex(attribute) => attribute.is_match(value.as_bytes()),
+                _ => true,
+            },
+            AttributeTree::None => true,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum AttributeSet {
-    Length(UnsignedIntAttribute),
-    U8Size(UnsignedIntAttribute),
-    IntValue(IntAttribute),
-    UIntValue(UnsignedIntAttribute),
-    FloatValue(FloatAttribute),
-    Regex(Arc<String>),
+    Length(NumericalValueRange<u64>),
+    U8Size(NumericalValueRange<u64>),
+    IntValue(NumericalValueRange<i64>),
+    UIntValue(NumericalValueRange<u64>),
+    FloatValue(NumericalValueRange<f64>),
+    Regex(Arc<Regex>),
+}
+
+impl PartialEq for AttributeSet {
+    fn eq(&self, _: &Self) -> bool {
+        false
+    }
 }
 
 impl ToTypeName for AttributeTree {
@@ -74,10 +182,13 @@ impl ToTypeName for AttributeTree {
                 .map(|attribute| attribute.to_type_name(named_type_map))
                 .collect::<Vec<_>>()
                 .join(" and "),
-            AttributeTree::Tree { attributes } => {
+            AttributeTree::Tree {
+                attribute: attributes,
+            } => {
                 format!("( {} )", attributes.to_type_name(named_type_map))
             }
             AttributeTree::Base { attribute } => attribute.to_type_name(named_type_map),
+            AttributeTree::None => String::new(),
         }
     }
 }
@@ -100,7 +211,7 @@ impl ToTypeName for AttributeSet {
             AttributeSet::FloatValue(attribute) => {
                 format!("@value {}", attribute.to_type_name(named_type_map))
             }
-            AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex),
+            AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex.as_str()),
         }
     }
 }
@@ -263,12 +374,12 @@ pub trait Attribute<T>: ToTypeName {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct IntAttribute {
-    pub range: NumericalValueRange<i64>,
+    pub range: AttributeTree,
 }
 
 impl Attribute<i64> for IntAttribute {
     fn validate(&self, value: i64) -> bool {
-        self.range.validate(value)
+        self.range.validate_as_int_value(value)
     }
 }
 
@@ -280,12 +391,12 @@ impl ToTypeName for IntAttribute {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UnsignedIntAttribute {
-    pub range: NumericalValueRange<u64>,
+    pub range: AttributeTree,
 }
 
 impl Attribute<u64> for UnsignedIntAttribute {
     fn validate(&self, value: u64) -> bool {
-        self.range.validate(value)
+        self.range.validate_as_uint_value(value)
     }
 }
 
@@ -309,14 +420,14 @@ pub enum NumericalValueRange<T: Display> {
 impl<T: Display> ToTypeName for NumericalValueRange<T> {
     fn to_type_name(&self, _: &NamedTypeMap) -> String {
         match self {
-            NumericalValueRange::Range(range) => format!(" < {}..{}", range.start, range.end),
+            NumericalValueRange::Range(range) => format!("{}..{}", range.start, range.end),
             NumericalValueRange::RangeInclusive(range) => {
-                format!(" < {}..={}", range.start(), range.end())
+                format!("{}..={}", range.start(), range.end())
             }
-            NumericalValueRange::RangeFrom(range) => format!(" < {}..", range.start),
-            NumericalValueRange::RangeTo(range) => format!(" < ..{}", range.end),
-            NumericalValueRange::RangeToInclusive(range) => format!(" < ..={}", range.end),
-            NumericalValueRange::None => format!(""),
+            NumericalValueRange::RangeFrom(range) => format!("{}..", range.start),
+            NumericalValueRange::RangeTo(range) => format!("..{}", range.end),
+            NumericalValueRange::RangeToInclusive(range) => format!("..={}", range.end),
+            NumericalValueRange::None => String::new(),
         }
     }
 }
@@ -336,12 +447,12 @@ impl<T: PartialOrd + Display> Attribute<T> for NumericalValueRange<T> {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FloatAttribute {
-    pub range: NumericalValueRange<f64>,
+    pub range: AttributeTree,
 }
 
 impl Attribute<f64> for FloatAttribute {
     fn validate(&self, value: f64) -> bool {
-        self.range.validate(value)
+        self.range.validate_as_float_value(value)
     }
 }
 
@@ -353,26 +464,21 @@ impl ToTypeName for FloatAttribute {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct StringAttribute {
-    pub length: NumericalValueRange<u64>,
-    pub size: NumericalValueRange<u64>,
-    pub regex: Option<Arc<String>>,
+    pub length: AttributeTree,
+    pub size: AttributeTree,
+    pub regex: AttributeTree,
 }
 
 impl Attribute<&str> for StringAttribute {
     fn validate(&self, value: &str) -> bool {
-        if !self.length.validate(value.chars().count() as _) {
+        if !self.length.validate_as_length(value.chars().count() as _) {
             return false;
         }
-        if !self.size.validate(value.len() as _) {
+        if !self.size.validate_as_u8size(value.len() as _) {
             return false;
         }
-        if let Some(regex) = &self.regex {
-            if !Regex::new(regex.as_str())
-                .unwrap()
-                .is_match(value.as_bytes())
-            {
-                return false;
-            }
+        if !self.regex.validate_as_string_value(value) {
+            return false;
         }
         true
     }
