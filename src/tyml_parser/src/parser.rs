@@ -541,11 +541,58 @@ fn parse_type_attribute<'input, 'allocator>(
     if let Some(attribute) = parse_regex_attribute(lexer, errors, allocator) {
         return Some(TypeAttribute::RegexAttribute(attribute));
     }
-    /*if let Some(attribute) = parse_attribute_or(lexer, errors, allocator) {
+    if let Some(attribute) = parse_type_attribute_recursive(lexer, errors, allocator) {
         return Some(TypeAttribute::AttributeTree(attribute));
-    }*/
+    }
 
     None
+}
+
+fn parse_type_attribute_recursive<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<AttributeOr<'input, 'allocator>> {
+    if lexer.current().get_kind() != TokenKind::ParenthesisLeft {
+        return None;
+    }
+    lexer.next();
+
+    let Some(attribute) = parse_attribute_or(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::NonTypeAttribute,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::ParenthesisRight],
+            Expected::TypeAttribute,
+            Scope::TypeAttribute,
+            allocator,
+        );
+        errors.push(error);
+
+        return None;
+    };
+
+    if lexer.current().get_kind() == TokenKind::ParenthesisRight {
+        lexer.next();
+    } else {
+        let error = recover_until(
+            ParseErrorKind::NonClosedParenthesis,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::ParenthesisRight],
+            Expected::ParenthesisRight,
+            Scope::TypeAttribute,
+            allocator,
+        );
+        errors.push(error);
+
+        if lexer.current().get_kind() == TokenKind::ParenthesisRight {
+            lexer.next();
+        }
+
+        return Some(attribute);
+    }
+
+    Some(attribute)
 }
 
 fn parse_numeric_attribute<'input, 'allocator>(

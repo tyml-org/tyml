@@ -73,6 +73,12 @@ label_0 = "左側の数値の方が大きいです"
 [parse_error.0021]
 message = "属性の'%color:yellow{or}'や'%color:yellow{and}'の記述方法が正しくありません"
 label_0 = "属性を記述する必要があります"
+[parse_error.0022]
+message = "型属性が記述されていません"
+label_0 = "'%color:cyan{(}'と'%color:cyan{)}'の間には型の属性を記述する必要があります"
+[parse_error.0023]
+message = "括弧'%color:yellow{(}'が閉じられていません"
+label_0 = "'%color:cyan{)}'で閉じる必要があります"
 
 [type_error]
 name = "%color:red{[TE%0] 型エラー}"

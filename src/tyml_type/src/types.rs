@@ -144,16 +144,16 @@ impl ToTypeName for AttributeTree {
                 .iter()
                 .map(|attribute| attribute.to_type_name(named_type_map))
                 .collect::<Vec<_>>()
-                .join(" or "),
+                .join(" or"),
             AttributeTree::And { attributes } => attributes
                 .iter()
                 .map(|attribute| attribute.to_type_name(named_type_map))
                 .collect::<Vec<_>>()
-                .join(" and "),
+                .join(" and"),
             AttributeTree::Tree {
                 attribute: attributes,
             } => {
-                format!("( {} )", attributes.to_type_name(named_type_map))
+                format!("({} )", attributes.to_type_name(named_type_map))
             }
             AttributeTree::Base { attribute } => attribute.to_type_name(named_type_map),
             AttributeTree::None => String::new(),

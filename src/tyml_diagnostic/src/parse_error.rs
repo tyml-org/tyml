@@ -332,6 +332,32 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                     message_override: None,
                 }],
             },
+            ParseErrorKind::NonTypeAttribute => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0022,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::NonClosedParenthesis => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0023,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
         }
     }
 }

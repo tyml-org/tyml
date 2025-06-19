@@ -21,6 +21,8 @@ parse_error: {
     "0019": Diagnostic
     "0020": Diagnostic
     "0021": Diagnostic
+    "0022": Diagnostic
+    "0023": Diagnostic
 }
 
 type_error: {

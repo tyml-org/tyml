@@ -73,7 +73,12 @@ label_0 = "The left-hand number is larger"
 [parse_error.0021]
 message = "The usage of '%color:yellow{or}' or '%color:yellow{and}' attributes is incorrect"
 label_0 = "An attribute must be specified here"
-
+[parse_error.0022]
+message = "No type attributes are specified"
+label_0 = "Type attributes must be written between '%color:cyan{(}' and '%color:cyan{)}'"
+[parse_error.0023]
+message = "Bracket '%color:yellow{(}' is not closed"
+label_0 = "It must be closed with '%color:cyan{)}'"
 
 [type_error]
 name = "%color:red{[TE%0] Type Error}"
@@ -95,7 +100,6 @@ note = "Please double-check whether the attribute kind and its numeric value are
 [type_error.0005]
 message = "The specified string is not a valid regular expression"
 label_0 = "This is not a valid regular expression"
-
 
 [validate_error]
 name = "%color:red{[VE%0] Validation Error}"
