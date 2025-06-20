@@ -175,24 +175,25 @@ pub enum NumericAttributeKind {
 pub enum FromTo {
     /// 0..<10
     FromToExclusive {
-        from: Either<f64, i128>,
-        to: Either<f64, i128>,
+        from: Spanned<Either<f64, i128>>,
+        to: Spanned<Either<f64, i128>>,
     },
     /// 0..=9
     FromToInclusive {
-        from: Either<f64, i128>,
-        to: Either<f64, i128>,
+        from: Spanned<Either<f64, i128>>,
+        to: Spanned<Either<f64, i128>>,
     },
     /// 0..
-    From { from: Either<f64, i128> },
+    From { from: Spanned<Either<f64, i128>> },
     /// ..<10
-    ToExclusive { to: Either<f64, i128> },
+    ToExclusive { to: Spanned<Either<f64, i128>> },
     /// ..=10
-    ToInclusive { to: Either<f64, i128> },
+    ToInclusive { to: Spanned<Either<f64, i128>> },
 }
 
 #[derive(Debug)]
 pub struct RegexAttribute<'input> {
+    pub regex_keyword_span: Range<usize>,
     pub regex_literal: EscapedLiteral<'input>,
     pub span: Range<usize>,
 }

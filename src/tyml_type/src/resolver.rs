@@ -385,30 +385,33 @@ fn to_int_range<T: TryFrom<i128> + Display>(
 ) -> Option<NumericalValueRange<T>> {
     match &attribute.from_to {
         FromTo::FromToExclusive { from, to } => match (
-            from.right().map(|int| int.try_into().ok()).flatten(),
-            to.right().map(|int| int.try_into().ok()).flatten(),
+            from.value.right().map(|int| int.try_into().ok()).flatten(),
+            to.value.right().map(|int| int.try_into().ok()).flatten(),
         ) {
             (Some(from), Some(to)) => Some(NumericalValueRange::Range(from..to)),
             _ => None,
         },
         FromTo::FromToInclusive { from, to } => match (
-            from.right().map(|int| int.try_into().ok()).flatten(),
-            to.right().map(|int| int.try_into().ok()).flatten(),
+            from.value.right().map(|int| int.try_into().ok()).flatten(),
+            to.value.right().map(|int| int.try_into().ok()).flatten(),
         ) {
             (Some(from), Some(to)) => Some(NumericalValueRange::RangeInclusive(from..=to)),
             _ => None,
         },
         FromTo::From { from } => from
+            .value
             .right()
             .map(|int| int.try_into().ok())
             .flatten()
             .map(|int| NumericalValueRange::RangeFrom(int..)),
         FromTo::ToExclusive { to } => to
+            .value
             .right()
             .map(|int| int.try_into().ok())
             .flatten()
             .map(|int| NumericalValueRange::RangeTo(..int)),
         FromTo::ToInclusive { to } => to
+            .value
             .right()
             .map(|int| int.try_into().ok())
             .flatten()
@@ -421,30 +424,39 @@ fn to_float_range<T: TryFrom<f64> + Display>(
 ) -> Option<NumericalValueRange<T>> {
     match &attribute.from_to {
         FromTo::FromToExclusive { from, to } => match (
-            from.left().map(|float| float.try_into().ok()).flatten(),
-            to.left().map(|float| float.try_into().ok()).flatten(),
+            from.value
+                .left()
+                .map(|float| float.try_into().ok())
+                .flatten(),
+            to.value.left().map(|float| float.try_into().ok()).flatten(),
         ) {
             (Some(from), Some(to)) => Some(NumericalValueRange::Range(from..to)),
             _ => None,
         },
         FromTo::FromToInclusive { from, to } => match (
-            from.left().map(|float| float.try_into().ok()).flatten(),
-            to.left().map(|float| float.try_into().ok()).flatten(),
+            from.value
+                .left()
+                .map(|float| float.try_into().ok())
+                .flatten(),
+            to.value.left().map(|float| float.try_into().ok()).flatten(),
         ) {
             (Some(from), Some(to)) => Some(NumericalValueRange::RangeInclusive(from..=to)),
             _ => None,
         },
         FromTo::From { from } => from
+            .value
             .left()
             .map(|float| float.try_into().ok())
             .flatten()
             .map(|float| NumericalValueRange::RangeFrom(float..)),
         FromTo::ToExclusive { to } => to
+            .value
             .left()
             .map(|float| float.try_into().ok())
             .flatten()
             .map(|float| NumericalValueRange::RangeTo(..float)),
         FromTo::ToInclusive { to } => to
+            .value
             .left()
             .map(|float| float.try_into().ok())
             .flatten()
@@ -498,9 +510,13 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                 add_attribute_incompatible(errors, attribute.span.clone(), "int");
                                 AttributeTree::None
                             }
-                            TypeAttribute::AttributeTree(attribute_or) => {
-                                resolve_attribute_or(attribute_or, int_attribute_processor, errors)
-                            }
+                            TypeAttribute::AttributeTree(attribute_or) => AttributeTree::Tree {
+                                attribute: Arc::new(resolve_attribute_or(
+                                    attribute_or,
+                                    int_attribute_processor,
+                                    errors,
+                                )),
+                            },
                         }
                     }
 
@@ -547,9 +563,13 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                 add_attribute_incompatible(errors, attribute.span.clone(), "uint");
                                 AttributeTree::None
                             }
-                            TypeAttribute::AttributeTree(attribute_or) => {
-                                resolve_attribute_or(attribute_or, uint_attribute_processor, errors)
-                            }
+                            TypeAttribute::AttributeTree(attribute_or) => AttributeTree::Tree {
+                                attribute: Arc::new(resolve_attribute_or(
+                                    attribute_or,
+                                    uint_attribute_processor,
+                                    errors,
+                                )),
+                            },
                         }
                     }
 
@@ -600,11 +620,13 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                 add_attribute_incompatible(errors, attribute.span.clone(), "float");
                                 AttributeTree::None
                             }
-                            TypeAttribute::AttributeTree(attribute_or) => resolve_attribute_or(
-                                attribute_or,
-                                float_attribute_processor,
-                                errors,
-                            ),
+                            TypeAttribute::AttributeTree(attribute_or) => AttributeTree::Tree {
+                                attribute: Arc::new(resolve_attribute_or(
+                                    attribute_or,
+                                    float_attribute_processor,
+                                    errors,
+                                )),
+                            },
                         }
                     }
 
@@ -676,9 +698,13 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                     }
                                 }
                             }
-                            TypeAttribute::AttributeTree(attribute_or) => {
-                                resolve_attribute_or(attribute_or, string_attribute_processor, errors)
-                            }
+                            TypeAttribute::AttributeTree(attribute_or) => AttributeTree::Tree {
+                                attribute: Arc::new(resolve_attribute_or(
+                                    attribute_or,
+                                    string_attribute_processor,
+                                    errors,
+                                )),
+                            },
                         }
                     }
 

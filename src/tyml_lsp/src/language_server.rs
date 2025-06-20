@@ -667,6 +667,31 @@ impl TymlLanguageServer {
             })
             .unwrap_or(0);
 
+        let mut has_at = false;
+        for char in tyml.tyml_source.code[..byte_position].chars().rev() {
+            if char == '@' {
+                has_at = true;
+                break;
+            }
+
+            if !char.is_ascii_alphabetic() && !char.is_whitespace() {
+                break;
+            }
+        }
+
+        if has_at {
+            return Some(
+                ["value", "length", "u8size", "regex"]
+                    .into_iter()
+                    .map(|name| CompletionItem {
+                        label: name.to_string(),
+                        kind: Some(CompletionItemKind::KEYWORD),
+                        ..Default::default()
+                    })
+                    .collect(),
+            );
+        }
+
         let ast = tyml.tyml().ast();
 
         let mut completions = Vec::new();
@@ -941,7 +966,8 @@ mod tyml_semantic_tokens {
 
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
-        AST, Define, Defines, ElementType, OrType, TypeDefine, ValueLiteral, either::Either,
+        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, OrType,
+        TypeAttribute, TypeDefine, ValueLiteral, either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -988,14 +1014,14 @@ mod tyml_semantic_tokens {
         }
     }
 
-    pub fn collect_tokens_for_element_type(
+    fn collect_tokens_for_element_type(
         ast: &ElementType,
         tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
     ) {
         collect_tokens_for_or_type(&ast.type_info, tokens);
     }
 
-    pub fn collect_tokens_for_or_type(
+    fn collect_tokens_for_or_type(
         ast: &OrType,
         tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
     ) {
@@ -1009,10 +1035,80 @@ mod tyml_semantic_tokens {
                     collect_tokens_for_or_type(&array_type.base, tokens);
                 }
             }
+
+            if let Some(attribute) = &ty.attribute {
+                collect_tokens_for_attribute_or(attribute, tokens);
+            }
         }
     }
 
-    pub fn collect_tokens_for_type_define(
+    fn collect_tokens_for_attribute_or(
+        ast: &AttributeOr,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        for attribute in ast.attributes.iter() {
+            collect_tokens_for_attribute_and(attribute, tokens);
+        }
+    }
+
+    fn collect_tokens_for_attribute_and(
+        ast: &AttributeAnd,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        for attribute in ast.attributes.iter() {
+            collect_tokens_for_type_attribute(attribute, tokens);
+        }
+    }
+
+    fn collect_tokens_for_type_attribute(
+        ast: &TypeAttribute,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        match ast {
+            TypeAttribute::NumericAttribute(attribute) => {
+                tokens.insert(
+                    attribute.kind.span.start,
+                    (SemanticTokenType::KEYWORD, attribute.kind.span.clone()),
+                );
+
+                let (from, to) = match &attribute.from_to {
+                    FromTo::FromToExclusive { from, to } => (Some(from.span()), Some(to.span())),
+                    FromTo::FromToInclusive { from, to } => (Some(from.span()), Some(to.span())),
+                    FromTo::From { from } => (Some(from.span()), None),
+                    FromTo::ToExclusive { to } => (None, Some(to.span())),
+                    FromTo::ToInclusive { to } => (None, Some(to.span())),
+                };
+
+                if let Some(from) = from {
+                    tokens.insert(from.start, (SemanticTokenType::NUMBER, from));
+                }
+                if let Some(to) = to {
+                    tokens.insert(to.start, (SemanticTokenType::NUMBER, to));
+                }
+            }
+            TypeAttribute::RegexAttribute(attribute) => {
+                tokens.insert(
+                    attribute.regex_keyword_span.start,
+                    (
+                        SemanticTokenType::KEYWORD,
+                        attribute.regex_keyword_span.clone(),
+                    ),
+                );
+                tokens.insert(
+                    attribute.regex_literal.span.start,
+                    (
+                        SemanticTokenType::STRING,
+                        attribute.regex_literal.span.clone(),
+                    ),
+                );
+            }
+            TypeAttribute::AttributeTree(attribute) => {
+                collect_tokens_for_attribute_or(attribute, tokens)
+            }
+        }
+    }
+
+    fn collect_tokens_for_type_define(
         ast: &TypeDefine,
         tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
     ) {

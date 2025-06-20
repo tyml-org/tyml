@@ -660,6 +660,8 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 return None;
             };
 
+            let from_span = from.span.clone();
+
             let Ok(from) = from
                 .text
                 .parse::<i128>()
@@ -676,6 +678,8 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 errors.push(error);
                 return None;
             };
+
+            let from = Spanned::new(from, from_span);
 
             if let Some(_) = to {
                 let error = ParseError {
@@ -705,6 +709,8 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 return None;
             };
 
+            let to_span = to.span.clone();
+
             let Ok(to) = to
                 .text
                 .parse::<i128>()
@@ -722,8 +728,12 @@ fn parse_numeric_attribute<'input, 'allocator>(
                 return None;
             };
 
+            let to = Spanned::new(to, to_span);
+
             match from {
                 Some(from) => {
+                    let from_span = from.span;
+
                     let Ok(from) = from
                         .text
                         .parse::<i128>()
@@ -741,7 +751,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                         return None;
                     };
 
-                    let bigger = match (from, to) {
+                    let bigger = match (from, to.value) {
                         (Either::Left(from), Either::Left(to)) => from > to,
                         (Either::Left(from), Either::Right(to)) => from > to as f64,
                         (Either::Right(from), Either::Left(to)) => from as f64 > to,
@@ -759,6 +769,8 @@ fn parse_numeric_attribute<'input, 'allocator>(
                         errors.push(error);
                         return None;
                     }
+
+                    let from = Spanned::new(from, from_span);
 
                     match from_to_kind {
                         TokenKind::FromToExclusive => FromTo::FromToExclusive { from, to },
@@ -793,10 +805,10 @@ fn parse_regex_attribute<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::AtRegex {
         return None;
     }
-    lexer.next();
+    let regex_keyword_span = lexer.next().unwrap().span;
 
     let regex_literal = match lexer.current().get_kind() {
-        TokenKind::StringLiteral => escape_literal(lexer.current().unwrap().into_literal()),
+        TokenKind::StringLiteral => escape_literal(lexer.next().unwrap().into_literal()),
         _ => {
             let error = recover_until(
                 ParseErrorKind::InvalidRegexAttributeFormat,
@@ -813,6 +825,7 @@ fn parse_regex_attribute<'input, 'allocator>(
     };
 
     Some(RegexAttribute {
+        regex_keyword_span,
         regex_literal,
         span: anchor.elapsed(lexer),
     })

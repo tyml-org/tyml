@@ -435,7 +435,7 @@ test: {
 
 test1: {
     test2: bool
-    test3: int @value 0..<100 and @value 100..=1000
+    test3: int @value 0..<100 or ( @value 100..=1000 and @value 20..<100 )
 }
 
 type Setting {

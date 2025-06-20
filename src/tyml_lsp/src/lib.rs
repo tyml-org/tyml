@@ -82,7 +82,11 @@ impl LanguageServer for LSPBackend {
                     ),
                 ),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![".".to_string(), "[".to_string()]),
+                    trigger_characters: Some(vec![
+                        ".".to_string(),
+                        "[".to_string(),
+                        "@".to_string(),
+                    ]),
                     resolve_provider: Some(true),
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,
@@ -151,10 +155,7 @@ impl LanguageServer for LSPBackend {
             match server {
                 Either::Left(server) => {
                     server
-                        .on_change(
-                            params.text_document.uri,
-                            Arc::new(change.text),
-                        )
+                        .on_change(params.text_document.uri, Arc::new(change.text))
                         .await;
 
                     server.publish_diagnostics(&self.client).await;

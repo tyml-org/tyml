@@ -153,7 +153,7 @@ impl ToTypeName for AttributeTree {
             AttributeTree::Tree {
                 attribute: attributes,
             } => {
-                format!("({} )", attributes.to_type_name(named_type_map))
+                format!(" ({} )", attributes.to_type_name(named_type_map))
             }
             AttributeTree::Base { attribute } => attribute.to_type_name(named_type_map),
             AttributeTree::None => String::new(),
