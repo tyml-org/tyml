@@ -2,6 +2,7 @@ pub mod language_server;
 
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, LazyLock, RwLock};
 
 use either::Either;
@@ -178,8 +179,20 @@ impl LanguageServer for LSPBackend {
         let server = self.get_server(params.text_document.uri.clone());
 
         let semantic_tokens = match server {
-            Either::Left(server) => server.tokens.lock().unwrap().clone(),
-            Either::Right(server) => server.tokens.lock().unwrap().clone(),
+            Either::Left(server) => {
+                // acquire finish analyzing
+                while server.analyzing_flag.load(Ordering::Acquire) {
+                    std::hint::spin_loop();
+                }
+                server.tokens.lock().unwrap().clone()
+            }
+            Either::Right(server) => {
+                // acquire finish analyzing
+                while server.analyzing_flag.load(Ordering::Acquire) {
+                    std::hint::spin_loop();
+                }
+                server.tokens.lock().unwrap().clone()
+            }
         };
 
         if semantic_tokens.is_empty() {

@@ -45,6 +45,7 @@ pub struct GeneratedLanguageServer {
     pub has_tyml_file_error: AtomicBool,
     pub style_not_found: AtomicBool,
     pub tyml_file_name: Mutex<String>,
+    pub analyzing_flag: AtomicBool,
     pub tokens: Mutex<Arc<Vec<(SemanticTokenType, (Position, usize))>>>,
     pub language_style: Mutex<Arc<LanguageStyle>>,
 }
@@ -58,12 +59,15 @@ impl GeneratedLanguageServer {
             has_tyml_file_error: AtomicBool::new(false),
             style_not_found: AtomicBool::new(false),
             tyml_file_name: Mutex::new(String::new()),
+            analyzing_flag: AtomicBool::new(false),
             tokens: Mutex::new(Arc::new(Vec::new())),
             language_style: Mutex::new(STYLE_REGISTRY.resolve("").unwrap()),
         }
     }
 
     pub async fn on_change(&self, source_code_url: Url, source_code: Arc<String>) {
+        self.analyzing_flag.store(true, Ordering::Relaxed);
+
         let source_code_path = source_code_url.to_file_path().unwrap();
         let source_code_name = Arc::new(source_code_path.to_string_lossy().to_string());
 
@@ -227,6 +231,8 @@ impl GeneratedLanguageServer {
                 *self.language_style.lock().unwrap() = language;
             }
         }
+
+        self.analyzing_flag.store(false, Ordering::Release);
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
@@ -548,6 +554,7 @@ pub struct TymlLanguageServer {
     pub url: Url,
     pub lang: &'static str,
     pub tyml: Mutex<Option<TymlContext<Parsed>>>,
+    pub analyzing_flag: AtomicBool,
     pub tokens: Mutex<Arc<Vec<(SemanticTokenType, (Position, usize))>>>,
 }
 
@@ -557,11 +564,14 @@ impl TymlLanguageServer {
             url,
             lang,
             tyml: Mutex::new(None),
+            analyzing_flag: AtomicBool::new(false),
             tokens: Mutex::new(Arc::new(Vec::new())),
         }
     }
 
     pub fn on_change(&self, name: String, code: String) {
+        self.analyzing_flag.store(true, Ordering::Relaxed);
+
         let (tyml, changed) = match self.tyml.lock().unwrap().clone() {
             Some(old_tyml) => {
                 if code.as_str() != old_tyml.tyml_source.code.as_str() {
@@ -597,6 +607,8 @@ impl TymlLanguageServer {
         }
 
         *self.tyml.lock().unwrap() = Some(tyml);
+
+        self.analyzing_flag.store(false, Ordering::Release);
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
