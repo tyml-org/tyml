@@ -59,15 +59,13 @@ impl GeneratedLanguageServer {
             has_tyml_file_error: AtomicBool::new(false),
             style_not_found: AtomicBool::new(false),
             tyml_file_name: Mutex::new(String::new()),
-            analyzing_flag: AtomicBool::new(false),
+            analyzing_flag: AtomicBool::new(true),
             tokens: Mutex::new(Arc::new(Vec::new())),
             language_style: Mutex::new(STYLE_REGISTRY.resolve("").unwrap()),
         }
     }
 
     pub async fn on_change(&self, source_code_url: Url, source_code: Arc<String>) {
-        self.analyzing_flag.store(true, Ordering::Relaxed);
-
         let source_code_path = source_code_url.to_file_path().unwrap();
         let source_code_name = Arc::new(source_code_path.to_string_lossy().to_string());
 
@@ -570,8 +568,6 @@ impl TymlLanguageServer {
     }
 
     pub fn on_change(&self, name: String, code: String) {
-        self.analyzing_flag.store(true, Ordering::Relaxed);
-
         let (tyml, changed) = match self.tyml.lock().unwrap().clone() {
             Some(old_tyml) => {
                 if code.as_str() != old_tyml.tyml_source.code.as_str() {
