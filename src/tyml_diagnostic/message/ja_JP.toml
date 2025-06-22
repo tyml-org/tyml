@@ -43,7 +43,7 @@ note = "列挙型の要素は'%color:cyan{\"Element\"}'の形式です"
 [parse_error.0012]
 message = "列挙型の要素の区切り文字が正しくありません"
 label_0 = "'%color:yellow{%0}'は不明な区切り文字です"
-label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\\\n}'(改行)のみです"
+label_1 = "区切り文字として使用可能なのは、'%color:cyan{,}'と'%color:cyan{\\n}'(改行)のみです"
 [parse_error.0013]
 message = "ユニオン型の要素の記述形式が正しくありません"
 label_0 = "ここにはユニオン型の型候補を記述すべきです"

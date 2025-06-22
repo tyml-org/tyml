@@ -437,7 +437,7 @@ test1: {
     test2: bool
     test3: int @value 0..=200
 }
-test2: string @regex "\\d+"
+test2: string @regex "^\\d+$"
 
 type Setting {
     ip: string
