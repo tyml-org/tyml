@@ -435,8 +435,9 @@ test: {
 
 test1: {
     test2: bool
-    test3: int @value 0..<100 or ( @value 100..=1000 and @value 20..<100 )
+    test3: int @value 0..=200
 }
+test2: string @regex "\\d+"
 
 type Setting {
     ip: string
@@ -454,6 +455,8 @@ enum Mode {
 test."test\"" = [0xFF, ""]
 
 test1 = { test2 = false, test3 = 200 }
+
+test2 = "100"
 
 [[settings]]
 ip = "192.168.1.1"

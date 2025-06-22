@@ -179,7 +179,7 @@ impl ToTypeName for AttributeSet {
             AttributeSet::FloatValue(attribute) => {
                 format!(" @value {}", attribute.to_type_name(named_type_map))
             }
-            AttributeSet::Regex(regex) => format!("@regex r\"{}\"", regex.as_str()),
+            AttributeSet::Regex(regex) => format!(" @regex r\"{}\"", regex.as_str()),
         }
     }
 }
@@ -442,8 +442,8 @@ impl Attribute<&str> for StringAttribute {
 }
 
 impl ToTypeName for StringAttribute {
-    fn to_type_name(&self, _: &NamedTypeMap) -> String {
-        format!("")
+    fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
+        self.attribute.to_type_name(named_type_map)
     }
 }
 

@@ -12,6 +12,6 @@ tyml_type = { path = "../tyml_type/" }
 tyml_validate = { path = "../tyml_validate/" }
 resource = "0.6.0"
 toml = "0.8.8"
-ariadne = "0.5.0"
+ariadne = "0.5.1"
 regex = "1.11.1"
 sys-locale = "0.3"

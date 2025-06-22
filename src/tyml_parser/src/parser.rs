@@ -808,7 +808,13 @@ fn parse_regex_attribute<'input, 'allocator>(
     let regex_keyword_span = lexer.next().unwrap().span;
 
     let regex_literal = match lexer.current().get_kind() {
-        TokenKind::StringLiteral => escape_literal(lexer.next().unwrap().into_literal()),
+        TokenKind::StringLiteral => escape_literal(
+            lexer
+                .next()
+                .unwrap()
+                .into_literal()
+                .map(|text| &text[1..text.len() - 1]),
+        ),
         _ => {
             let error = recover_until(
                 ParseErrorKind::InvalidRegexAttributeFormat,
