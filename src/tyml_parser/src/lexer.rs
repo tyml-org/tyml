@@ -193,6 +193,7 @@ pub struct Lexer<'input> {
     regex_cache: Box<[Option<Regex>]>,
     current_token_cache: Option<Token<'input>>,
     pub comments: Vec<Range<usize>>,
+    pub ignore_whitespace: bool,
 }
 
 impl<'input> Lexer<'input> {
@@ -203,6 +204,7 @@ impl<'input> Lexer<'input> {
             regex_cache: vec![None; TOKENIZERS.len()].into_boxed_slice(),
             current_token_cache: None,
             comments: Vec::new(),
+            ignore_whitespace: true,
         }
     }
 
@@ -292,7 +294,7 @@ impl<'input> Iterator for Lexer<'input> {
             } else {
                 self.current_byte_position += current_max_length;
 
-                if current_token_kind == TokenKind::Whitespace {
+                if current_token_kind == TokenKind::Whitespace && self.ignore_whitespace {
                     continue;
                 }
 
