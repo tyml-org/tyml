@@ -114,7 +114,10 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             }
 
                             elements.push((
-                                Spanned::new(element.literal_value, element.literal.span.clone()),
+                                Spanned::new(
+                                    element.literal_value.clone(),
+                                    element.literal.span.clone(),
+                                ),
                                 documents,
                             ));
                         }

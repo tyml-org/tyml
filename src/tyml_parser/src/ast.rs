@@ -272,6 +272,6 @@ pub struct EnumDefine<'input, 'allocator> {
 pub struct EnumElement<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub literal: Literal<'input>,
-    pub literal_value: &'input str,
+    pub literal_value: Cow<'input, str>,
     pub span: Range<usize>,
 }

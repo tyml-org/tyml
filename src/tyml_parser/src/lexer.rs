@@ -116,7 +116,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::BinaryNumeric, r"[+-]?0b[01_]+"),
     Tokenizer::Regex(TokenKind::Literal, r"(\w|-)+"),
     Tokenizer::Regex(TokenKind::StringLiteral, r#""([^"\\]|\\.)*""#),
-    Tokenizer::Regex(TokenKind::StringLiteral, r"'([^'\\]|\\.)*'"),
+    Tokenizer::Regex(TokenKind::StringLiteral, r"'.*'"),
     Tokenizer::Regex(TokenKind::LineFeed, r"\n|\r"),
     Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
     Tokenizer::Regex(TokenKind::Comment, r"//[^\n\r]*"),

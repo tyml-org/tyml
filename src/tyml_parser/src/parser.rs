@@ -184,13 +184,23 @@ fn parse_node_literal<'input>(lexer: &mut Lexer<'input>) -> Option<NodeLiteral<'
         TokenKind::Literal => Some(NodeLiteral::Literal(
             lexer.next().unwrap().into_literal().map(|text| text.into()),
         )),
-        TokenKind::StringLiteral => Some(NodeLiteral::Literal(escape_literal(
-            lexer
-                .next()
-                .unwrap()
-                .into_literal()
-                .map(|text| &text[1..(text.len() - 1)]), // trim quotes
-        ))),
+        TokenKind::StringLiteral => Some(match token.unwrap().text.chars().next().unwrap() {
+            '"' => NodeLiteral::Literal(escape_literal(
+                lexer
+                    .next()
+                    .unwrap()
+                    .into_literal()
+                    .map(|text| &text[1..(text.len() - 1)]),
+            )),
+            '\'' => {
+                let token = lexer.next().unwrap();
+                NodeLiteral::Literal(EscapedLiteral::new(
+                    token.text[1..token.text.len() - 1].into(),
+                    token.span,
+                ))
+            }
+            _ => unreachable!(),
+        }),
         TokenKind::Asterisk => Some(NodeLiteral::Asterisk(lexer.next().unwrap().into_literal())),
         _ => None,
     }
@@ -808,13 +818,20 @@ fn parse_regex_attribute<'input, 'allocator>(
     let regex_keyword_span = lexer.next().unwrap().span;
 
     let regex_literal = match lexer.current().get_kind() {
-        TokenKind::StringLiteral => escape_literal(
-            lexer
-                .next()
-                .unwrap()
-                .into_literal()
-                .map(|text| &text[1..text.len() - 1]),
-        ),
+        TokenKind::StringLiteral => match lexer.current().unwrap().text.chars().next().unwrap() {
+            '"' => escape_literal(
+                lexer
+                    .next()
+                    .unwrap()
+                    .into_literal()
+                    .map(|text| &text[1..text.len() - 1]),
+            ),
+            '\'' => {
+                let token = lexer.next().unwrap();
+                EscapedLiteral::new(token.text[1..token.text.len() - 1].into(), token.span)
+            }
+            _ => unreachable!(),
+        },
         _ => {
             let error = recover_until(
                 ParseErrorKind::InvalidRegexAttributeFormat,
@@ -1159,11 +1176,22 @@ fn parse_enum_define<'input, 'allocator>(
         };
 
         let literal_text = literal.value;
+        let escaped = match literal_text.chars().next().unwrap() {
+            '"' => {
+                escape_literal(Spanned::new(
+                    &literal_text[1..(literal_text.len() - 1)],
+                    literal.span.clone(),
+                ))
+                .value
+            }
+            '\'' => literal_text[1..(literal_text.len() - 1)].into(),
+            _ => unreachable!(),
+        };
 
         elements.push(EnumElement {
             documents,
             literal,
-            literal_value: &literal_text[1..(literal_text.len() - 1)],
+            literal_value: escaped,
             span: element_anchor.elapsed(lexer),
         });
 

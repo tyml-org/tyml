@@ -627,7 +627,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 } => match value {
                                     ValidateValue::String(value) => elements
                                         .iter()
-                                        .any(|element| element.0.value == value)
+                                        .any(|element| &element.0.value == value)
                                         .not()
                                         .then(|| std::vec![span.clone()]),
                                     _ => Some(std::vec![span.clone()]),
@@ -911,7 +911,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                             span: _,
                         } => match value {
                             ValidateValue::String(string) => {
-                                elements.iter().any(|element| element.0.value == string)
+                                elements.iter().any(|element| &element.0.value == string)
                             }
                             _ => false,
                         },

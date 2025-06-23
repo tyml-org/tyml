@@ -9,7 +9,7 @@ use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
-use tyml_parser::ast::Literal;
+use tyml_parser::ast::EscapedLiteral;
 
 use crate::name::NameID;
 
@@ -518,7 +518,7 @@ pub enum NamedTypeTree<'input, 'ty> {
         tree: TypeTree<'input, 'ty>,
     },
     Enum {
-        elements: Vec<(Literal<'input>, Vec<&'input str, &'ty Bump>), &'ty Bump>,
+        elements: Vec<(EscapedLiteral<'input>, Vec<&'input str, &'ty Bump>), &'ty Bump>,
         documents: Vec<&'input str, &'ty Bump>,
     },
 }
