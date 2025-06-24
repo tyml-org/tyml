@@ -428,44 +428,31 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-settings: [Setting] | int
-test: {
-    "test\"": [int]
-}
+settings: {
+    ip: string @regex '\d+.\d+.\d+.\d+'
+    port: int @value 100..=30000
 
-test1: {
-    test2: bool
-    test3: int @value 0..=200
-}
-test2: string @regex "^\\d+$"
-
-type Setting {
-    ip: string
-    port: int
-    mode: Mode?
-}
-
-enum Mode {
-    "Debug"
-    "Release"
+    test: {
+        test1: {
+            test2: int
+        }
+        test2: int
+    }
 }
 "#;
 
         let ini_source = r#"
-test."test\"" = [0xFF, ""]
-
-test1 = { test2 = false, test3 = 200 }
-
-test2 = "100"
-
-[[settings]]
-ip = "192.168.1.1"
-port = 25565
-mode = "Debug"
-
-[[settings]]
+[settings]
 ip = "192.168.1.6"
+
+[settings]
 port = 25565
+
+[settings.test]
+test2 = 100
+
+[settings.test.test1]
+test2 = 100
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

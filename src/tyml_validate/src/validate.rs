@@ -1045,7 +1045,7 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
 
                     for (element_name, element_values) in elements.iter() {
                         if let Some(first_value) = element_values.first() {
-                            let mut new_tree = match first_value {
+                            let mut new_tree_instance = match first_value {
                                 ValueTree::Section {
                                     elements: _,
                                     name_span: _,
@@ -1075,13 +1075,34 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                                 },
                             };
 
+                            let (new_tree, duplicated, use_new_tree) = match &mut new_tree_instance
+                            {
+                                new_tree @ MergedValueTree::Section {
+                                    elements: _,
+                                    name_spans: _,
+                                    define_spans: _,
+                                } => match new_elements.get_mut(element_name.as_ref()) {
+                                    Some(
+                                        exists @ MergedValueTree::Section {
+                                            elements: _,
+                                            name_spans: _,
+                                            define_spans: _,
+                                        },
+                                    ) => (exists, None, false), // as not duplicated
+                                    _ => (new_tree, new_elements.get(element_name.as_ref()), true),
+                                },
+                                new_tree @ _ => {
+                                    (new_tree, new_elements.get(element_name.as_ref()), true)
+                                }
+                            };
+
                             section_name_stack.push(&element_name);
 
                             for (index, value_tree) in element_values.iter().enumerate() {
                                 let is_init_merge = index == 0;
 
                                 Self::merge_inner_recursive(
-                                    &mut new_tree,
+                                    new_tree,
                                     value_tree,
                                     errors,
                                     section_name_stack,
@@ -1091,13 +1112,14 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
 
                             section_name_stack.pop().unwrap();
 
-                            if let Some(exists) = new_elements.get(element_name.as_ref()) {
+                            if let Some(exists) = duplicated {
                                 let error = TymlValueValidateError::DuplicatedValue {
                                     exists: exists.spans().cloned().collect(),
                                     duplicated: new_tree.spans().next().unwrap().clone(),
                                     path: section_name_stack
                                         .iter()
                                         .skip(1)
+                                        .chain([&element_name.as_ref()].into_iter())
                                         .map(|path| path.to_string())
                                         .collect::<Vec<_>>()
                                         .join("."),
@@ -1105,7 +1127,9 @@ impl<'section, 'value> MergedValueTree<'section, 'value> {
                                 errors.push(error);
                             }
 
-                            new_elements.insert(element_name.clone(), new_tree);
+                            if use_new_tree {
+                                new_elements.insert(element_name.clone(), new_tree_instance);
+                            }
                         }
                     }
                 }
