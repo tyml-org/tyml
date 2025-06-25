@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "src/tyml",
     "src/tyml_diagnostic",
+    "src/tyml_formatter",
     "src/tyml_generator",
     "src/tyml_grammar",
     "src/tyml_lsp",

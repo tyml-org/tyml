@@ -1776,6 +1776,7 @@ dependencies = [
  "shellexpand",
  "tokio",
  "tyml_diagnostic",
+ "tyml_formatter",
  "tyml_generator",
  "tyml_grammar",
  "tyml_parser",
@@ -1799,6 +1800,10 @@ dependencies = [
  "tyml_type",
  "tyml_validate",
 ]
+
+[[package]]
+name = "tyml_formatter"
+version = "0.1.0"
 
 [[package]]
 name = "tyml_generator"

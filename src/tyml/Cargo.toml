@@ -10,6 +10,7 @@ path = "src/bin/tyml.rs"
 
 [dependencies]
 tyml_diagnostic = { path = "../tyml_diagnostic/" }
+tyml_formatter = { path = "../tyml_formatter/" }
 tyml_generator = { path = "../tyml_generator/" }
 tyml_grammar = { path = "../tyml_grammar/" }
 tyml_parser = { path = "../tyml_parser/" }
