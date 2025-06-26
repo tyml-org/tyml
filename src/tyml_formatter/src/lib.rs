@@ -63,42 +63,67 @@ impl<'input> GeneralFormatter<'input> {
     }
 
     pub fn format(&mut self) {
-        for tree in self.tree.iter_mut() {
-            Self::format_tree(tree, 0, false);
+        let mut i = 0;
+        loop {
+            if i >= self.tree.len() {
+                break;
+            }
+
+            let space_format = self.tree[i].right_space();
+
+            let step_add = Self::insert_space(space_format, &mut self.tree, i, 0, false);
+
+            i += 1 + step_add;
+        }
+
+        for element in self.tree.iter_mut() {
+            if let tree @ FormatterTokenTree::Node {
+                tree_in: _,
+                elements: _,
+                tree_out: _,
+            } = element
+            {
+                Self::format_tree(tree, 1);
+            }
         }
     }
 
     const MAX_COLUMN: usize = 100;
 
-    fn format_tree(tree: &mut FormatterTokenTree<'input>, indent: usize, should_lf: bool) {
+    fn format_tree(tree: &mut FormatterTokenTree<'input>, indent: usize) {
+        let should_lf = tree.count_chars() > Self::MAX_COLUMN;
+
         match tree {
             FormatterTokenTree::Leaf { token: _ } => unreachable!(),
             FormatterTokenTree::Node {
                 tree_in,
                 elements,
-                tree_out,
+                tree_out: _,
             } => {
-                // remove existed whitespace
-                for element in elements.iter_mut() {
-                    if let FormatterTokenTree::Leaf { token } = element {
-                        if token.kind == FormatterTokenKind::Whitespace {
-                            *element = FormatterTokenTree::None;
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
+                Self::insert_space(tree_in.right_space, elements, 0, indent, should_lf);
 
-                Self::insert_space(tree_in.right_space, elements, 0, should_lf);
-
-                for i in 1..usize::MAX {
+                let mut i = 0;
+                loop {
                     if i >= elements.len() {
                         break;
                     }
 
-                    
+                    let space_format = elements[i].right_space();
+
+                    let step_add = Self::insert_space(space_format, elements, i, indent, should_lf);
+
+                    i += 1 + step_add;
+                }
+
+                for element in elements.iter_mut() {
+                    if let tree @ FormatterTokenTree::Node {
+                        tree_in: _,
+                        elements: _,
+                        tree_out: _,
+                    } = element
+                    {
+                        Self::format_tree(tree, indent + 1);
+                    }
                 }
             }
             FormatterTokenTree::None => {}
@@ -109,8 +134,9 @@ impl<'input> GeneralFormatter<'input> {
         format: SpaceFormat,
         elements: &mut Vec<FormatterTokenTree<'input>>,
         index: usize,
+        indent: usize,
         should_lf: bool,
-    ) {
+    ) -> usize {
         match format {
             SpaceFormat::Space => {
                 elements.insert(
@@ -123,6 +149,8 @@ impl<'input> GeneralFormatter<'input> {
                         },
                     },
                 );
+
+                1
             }
             SpaceFormat::LineFeed => {
                 // remove existed lf
@@ -148,6 +176,19 @@ impl<'input> GeneralFormatter<'input> {
                         },
                     },
                 );
+
+                elements.insert(
+                    index,
+                    FormatterTokenTree::Leaf {
+                        token: FormatterToken {
+                            text: "    ".repeat(indent).into(),
+                            kind: FormatterTokenKind::Whitespace,
+                            right_space: SpaceFormat::None,
+                        },
+                    },
+                );
+
+                2
             }
             SpaceFormat::SpaceOrLineFeed => {
                 // remove existed lf
@@ -174,6 +215,19 @@ impl<'input> GeneralFormatter<'input> {
                             },
                         },
                     );
+
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: "    ".repeat(indent).into(),
+                                kind: FormatterTokenKind::Whitespace,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
+
+                    2
                 } else {
                     elements.insert(
                         index,
@@ -185,9 +239,75 @@ impl<'input> GeneralFormatter<'input> {
                             },
                         },
                     );
+
+                    1
                 }
             }
-            SpaceFormat::None => {}
+            SpaceFormat::LineFeedOrSplit(split) => {
+                // remove existed lf or split
+                for element in &mut elements[index..] {
+                    if let FormatterTokenTree::Leaf { token } = element {
+                        if token.kind == FormatterTokenKind::LineFeed
+                            || token.text.as_ref() == split
+                        {
+                            *element = FormatterTokenTree::None;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                if should_lf {
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: "\n".into(),
+                                kind: FormatterTokenKind::LineFeed,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
+
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: "    ".repeat(indent).into(),
+                                kind: FormatterTokenKind::Whitespace,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
+                } else {
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: split.into(),
+                                kind: FormatterTokenKind::Normal,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
+
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: " ".into(),
+                                kind: FormatterTokenKind::Whitespace,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
+                }
+
+                2
+            }
+            SpaceFormat::None => 0,
         }
     }
 }
@@ -248,7 +368,6 @@ pub enum FormatterTokenKind {
     Normal,
     Whitespace,
     LineFeed,
-    Split,
     TreeIn,
     TreeOut,
 }
@@ -258,5 +377,6 @@ pub enum SpaceFormat {
     Space,
     LineFeed,
     SpaceOrLineFeed,
+    LineFeedOrSplit(&'static str),
     None,
 }
