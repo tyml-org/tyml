@@ -8,8 +8,9 @@ pub mod parser;
 mod test {
     use allocator_api2::vec::Vec;
     use bumpalo::Bump;
+    use tyml_formatter::GeneralFormatter;
 
-    use crate::{lexer::Lexer, parser::parse_defines};
+    use crate::{formatter::IntoFormatterToken, lexer::Lexer, parser::parse_defines};
 
     #[test]
     fn parse_test() {
@@ -40,5 +41,21 @@ enum Mode {
         let ast = parse_defines(&mut lexer, &mut errors, &allocator);
         dbg!(ast);
         dbg!(errors);
+    }
+
+    #[test]
+    fn formatter() {
+        let source = r#"
+settings: {
+    ip: string,
+port: int,
+mode: Mode?
+}
+        "#;
+
+        let mut formatter = GeneralFormatter::new(Lexer::new(source).into_formatter_token());
+        formatter.format();
+
+        println!("{}", formatter.generate_code());
     }
 }

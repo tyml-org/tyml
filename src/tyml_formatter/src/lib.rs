@@ -1,12 +1,38 @@
 use std::{borrow::Cow, iter::Peekable};
 
+#[derive(Debug)]
 pub struct GeneralFormatter<'input> {
     tree: Vec<FormatterTokenTree<'input>>,
 }
 
 impl<'input> GeneralFormatter<'input> {
     pub fn new(tokens: impl Iterator<Item = FormatterToken<'input>>) -> Self {
-        let tree = Self::parse_elements(&mut tokens.peekable());
+        // Overwrite and merge with the next space info of token
+        //
+        //  tokens[0]       tokens[1]
+        //  │       │       │       │
+        // left   right    left   right
+        //  │       │       │       │
+        //  ▼       ▼       ▼       ▼
+        //None    None    Space    None
+        //          ▲       │
+        //          └───────┘
+        //          overwrite
+        //
+        let mut tokens = tokens.collect::<Vec<_>>();
+        for i in 0..tokens.len() {
+            let left_format = tokens[i].left_space;
+            if i != 0 {
+                let right_format = &mut tokens[i - 1].right_space;
+
+                // overwrite
+                if *right_format == SpaceFormat::None {
+                    *right_format = left_format;
+                }
+            }
+        }
+
+        let tree = Self::parse_elements(&mut tokens.into_iter().peekable());
 
         Self { tree }
     }
@@ -71,7 +97,7 @@ impl<'input> GeneralFormatter<'input> {
 
             let space_format = self.tree[i].right_space();
 
-            let step_add = Self::insert_space(space_format, &mut self.tree, i, 0, false);
+            let step_add = Self::insert_space(space_format, &mut self.tree, i + 1, 0, false);
 
             i += 1 + step_add;
         }
@@ -88,7 +114,7 @@ impl<'input> GeneralFormatter<'input> {
         }
     }
 
-    const MAX_COLUMN: usize = 100;
+    const MAX_COLUMN: usize = 0;
 
     fn format_tree(tree: &mut FormatterTokenTree<'input>, indent: usize) {
         let should_lf = tree.count_chars() > Self::MAX_COLUMN;
@@ -110,10 +136,18 @@ impl<'input> GeneralFormatter<'input> {
 
                     let space_format = elements[i].right_space();
 
-                    let step_add = Self::insert_space(space_format, elements, i, indent, should_lf);
+                    let indent = match i + 1 == elements.len() {
+                        true => indent.checked_sub(1).unwrap_or_default(),
+                        false => indent,
+                    };
+
+                    let step_add =
+                        Self::insert_space(space_format, elements, i + 1, indent, should_lf);
 
                     i += 1 + step_add;
                 }
+
+                let elements_length = elements.len();
 
                 for element in elements.iter_mut() {
                     if let tree @ FormatterTokenTree::Node {
@@ -122,6 +156,11 @@ impl<'input> GeneralFormatter<'input> {
                         tree_out: _,
                     } = element
                     {
+                        let indent = match i + 1 == elements_length {
+                            true => indent.checked_sub(1).unwrap_or_default(),
+                            false => indent,
+                        };
+
                         Self::format_tree(tree, indent + 1);
                     }
                 }
@@ -145,6 +184,7 @@ impl<'input> GeneralFormatter<'input> {
                         token: FormatterToken {
                             text: " ".into(),
                             kind: FormatterTokenKind::Whitespace,
+                            left_space: SpaceFormat::None,
                             right_space: SpaceFormat::None,
                         },
                     },
@@ -172,17 +212,19 @@ impl<'input> GeneralFormatter<'input> {
                         token: FormatterToken {
                             text: "\n".into(),
                             kind: FormatterTokenKind::LineFeed,
+                            left_space: SpaceFormat::None,
                             right_space: SpaceFormat::None,
                         },
                     },
                 );
 
                 elements.insert(
-                    index,
+                    index + 1,
                     FormatterTokenTree::Leaf {
                         token: FormatterToken {
                             text: "    ".repeat(indent).into(),
                             kind: FormatterTokenKind::Whitespace,
+                            left_space: SpaceFormat::None,
                             right_space: SpaceFormat::None,
                         },
                     },
@@ -192,7 +234,8 @@ impl<'input> GeneralFormatter<'input> {
             }
             SpaceFormat::SpaceOrLineFeed => {
                 // remove existed lf
-                for element in &mut elements[index..] {
+                // better logic?
+                for element in &mut elements[index.checked_sub(1).unwrap_or_default()..] {
                     if let FormatterTokenTree::Leaf { token } = element {
                         if token.kind == FormatterTokenKind::LineFeed {
                             *element = FormatterTokenTree::None;
@@ -211,17 +254,19 @@ impl<'input> GeneralFormatter<'input> {
                             token: FormatterToken {
                                 text: "\n".into(),
                                 kind: FormatterTokenKind::LineFeed,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
                     );
 
                     elements.insert(
-                        index,
+                        index + 1,
                         FormatterTokenTree::Leaf {
                             token: FormatterToken {
                                 text: "    ".repeat(indent).into(),
                                 kind: FormatterTokenKind::Whitespace,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
@@ -235,6 +280,7 @@ impl<'input> GeneralFormatter<'input> {
                             token: FormatterToken {
                                 text: " ".into(),
                                 kind: FormatterTokenKind::Whitespace,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
@@ -266,17 +312,19 @@ impl<'input> GeneralFormatter<'input> {
                             token: FormatterToken {
                                 text: "\n".into(),
                                 kind: FormatterTokenKind::LineFeed,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
                     );
 
                     elements.insert(
-                        index,
+                        index + 1,
                         FormatterTokenTree::Leaf {
                             token: FormatterToken {
                                 text: "    ".repeat(indent).into(),
                                 kind: FormatterTokenKind::Whitespace,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
@@ -288,17 +336,19 @@ impl<'input> GeneralFormatter<'input> {
                             token: FormatterToken {
                                 text: split.into(),
                                 kind: FormatterTokenKind::Normal,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
                     );
 
                     elements.insert(
-                        index,
+                        index + 1,
                         FormatterTokenTree::Leaf {
                             token: FormatterToken {
                                 text: " ".into(),
                                 kind: FormatterTokenKind::Whitespace,
+                                left_space: SpaceFormat::None,
                                 right_space: SpaceFormat::None,
                             },
                         },
@@ -310,8 +360,41 @@ impl<'input> GeneralFormatter<'input> {
             SpaceFormat::None => 0,
         }
     }
+
+    pub fn generate_code(&self) -> String {
+        let mut code = String::new();
+
+        for tree in self.tree.iter() {
+            Self::generate_code_recursive(tree, &mut code);
+        }
+
+        code
+    }
+
+    fn generate_code_recursive(tree: &FormatterTokenTree<'input>, code: &mut String) {
+        match tree {
+            FormatterTokenTree::Leaf { token } => {
+                *code += token.text.as_ref();
+            }
+            FormatterTokenTree::Node {
+                tree_in,
+                elements,
+                tree_out,
+            } => {
+                *code += tree_in.text.as_ref();
+
+                for element in elements {
+                    Self::generate_code_recursive(element, code);
+                }
+
+                *code += tree_out.text.as_ref();
+            }
+            FormatterTokenTree::None => {}
+        }
+    }
 }
 
+#[derive(Debug)]
 enum FormatterTokenTree<'input> {
     Leaf {
         token: FormatterToken<'input>,
@@ -357,9 +440,11 @@ impl FormatterTokenTree<'_> {
     }
 }
 
+#[derive(Debug)]
 pub struct FormatterToken<'input> {
     pub text: Cow<'input, str>,
     pub kind: FormatterTokenKind,
+    pub left_space: SpaceFormat,
     pub right_space: SpaceFormat,
 }
 
