@@ -136,18 +136,28 @@ impl<'input> GeneralFormatter<'input> {
 
                     let space_format = elements[i].right_space();
 
-                    let indent = match i + 1 == elements.len() {
-                        true => indent.checked_sub(1).unwrap_or_default(),
-                        false => indent,
-                    };
-
                     let step_add =
                         Self::insert_space(space_format, elements, i + 1, indent, should_lf);
 
                     i += 1 + step_add;
                 }
 
-                let elements_length = elements.len();
+                // ajust last whitespace indent
+                for element in elements.iter_mut().rev() {
+                    if let FormatterTokenTree::Leaf { token } = element {
+                        if token.kind == FormatterTokenKind::Whitespace {
+                            token.text = "    "
+                                .repeat(indent.checked_sub(1).unwrap_or_default())
+                                .into();
+                        }
+                    }
+
+                    if let FormatterTokenTree::None = element {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
 
                 for element in elements.iter_mut() {
                     if let tree @ FormatterTokenTree::Node {
@@ -156,11 +166,6 @@ impl<'input> GeneralFormatter<'input> {
                         tree_out: _,
                     } = element
                     {
-                        let indent = match i + 1 == elements_length {
-                            true => indent.checked_sub(1).unwrap_or_default(),
-                            false => indent,
-                        };
-
                         Self::format_tree(tree, indent + 1);
                     }
                 }

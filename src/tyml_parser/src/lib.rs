@@ -47,13 +47,19 @@ enum Mode {
     fn formatter() {
         let source = r#"
 settings: {
-    ip: string,
-port: int,
-mode: Mode?
+    ip: string
+    port: int
+    mode: Mode?
 }
         "#;
 
-        let mut formatter = GeneralFormatter::new(Lexer::new(source).into_formatter_token());
+        let mut lexer = Lexer::new(source);
+        let allocator = Bump::new();
+        let mut errors = Vec::new_in(&allocator);
+        let ast = parse_defines(&mut lexer, &mut errors, &allocator);
+
+        let mut formatter =
+            GeneralFormatter::new(Lexer::new(source).into_formatter_token(ast).into_iter());
         formatter.format();
 
         println!("{}", formatter.generate_code());
