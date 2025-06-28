@@ -97,6 +97,7 @@ impl LanguageServer for LSPBackend {
                 references_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -354,6 +355,30 @@ impl LanguageServer for LSPBackend {
                 value: hover,
             }),
             range: None,
+        }))
+    }
+
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+        self.client
+            .log_message(MessageType::LOG, "Starting formatting...")
+            .await;
+
+        let server = self.get_server(params.text_document.uri);
+
+        let code = match server {
+            Either::Left(_) => None,
+            Either::Right(server) => server.format(),
+        };
+
+        self.client
+            .log_message(MessageType::LOG, "Formatted!")
+            .await;
+
+        Ok(code.map(|code| {
+            vec![TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                new_text: code,
+            }]
         }))
     }
 }

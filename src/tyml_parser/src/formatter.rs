@@ -35,7 +35,7 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             TokenKind::BraceLeft => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::TreeIn,
-                left_space: SpaceFormat::None,
+                left_space: SpaceFormat::Space,
                 right_space: SpaceFormat::SpaceOrLineFeed,
             },
             TokenKind::BraceRight => FormatterToken {
@@ -47,7 +47,7 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             TokenKind::BracketLeft => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::TreeIn,
-                left_space: SpaceFormat::None,
+                left_space: SpaceFormat::Space,
                 right_space: SpaceFormat::SpaceOrLineFeed,
             },
             TokenKind::BracketRight => FormatterToken {
@@ -59,7 +59,7 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             TokenKind::ParenthesisLeft => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::TreeIn,
-                left_space: SpaceFormat::None,
+                left_space: SpaceFormat::Space,
                 right_space: SpaceFormat::SpaceOrLineFeed,
             },
             TokenKind::ParenthesisRight => FormatterToken {
@@ -89,18 +89,54 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             TokenKind::And => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::Normal,
-                left_space: SpaceFormat::None,
+                left_space: SpaceFormat::Space,
                 right_space: SpaceFormat::Space,
             },
             TokenKind::Or => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::Normal,
-                left_space: SpaceFormat::None,
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            },
+            TokenKind::AtValue => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            },
+            TokenKind::AtLength => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            },
+            TokenKind::AtU8Size => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            },
+            TokenKind::AtRegex => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::Space,
                 right_space: SpaceFormat::Space,
             },
             TokenKind::LineFeed => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::LineFeed,
+                left_space: SpaceFormat::None,
+                right_space: SpaceFormat::None,
+            },
+            TokenKind::Comment => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::CommentOrDocument,
+                left_space: SpaceFormat::None,
+                right_space: SpaceFormat::None,
+            },
+            TokenKind::Document => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::CommentOrDocument,
                 left_space: SpaceFormat::None,
                 right_space: SpaceFormat::None,
             },

@@ -23,10 +23,12 @@ use tyml::{
     Parsed, TymlContext, Validated,
     header::TymlHeader,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
+    tyml_formatter::GeneralFormatter,
     tyml_generator::{
         registry::STYLE_REGISTRY,
         style::{ASTTokenKind, language::LanguageStyle},
     },
+    tyml_parser::{formatter::IntoFormatterToken, lexer::Lexer},
     tyml_source::{AsUtf8ByteRange, SourceCode, SourceCodeSpan, ToByteSpan},
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
     tyml_validate::{
@@ -847,6 +849,24 @@ impl TymlLanguageServer {
                     .join(""),
             )
         }
+    }
+
+    pub fn format(&self) -> Option<String> {
+        let tyml = self.tyml.lock().unwrap().clone()?;
+
+        let ast = tyml.tyml().ast();
+        let code = tyml.tyml_source.code.as_str();
+
+        let mut formatter = GeneralFormatter::new(
+            Lexer::new(code)
+                .enable_comment_token()
+                .into_formatter_token(ast)
+                .into_iter(),
+            30,
+        );
+        formatter.format();
+
+        Some(formatter.generate_code())
     }
 }
 

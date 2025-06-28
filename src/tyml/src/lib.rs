@@ -29,6 +29,7 @@ use tyml_type::{
 use tyml_validate::{error::TymlValueValidateError, validate::ValueTypeChecker};
 
 pub extern crate tyml_diagnostic;
+pub extern crate tyml_formatter;
 pub extern crate tyml_generator;
 pub extern crate tyml_parser;
 pub extern crate tyml_source;

@@ -3,10 +3,11 @@ use std::{borrow::Cow, iter::Peekable};
 #[derive(Debug)]
 pub struct GeneralFormatter<'input> {
     tree: Vec<FormatterTokenTree<'input>>,
+    max_column: usize,
 }
 
 impl<'input> GeneralFormatter<'input> {
-    pub fn new(tokens: impl Iterator<Item = FormatterToken<'input>>) -> Self {
+    pub fn new(tokens: impl Iterator<Item = FormatterToken<'input>>, max_column: usize) -> Self {
         // Overwrite and merge with the next space info of token
         //
         //  tokens[0]       tokens[1]
@@ -34,7 +35,7 @@ impl<'input> GeneralFormatter<'input> {
 
         let tree = Self::parse_elements(&mut tokens.into_iter().peekable());
 
-        Self { tree }
+        Self { tree, max_column }
     }
 
     fn parse_tree(
@@ -109,15 +110,13 @@ impl<'input> GeneralFormatter<'input> {
                 tree_out: _,
             } = element
             {
-                Self::format_tree(tree, 1);
+                Self::format_tree(tree, 1, self.max_column);
             }
         }
     }
 
-    const MAX_COLUMN: usize = 0;
-
-    fn format_tree(tree: &mut FormatterTokenTree<'input>, indent: usize) {
-        let should_lf = tree.count_chars() > Self::MAX_COLUMN;
+    fn format_tree(tree: &mut FormatterTokenTree<'input>, indent: usize, max_column: usize) {
+        let should_lf = tree.count_chars() > max_column;
 
         match tree {
             FormatterTokenTree::Leaf { token: _ } => unreachable!(),
@@ -145,7 +144,9 @@ impl<'input> GeneralFormatter<'input> {
                 // ajust last whitespace indent
                 for element in elements.iter_mut().rev() {
                     if let FormatterTokenTree::Leaf { token } = element {
-                        if token.kind == FormatterTokenKind::Whitespace {
+                        if token.kind == FormatterTokenKind::Whitespace
+                            && token.text.as_ref().chars().count() % 4 == 0
+                        {
                             token.text = "    "
                                 .repeat(indent.checked_sub(1).unwrap_or_default())
                                 .into();
@@ -166,7 +167,7 @@ impl<'input> GeneralFormatter<'input> {
                         tree_out: _,
                     } = element
                     {
-                        Self::format_tree(tree, indent + 1);
+                        Self::format_tree(tree, indent + 1, max_column);
                     }
                 }
             }
@@ -458,6 +459,7 @@ pub enum FormatterTokenKind {
     Normal,
     Whitespace,
     LineFeed,
+    CommentOrDocument,
     TreeIn,
     TreeOut,
 }

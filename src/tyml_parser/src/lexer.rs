@@ -194,6 +194,7 @@ pub struct Lexer<'input> {
     current_token_cache: Option<Token<'input>>,
     pub comments: Vec<Range<usize>>,
     pub ignore_whitespace: bool,
+    pub ignore_comment: bool,
 }
 
 impl<'input> Lexer<'input> {
@@ -205,6 +206,7 @@ impl<'input> Lexer<'input> {
             current_token_cache: None,
             comments: Vec::new(),
             ignore_whitespace: true,
+            ignore_comment: true,
         }
     }
 
@@ -240,6 +242,11 @@ impl<'input> Lexer<'input> {
     pub fn back_to_anchor(&mut self, anchor: Anchor) {
         self.current_byte_position = anchor.byte_position;
         self.current_token_cache = None;
+    }
+
+    pub fn enable_comment_token(mut self) -> Self {
+        self.ignore_comment = false;
+        self
     }
 }
 
@@ -298,7 +305,7 @@ impl<'input> Iterator for Lexer<'input> {
                     continue;
                 }
 
-                if current_token_kind == TokenKind::Comment {
+                if current_token_kind == TokenKind::Comment && self.ignore_comment {
                     self.comments
                         .push(start_position..self.current_byte_position);
                     continue;

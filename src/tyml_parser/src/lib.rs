@@ -59,7 +59,7 @@ settings: {
         let ast = parse_defines(&mut lexer, &mut errors, &allocator);
 
         let mut formatter =
-            GeneralFormatter::new(Lexer::new(source).into_formatter_token(ast).into_iter());
+            GeneralFormatter::new(Lexer::new(source).into_formatter_token(ast).into_iter(), 20);
         formatter.format();
 
         println!("{}", formatter.generate_code());
