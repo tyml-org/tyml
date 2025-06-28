@@ -130,15 +130,15 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             },
             TokenKind::Comment => FormatterToken {
                 text: token.text.into(),
-                kind: FormatterTokenKind::CommentOrDocument,
+                kind: FormatterTokenKind::Comment,
                 left_space: SpaceFormat::None,
                 right_space: SpaceFormat::None,
             },
             TokenKind::Document => FormatterToken {
-                text: token.text.into(),
-                kind: FormatterTokenKind::CommentOrDocument,
+                text: token.text.replace("\n", "").replace("\r", "").into(),
+                kind: FormatterTokenKind::Document,
                 left_space: SpaceFormat::None,
-                right_space: SpaceFormat::None,
+                right_space: SpaceFormat::LineFeed,
             },
             _ => {
                 if comma_positions.contains(&token.span.end) {
@@ -179,13 +179,16 @@ fn collect_defines(ast: &Defines, positions: &mut HashSet<usize>) {
                     collect_defines(&inline_type.defines, positions);
                 }
             }
-            Define::Type(type_define) => {
-                if let TypeDefine::Enum(enum_define) = type_define {
+            Define::Type(type_define) => match type_define {
+                TypeDefine::Struct(struct_define) => {
+                    collect_defines(&struct_define.defines, positions);
+                }
+                TypeDefine::Enum(enum_define) => {
                     for element in enum_define.elements.iter() {
                         positions.insert(element.span.end);
                     }
                 }
-            }
+            },
         }
     }
 }

@@ -98,7 +98,7 @@ impl<'input> GeneralFormatter<'input> {
 
             let space_format = self.tree[i].right_space();
 
-            let step_add = Self::insert_space(space_format, &mut self.tree, i + 1, 0, false);
+            let step_add = Self::insert_space(space_format, &mut self.tree, i + 1, 0, true);
 
             i += 1 + step_add;
         }
@@ -459,7 +459,8 @@ pub enum FormatterTokenKind {
     Normal,
     Whitespace,
     LineFeed,
-    CommentOrDocument,
+    Comment,
+    Document,
     TreeIn,
     TreeOut,
 }

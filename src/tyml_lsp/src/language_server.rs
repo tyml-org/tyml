@@ -854,6 +854,10 @@ impl TymlLanguageServer {
     pub fn format(&self) -> Option<String> {
         let tyml = self.tyml.lock().unwrap().clone()?;
 
+        if !tyml.tyml().parse_errors().is_empty() {
+            return None;
+        }
+
         let ast = tyml.tyml().ast();
         let code = tyml.tyml_source.code.as_str();
 
