@@ -141,12 +141,14 @@ pub struct BaseType<'input, 'allocator> {
 #[derive(Debug)]
 pub struct AttributeOr<'input, 'allocator> {
     pub attributes: Vec<AttributeAnd<'input, 'allocator>, &'allocator Bump>,
+    pub or_spans: Vec<Range<usize>, &'allocator Bump>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub struct AttributeAnd<'input, 'allocator> {
     pub attributes: Vec<TypeAttribute<'input, 'allocator>, &'allocator Bump>,
+    pub and_spans: Vec<Range<usize>, &'allocator Bump>,
     pub span: Range<usize>,
 }
 

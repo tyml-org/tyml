@@ -470,11 +470,14 @@ fn parse_attribute_or<'input, 'allocator>(
     let mut attributes = Vec::new_in(allocator);
     attributes.push(first);
 
+    let mut or_spans = Vec::new_in(allocator);
+
     loop {
         if lexer.current().get_kind() != TokenKind::Or {
             break;
         }
-        lexer.next();
+        let or = lexer.next().unwrap();
+        or_spans.push(or.span);
 
         let Some(next) = parse_attribute_and(lexer, errors, allocator) else {
             let error = recover_until(
@@ -494,6 +497,7 @@ fn parse_attribute_or<'input, 'allocator>(
 
     Some(AttributeOr {
         attributes,
+        or_spans,
         span: anchor.elapsed(lexer),
     })
 }
@@ -512,11 +516,14 @@ fn parse_attribute_and<'input, 'allocator>(
     let mut attributes = Vec::new_in(allocator);
     attributes.push(first);
 
+    let mut and_spans = Vec::new_in(allocator);
+
     loop {
         if lexer.current().get_kind() != TokenKind::And {
             break;
         }
-        lexer.next();
+        let and = lexer.next().unwrap();
+        and_spans.push(and.span);
 
         let Some(next) = parse_type_attribute(lexer, errors, allocator) else {
             let error = recover_until(
@@ -536,6 +543,7 @@ fn parse_attribute_and<'input, 'allocator>(
 
     Some(AttributeAnd {
         attributes,
+        and_spans,
         span: anchor.elapsed(lexer),
     })
 }

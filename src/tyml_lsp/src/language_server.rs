@@ -1081,6 +1081,9 @@ mod tyml_semantic_tokens {
         for attribute in ast.attributes.iter() {
             collect_tokens_for_attribute_and(attribute, tokens);
         }
+        for or_span in ast.or_spans.iter() {
+            tokens.insert(or_span.start, (SemanticTokenType::KEYWORD, or_span.clone()));
+        }
     }
 
     fn collect_tokens_for_attribute_and(
@@ -1089,6 +1092,12 @@ mod tyml_semantic_tokens {
     ) {
         for attribute in ast.attributes.iter() {
             collect_tokens_for_type_attribute(attribute, tokens);
+        }
+        for and_span in ast.and_spans.iter() {
+            tokens.insert(
+                and_span.start,
+                (SemanticTokenType::KEYWORD, and_span.clone()),
+            );
         }
     }
 
