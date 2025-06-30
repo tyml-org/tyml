@@ -651,7 +651,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                 match attribute.kind.value {
                                     NumericAttributeKind::Length => match to_int_range(attribute) {
                                         Some(attribute) => AttributeTree::Base {
-                                            attribute: Arc::new(AttributeSet::IntValue(attribute)),
+                                            attribute: Arc::new(AttributeSet::Length(attribute)),
                                         },
                                         None => {
                                             add_attribute_incompatible(
@@ -664,7 +664,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                                     },
                                     NumericAttributeKind::U8Size => match to_int_range(attribute) {
                                         Some(attribute) => AttributeTree::Base {
-                                            attribute: Arc::new(AttributeSet::IntValue(attribute)),
+                                            attribute: Arc::new(AttributeSet::U8Size(attribute)),
                                         },
                                         None => {
                                             add_attribute_incompatible(

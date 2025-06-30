@@ -429,31 +429,11 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-settings: {
-    ip: string @regex '\d+.\d+.\d+.\d+'
-    port: int @value 100..=30000
-
-    test: {
-        test1: {
-            test2: int
-        }
-        test2: int
-    }
-}
+test: string @length 0..<3
 "#;
 
         let ini_source = r#"
-[settings]
-ip = "192.168.1.6"
-
-[settings]
-port = 25565
-
-[settings.test]
-test2 = 100
-
-[settings.test.test1]
-test2 = 100
+test = "1000"
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
