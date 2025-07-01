@@ -33,6 +33,16 @@ impl<'input> GeneralFormatter<'input> {
             }
         }
 
+        // trim space (for ini)
+        for token in tokens.iter_mut() {
+            if let SpaceFormat::Space | SpaceFormat::SpaceOrLineFeed = token.right_space {
+                token.text = match &token.text {
+                    Cow::Borrowed(text) => text.trim_end().into(),
+                    Cow::Owned(text) => text.clone().into(),
+                };
+            }
+        }
+
         let tree = Self::parse_elements(&mut tokens.into_iter().peekable());
 
         Self { tree, max_column }

@@ -484,7 +484,7 @@ test: string @length 0..<3
 "#;
 
         let ini_source = r#"
-test="1000"
+test = "1000"
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
