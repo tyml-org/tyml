@@ -225,7 +225,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
         }
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
     ) {
@@ -236,8 +236,8 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 comments,
                 allow_non_section_key_value: _,
             } => {
-                section.map_formatter_token(map);
-                key_value.map_formatter_token(map);
+                section.map_formatter_token_kind(map);
+                key_value.map_formatter_token_kind(map);
 
                 for comment in comments.iter() {
                     map.insert(*comment, FormatterTokenKind::Comment);
@@ -384,7 +384,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
         }
     }
 
-    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+    fn take_formatter_token_space(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
         match self {
             LanguageAST::Section {
                 non_section_key_values,
@@ -392,14 +392,14 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                 span: _,
             } => {
                 for key_value in non_section_key_values.iter() {
-                    key_value.take_formatter_token(tokens);
+                    key_value.take_formatter_token_space(tokens);
                 }
 
                 for (section, key_values, _) in sections.iter() {
-                    section.take_formatter_token(tokens);
+                    section.take_formatter_token_space(tokens);
 
                     for key_value in key_values.iter() {
-                        key_value.take_formatter_token(tokens);
+                        key_value.take_formatter_token_space(tokens);
                     }
                 }
             }

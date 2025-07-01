@@ -12,6 +12,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 use tyml::tyml_diagnostic::message::Lang;
+use tyml::tyml_formatter::GeneralFormatter;
 
 pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
 
@@ -366,7 +367,17 @@ impl LanguageServer for LSPBackend {
         let server = self.get_server(params.text_document.uri);
 
         let code = match server {
-            Either::Left(_) => None,
+            Either::Left(server) => {
+                let tokens_lock = server.formatter_tokens.lock().unwrap();
+
+                let Some(tokens) = tokens_lock.as_ref() else {
+                    return Ok(None);
+                };
+
+                let mut formatter = GeneralFormatter::new(tokens.tokens().iter().cloned(), 25);
+                formatter.format();
+                Some(formatter.generate_code())
+            }
             Either::Right(server) => server.format(),
         };
 

@@ -276,7 +276,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
         })
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         _: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
     ) {
@@ -333,5 +333,5 @@ impl<'input> AST<'input> for SectionAST<'input> {
         }
     }
 
-    fn take_formatter_token(&self, _: &mut Vec<super::FormatterTokenInfo>) {}
+    fn take_formatter_token_space(&self, _: &mut Vec<super::FormatterTokenInfo>) {}
 }

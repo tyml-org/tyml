@@ -446,7 +446,7 @@ impl FormatterTokenTree<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FormatterToken<'input> {
     pub text: Cow<'input, str>,
     pub kind: FormatterTokenKind,

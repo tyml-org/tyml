@@ -179,12 +179,12 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         self.key.first_token_kinds()
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
     ) {
-        self.key.map_formatter_token(map);
-        self.value.map_formatter_token(map);
+        self.key.map_formatter_token_kind(map);
+        self.value.map_formatter_token_kind(map);
     }
 }
 
@@ -280,7 +280,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         }
     }
 
-    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+    fn take_formatter_token_space(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
         if let Some(separator_span) = &self.separator_span {
             tokens.push(FormatterTokenInfo {
                 span: separator_span.clone(),

@@ -2,7 +2,7 @@ pub(crate) mod cache;
 pub mod header;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     fmt::Debug,
     mem::transmute,
     ops::{Deref, Range},
@@ -12,7 +12,7 @@ use std::{
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use tyml_diagnostic::DiagnosticBuilder;
-use tyml_formatter::FormatterToken;
+use tyml_formatter::{FormatterToken, FormatterTokenKind, SpaceFormat};
 use tyml_generator::{
     lexer::{GeneratorLexer, TokenizerRegistry},
     style::{
@@ -103,9 +103,9 @@ impl<State> TymlContext<State> {
     pub fn ml_parse_and_validate<'code>(
         &self,
         ml_language_style: &LanguageStyle,
-        ml_source_code: &SourceCode,
+        ml_source_code: &'code SourceCode,
         tokens: Option<&mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>>,
-        formatter_tokens: Option<&mut Vec<FormatterToken<'code>>>,
+        formatter_tokens: Option<&mut std::vec::Vec<FormatterToken<'code>>>,
     ) -> TymlContext<Validated>
     where
         State: IParsed,
@@ -122,6 +122,54 @@ impl<State> TymlContext<State> {
         let mut lexer = GeneratorLexer::new(&ml_source_code.code, &registry, &allocator);
 
         let ast = ml_parser.parse(&mut lexer, &mut errors).unwrap();
+
+        if let Some(formatter_tokens) = formatter_tokens {
+            let mut formatter_token_kind_map = HashMap::new();
+            let mut formatter_token_space_info = Vec::new();
+
+            ml_parser.map_formatter_token_kind(&mut formatter_token_kind_map);
+            ast.take_formatter_token_space(&mut formatter_token_space_info);
+
+            let mut formatter_token_space_info_map = HashMap::new();
+            for token_info in formatter_token_space_info {
+                if token_info.left_space != SpaceFormat::None {
+                    formatter_token_space_info_map
+                        .insert(token_info.span.start, token_info.left_space);
+                }
+                if token_info.right_space != SpaceFormat::None {
+                    formatter_token_space_info_map
+                        .insert(token_info.span.end, token_info.right_space);
+                }
+            }
+
+            let lexer = GeneratorLexer::new(&ml_source_code.code, &registry, &allocator);
+
+            for token in lexer {
+                let kind = token
+                    .kinds
+                    .iter()
+                    .find_map(|kind| formatter_token_kind_map.get(kind))
+                    .cloned()
+                    .unwrap_or(FormatterTokenKind::Normal);
+
+                let left_space = formatter_token_space_info_map
+                    .get(&token.span.start)
+                    .cloned()
+                    .unwrap_or(SpaceFormat::None);
+
+                let right_space = formatter_token_space_info_map
+                    .get(&token.span.end)
+                    .cloned()
+                    .unwrap_or(SpaceFormat::None);
+
+                formatter_tokens.push(FormatterToken {
+                    text: token.text.into(),
+                    kind,
+                    left_space,
+                    right_space,
+                });
+            }
+        }
 
         if let Some(tokens) = tokens {
             ast.take_token(tokens);
@@ -423,6 +471,7 @@ mod tests {
     use std::{fs::File, io::Read};
 
     use tyml_diagnostic::message::Lang;
+    use tyml_formatter::GeneralFormatter;
     use tyml_generator::registry::STYLE_REGISTRY;
     use tyml_source::SourceCode;
 
@@ -435,7 +484,7 @@ test: string @length 0..<3
 "#;
 
         let ini_source = r#"
-test = "1000"
+test="1000"
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
@@ -445,11 +494,18 @@ test = "1000"
 
         let language = STYLE_REGISTRY.resolve("toml").unwrap();
 
-        let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None, None);
+        let mut formatter_tokens = Vec::new();
+
+        let tyml =
+            tyml.ml_parse_and_validate(&language, &ml_source, None, Some(&mut formatter_tokens));
 
         tyml.print_tyml_error(Lang::system());
         tyml.print_ml_parse_error(Lang::system());
         tyml.print_ml_validate_error(Lang::system());
+
+        let mut formatter = GeneralFormatter::new(formatter_tokens.into_iter(), 25);
+        formatter.format();
+        println!("{}", formatter.generate_code());
     }
 
     #[test]

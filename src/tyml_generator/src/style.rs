@@ -33,7 +33,7 @@ pub trait Parser<'input, T: AST<'input>>: ParserPart {
 
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind>;
 
-    fn map_formatter_token(&self, map: &mut HashMap<GeneratorTokenKind, FormatterTokenKind>);
+    fn map_formatter_token_kind(&self, map: &mut HashMap<GeneratorTokenKind, FormatterTokenKind>);
 }
 
 pub trait AST<'input> {
@@ -48,7 +48,7 @@ pub trait AST<'input> {
 
     fn take_token(&self, tokens: &mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>);
 
-    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>);
+    fn take_formatter_token_space(&self, tokens: &mut Vec<FormatterTokenInfo>);
 }
 
 pub struct FormatterTokenInfo {

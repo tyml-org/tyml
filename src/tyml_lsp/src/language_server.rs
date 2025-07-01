@@ -2,6 +2,7 @@ use std::{
     collections::BTreeMap,
     fs::File,
     io::Read,
+    mem::transmute,
     ops::{Range, RangeInclusive},
     sync::{
         Arc, LazyLock, Mutex,
@@ -23,7 +24,7 @@ use tyml::{
     Parsed, TymlContext, Validated,
     header::TymlHeader,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
-    tyml_formatter::GeneralFormatter,
+    tyml_formatter::{FormatterToken, GeneralFormatter},
     tyml_generator::{
         registry::STYLE_REGISTRY,
         style::{ASTTokenKind, language::LanguageStyle},
@@ -50,6 +51,20 @@ pub struct GeneratedLanguageServer {
     pub analyzing_flag: AtomicBool,
     pub tokens: Mutex<Arc<Vec<(SemanticTokenType, (Position, usize))>>>,
     pub language_style: Mutex<Arc<LanguageStyle>>,
+    pub formatter_tokens: Mutex<Option<FormatterTokenHolder>>,
+}
+
+#[derive(Debug)]
+pub struct FormatterTokenHolder {
+    _code: Arc<String>,
+    /// fake static
+    tokens: Vec<FormatterToken<'static>>,
+}
+
+impl FormatterTokenHolder {
+    pub fn tokens<'this>(&'this self) -> &'this Vec<FormatterToken<'this>> {
+        &self.tokens
+    }
 }
 
 impl GeneratedLanguageServer {
@@ -64,6 +79,7 @@ impl GeneratedLanguageServer {
             analyzing_flag: AtomicBool::new(true),
             tokens: Mutex::new(Arc::new(Vec::new())),
             language_style: Mutex::new(STYLE_REGISTRY.resolve("").unwrap()),
+            formatter_tokens: Mutex::new(None),
         }
     }
 
@@ -151,12 +167,21 @@ impl GeneratedLanguageServer {
                     .store(STYLE_REGISTRY.resolve(style).is_none(), Ordering::Release);
 
                 let mut tokens = BTreeMap::new();
+                let mut formatter_tokens = Vec::new();
+
+                let source = SourceCode::new(source_code_name, source_code.clone());
 
                 let tyml = tyml.ml_parse_and_validate(
                     &language,
-                    &SourceCode::new(source_code_name, source_code.clone()),
+                    &source,
                     Some(&mut tokens),
+                    Some(&mut formatter_tokens),
                 );
+
+                let formatter_tokens = FormatterTokenHolder {
+                    _code: source_code.clone(),
+                    tokens: unsafe { transmute(formatter_tokens) },
+                };
 
                 let mut semantic_tokens = Vec::new();
                 for (kind, span) in tokens.values() {
@@ -182,6 +207,8 @@ impl GeneratedLanguageServer {
                 *self.tyml.lock().unwrap() = Some((tyml, header));
 
                 *self.language_style.lock().unwrap() = language;
+
+                *self.formatter_tokens.lock().unwrap() = Some(formatter_tokens);
             }
             None => {
                 let url = self.url.to_string();
@@ -196,12 +223,21 @@ impl GeneratedLanguageServer {
                     TymlContext::new(SourceCode::new("".to_string(), "*: any".to_string())).parse();
 
                 let mut tokens = BTreeMap::new();
+                let mut formatter_tokens = Vec::new();
+
+                let source = SourceCode::new(source_code_name, source_code.clone());
 
                 let tyml = tyml.ml_parse_and_validate(
                     &language,
-                    &SourceCode::new(source_code_name, source_code.clone()),
+                    &source,
                     Some(&mut tokens),
+                    Some(&mut formatter_tokens),
                 );
+
+                let formatter_tokens = FormatterTokenHolder {
+                    _code: source_code.clone(),
+                    tokens: unsafe { transmute(formatter_tokens) },
+                };
 
                 let dummy_header = TymlHeader::parse("!tyml").await.unwrap();
 
@@ -229,6 +265,8 @@ impl GeneratedLanguageServer {
                 *self.tyml.lock().unwrap() = Some((tyml, dummy_header));
 
                 *self.language_style.lock().unwrap() = language;
+
+                *self.formatter_tokens.lock().unwrap() = Some(formatter_tokens);
             }
         }
 

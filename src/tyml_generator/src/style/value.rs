@@ -235,15 +235,15 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
         )
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         map: &mut std::collections::HashMap<GeneratorTokenKind, FormatterTokenKind>,
     ) {
         if let Some(array) = &self.array {
-            array.map_formatter_token(map);
+            array.map_formatter_token_kind(map);
         }
         if let Some(inline_section) = &self.inline_section {
-            inline_section.map_formatter_token(map);
+            inline_section.map_formatter_token_kind(map);
         }
     }
 }
@@ -457,13 +457,13 @@ impl<'input> AST<'input> for ValueAST<'input> {
         tokens.insert(value.span.start, (kind, value.span.clone()));
     }
 
-    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>) {
+    fn take_formatter_token_space(&self, tokens: &mut Vec<FormatterTokenInfo>) {
         match &self.kind {
             ValueASTKind::Array { array } => {
-                array.take_formatter_token(tokens);
+                array.take_formatter_token_space(tokens);
             }
             ValueASTKind::InlineSection { inline_section } => {
-                inline_section.take_formatter_token(tokens);
+                inline_section.take_formatter_token_space(tokens);
             }
             _ => {}
         }
@@ -615,7 +615,7 @@ impl<'input> Parser<'input, ArrayValueAST<'input>> for ArrayValueParser {
         }
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         map: &mut std::collections::HashMap<GeneratorTokenKind, FormatterTokenKind>,
     ) {
@@ -709,9 +709,9 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
         }
     }
 
-    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>) {
+    fn take_formatter_token_space(&self, tokens: &mut Vec<FormatterTokenInfo>) {
         for value in self.values.iter() {
-            value.take_formatter_token(tokens);
+            value.take_formatter_token_space(tokens);
         }
     }
 }
@@ -921,7 +921,7 @@ impl<'input> Parser<'input, InlineSectionAST<'input>> for InlineSectionParser {
         }
     }
 
-    fn map_formatter_token(
+    fn map_formatter_token_kind(
         &self,
         map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
     ) {
@@ -1029,9 +1029,9 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
         }
     }
 
-    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+    fn take_formatter_token_space(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
         for (index, key_value) in self.key_values.iter().enumerate() {
-            key_value.take_formatter_token(tokens);
+            key_value.take_formatter_token_space(tokens);
 
             if index == self.key_values.len() - 1 {
                 tokens.push(FormatterTokenInfo {
