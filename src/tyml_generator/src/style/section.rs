@@ -275,6 +275,12 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
             } => bracket_left,
         })
     }
+
+    fn map_formatter_token(
+        &self,
+        _: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
+    ) {
+    }
 }
 
 impl ParserPart for SectionParser {

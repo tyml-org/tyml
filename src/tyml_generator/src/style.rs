@@ -1,9 +1,13 @@
-use std::{borrow::Cow, collections::BTreeMap, ops::Range};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Range,
+};
 
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use error::GeneratedParseError;
-use tyml_formatter::SpaceFormat;
+use tyml_formatter::{FormatterTokenKind, SpaceFormat};
 use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::{GeneratorLexer, GeneratorTokenKind, TokenizerRegistry};
@@ -28,6 +32,8 @@ pub trait Parser<'input, T: AST<'input>>: ParserPart {
     ) -> Option<T>;
 
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind>;
+
+    fn map_formatter_token(&self, map: &mut HashMap<GeneratorTokenKind, FormatterTokenKind>);
 }
 
 pub trait AST<'input> {

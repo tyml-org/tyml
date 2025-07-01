@@ -8,7 +8,7 @@ use std::{
 use allocator_api2::vec::Vec;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tyml_formatter::SpaceFormat;
+use tyml_formatter::{FormatterTokenKind, SpaceFormat};
 use tyml_source::AsUtf8ByteRange;
 use tyml_type::types::{NamedTypeMap, Type, TypeTree};
 use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeChecker};
@@ -233,6 +233,18 @@ impl<'input> Parser<'input, ValueAST<'input>> for ValueParser {
                 .into_iter()
                 .flatten(),
         )
+    }
+
+    fn map_formatter_token(
+        &self,
+        map: &mut std::collections::HashMap<GeneratorTokenKind, FormatterTokenKind>,
+    ) {
+        if let Some(array) = &self.array {
+            array.map_formatter_token(map);
+        }
+        if let Some(inline_section) = &self.inline_section {
+            inline_section.map_formatter_token(map);
+        }
     }
 }
 
@@ -602,6 +614,24 @@ impl<'input> Parser<'input, ArrayValueAST<'input>> for ArrayValueParser {
             } => once(*bracket_left),
         }
     }
+
+    fn map_formatter_token(
+        &self,
+        map: &mut std::collections::HashMap<GeneratorTokenKind, FormatterTokenKind>,
+    ) {
+        match self {
+            ArrayValueParser::Bracket {
+                bracket_left,
+                bracket_right,
+                comma: _,
+                allow_line_feed: _,
+                allow_extra_comma: _,
+            } => {
+                map.insert(*bracket_left, FormatterTokenKind::TreeIn);
+                map.insert(*bracket_right, FormatterTokenKind::TreeOut);
+            }
+        }
+    }
 }
 
 impl ParserPart for ArrayValueParser {
@@ -888,6 +918,21 @@ impl<'input> Parser<'input, InlineSectionAST<'input>> for InlineSectionParser {
                 brace_left,
                 brace_right: _,
             } => once(*brace_left),
+        }
+    }
+
+    fn map_formatter_token(
+        &self,
+        map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
+    ) {
+        match self.kind {
+            InlineSectionKindParser::Brace {
+                brace_left,
+                brace_right,
+            } => {
+                map.insert(brace_left, FormatterTokenKind::TreeIn);
+                map.insert(brace_right, FormatterTokenKind::TreeOut);
+            }
         }
     }
 }

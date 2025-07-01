@@ -532,6 +532,12 @@ impl<'input> Parser<'input, LiteralSetAST<'input>> for LiteralSetParser {
             .flatten()
             .chain(self.strings.iter().map(|(kind, _, _)| *kind))
     }
+
+    fn map_formatter_token(
+        &self,
+        _: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
+    ) {
+    }
 }
 
 impl<'input> ParserPart for LiteralSetParser {

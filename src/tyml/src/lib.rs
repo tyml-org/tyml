@@ -12,6 +12,7 @@ use std::{
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use tyml_diagnostic::DiagnosticBuilder;
+use tyml_formatter::FormatterToken;
 use tyml_generator::{
     lexer::{GeneratorLexer, TokenizerRegistry},
     style::{
@@ -99,11 +100,12 @@ impl<State> TymlContext<State> {
         self.tyml().has_error()
     }
 
-    pub fn ml_parse_and_validate(
+    pub fn ml_parse_and_validate<'code>(
         &self,
         ml_language_style: &LanguageStyle,
         ml_source_code: &SourceCode,
         tokens: Option<&mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>>,
+        formatter_tokens: Option<&mut Vec<FormatterToken<'code>>>,
     ) -> TymlContext<Validated>
     where
         State: IParsed,
@@ -443,7 +445,7 @@ test = "1000"
 
         let language = STYLE_REGISTRY.resolve("toml").unwrap();
 
-        let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None);
+        let tyml = tyml.ml_parse_and_validate(&language, &ml_source, None, None);
 
         tyml.print_tyml_error(Lang::system());
         tyml.print_ml_parse_error(Lang::system());

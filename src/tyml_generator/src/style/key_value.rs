@@ -178,6 +178,14 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
     fn first_token_kinds(&self) -> impl Iterator<Item = GeneratorTokenKind> {
         self.key.first_token_kinds()
     }
+
+    fn map_formatter_token(
+        &self,
+        map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
+    ) {
+        self.key.map_formatter_token(map);
+        self.value.map_formatter_token(map);
+    }
 }
 
 impl ParserPart for KeyValueParser {

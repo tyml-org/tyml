@@ -3,6 +3,7 @@ use std::{borrow::Cow, iter::once, ops::Range};
 use allocator_api2::vec::Vec;
 use auto_enums::auto_enum;
 use serde::{Deserialize, Serialize};
+use tyml_formatter::FormatterTokenKind;
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{SetValue, ValueTree, ValueTypeChecker};
 
@@ -221,6 +222,28 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 allow_non_section_key_value: _,
             } => section.first_token_kinds(),
             LanguageParser::Empty { empty_lexer } => once(*empty_lexer),
+        }
+    }
+
+    fn map_formatter_token(
+        &self,
+        map: &mut std::collections::HashMap<GeneratorTokenKind, tyml_formatter::FormatterTokenKind>,
+    ) {
+        match self {
+            LanguageParser::Section {
+                section,
+                key_value,
+                comments,
+                allow_non_section_key_value: _,
+            } => {
+                section.map_formatter_token(map);
+                key_value.map_formatter_token(map);
+
+                for comment in comments.iter() {
+                    map.insert(*comment, FormatterTokenKind::Comment);
+                }
+            }
+            LanguageParser::Empty { empty_lexer: _ } => {}
         }
     }
 }
