@@ -8,6 +8,7 @@ use std::{
 use allocator_api2::vec::Vec;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tyml_formatter::SpaceFormat;
 use tyml_source::AsUtf8ByteRange;
 use tyml_type::types::{NamedTypeMap, Type, TypeTree};
 use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeChecker};
@@ -15,7 +16,7 @@ use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeCheck
 use crate::{
     lexer::{GeneratorTokenKind, GeneratorTokenizer, SpannedText},
     style::{
-        NamedParserPart,
+        FormatterTokenInfo, NamedParserPart,
         error::recover_until_or_lf,
         key_value::{KeyValueAST, KeyValueParser},
     },
@@ -443,6 +444,18 @@ impl<'input> AST<'input> for ValueAST<'input> {
 
         tokens.insert(value.span.start, (kind, value.span.clone()));
     }
+
+    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>) {
+        match &self.kind {
+            ValueASTKind::Array { array } => {
+                array.take_formatter_token(tokens);
+            }
+            ValueASTKind::InlineSection { inline_section } => {
+                inline_section.take_formatter_token(tokens);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -663,6 +676,12 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
     ) {
         for value in self.values.iter() {
             value.take_token(tokens);
+        }
+    }
+
+    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>) {
+        for value in self.values.iter() {
+            value.take_formatter_token(tokens);
         }
     }
 }
@@ -962,6 +981,26 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
     ) {
         for key_value in self.key_values.iter() {
             key_value.take_token(tokens);
+        }
+    }
+
+    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+        for (index, key_value) in self.key_values.iter().enumerate() {
+            key_value.take_formatter_token(tokens);
+
+            if index == self.key_values.len() - 1 {
+                tokens.push(FormatterTokenInfo {
+                    span: key_value.span(),
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::LineFeedOrSplit(","),
+                });
+            } else {
+                tokens.push(FormatterTokenInfo {
+                    span: key_value.span(),
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::LineFeed,
+                });
+            }
         }
     }
 }

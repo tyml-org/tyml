@@ -3,6 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, ops::Range};
 use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use error::GeneratedParseError;
+use tyml_formatter::SpaceFormat;
 use tyml_validate::validate::ValueTypeChecker;
 
 use crate::lexer::{GeneratorLexer, GeneratorTokenKind, TokenizerRegistry};
@@ -40,6 +41,14 @@ pub trait AST<'input> {
     );
 
     fn take_token(&self, tokens: &mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>);
+
+    fn take_formatter_token(&self, tokens: &mut Vec<FormatterTokenInfo>);
+}
+
+pub struct FormatterTokenInfo {
+    pub span: Range<usize>,
+    pub left_space: SpaceFormat,
+    pub right_space: SpaceFormat,
 }
 
 pub enum ASTTokenKind {

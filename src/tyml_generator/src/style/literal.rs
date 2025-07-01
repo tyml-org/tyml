@@ -579,6 +579,10 @@ impl<'input> AST<'input> for LiteralSetAST<'input> {
     ) {
         unreachable!()
     }
+
+    fn take_formatter_token(&self, _: &mut allocator_api2::vec::Vec<super::FormatterTokenInfo>) {
+        unreachable!()
+    }
 }
 
 impl<'input> LiteralSetAST<'input> {

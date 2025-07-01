@@ -1819,6 +1819,7 @@ dependencies = [
  "serde",
  "shellexpand",
  "toml",
+ "tyml_formatter",
  "tyml_source",
  "tyml_type",
  "tyml_validate",

@@ -2,10 +2,14 @@ use std::{borrow::Cow, ops::Range};
 
 use allocator_api2::vec::Vec;
 use serde::{Deserialize, Serialize};
+use tyml_formatter::SpaceFormat;
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{SetValue, ValidateValue, ValueTree, ValueTypeChecker};
 
-use crate::lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer};
+use crate::{
+    lexer::{GeneratorAnchor, GeneratorTokenKind, GeneratorTokenizer},
+    style::FormatterTokenInfo,
+};
 
 use super::{
     AST, ASTTokenKind, NamedParserPart, Parser, ParserGenerator, ParserPart,
@@ -53,6 +57,7 @@ pub struct KeyOptionTokenKind {
 #[derive(Debug)]
 pub struct KeyValueAST<'input> {
     pub key: Vec<LiteralSetAST<'input>>,
+    pub separator_span: Option<Range<usize>>,
     pub value: Option<ValueAST<'input>>,
     pub on_dot_input: bool,
     pub span: Range<usize>,
@@ -142,13 +147,14 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
                 return Some(KeyValueAST {
                     key,
+                    separator_span: None,
                     value: None,
                     on_dot_input,
                     span: anchor.elapsed(lexer),
                 });
             }
         }
-        lexer.next();
+        let separator = lexer.next().unwrap();
 
         let value = match self.value.parse(self, lexer, errors) {
             Some(value) => Some(value),
@@ -162,6 +168,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
         Some(KeyValueAST {
             key,
+            separator_span: Some(separator.span),
             value,
             on_dot_input,
             span: anchor.elapsed(lexer),
@@ -262,6 +269,16 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
 
         if let Some(value) = &self.value {
             value.take_token(tokens);
+        }
+    }
+
+    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+        if let Some(separator_span) = &self.separator_span {
+            tokens.push(FormatterTokenInfo {
+                span: separator_span.clone(),
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            });
         }
     }
 }

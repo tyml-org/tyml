@@ -51,6 +51,7 @@ pub enum SectionParserKind {
 #[derive(Debug)]
 pub struct SectionAST<'input> {
     pub sections: Vec<LiteralSetAST<'input>>,
+    pub space_positions: Vec<usize>,
     pub is_array: bool,
     /// Only section name part span
     pub span: Range<usize>,
@@ -119,6 +120,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 let Some(literal) = self.literal.parse(lexer, errors) else {
                     return Some(SectionAST {
                         sections: Vec::new(),
+                        space_positions: Vec::new(),
                         is_array: false,
                         span: anchor.elapsed(lexer),
                     });
@@ -127,9 +129,12 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                 let mut sections = Vec::new();
                 sections.push(literal);
 
+                let mut space_positions = Vec::new();
+
                 loop {
                     if allow_space_split {
                         if let Some(literal) = self.literal.parse(lexer, errors) {
+                            space_positions.push(literal.span().start);
                             sections.push(literal);
 
                             if lexer.current_contains(bracket_right) {
@@ -168,6 +173,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                     return Some(SectionAST {
                         sections,
+                        space_positions,
                         is_array: double_bracket,
                         span: anchor.elapsed(lexer),
                     });
@@ -185,6 +191,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections,
+                            space_positions,
                             is_array: double_bracket,
                             span: anchor.elapsed(lexer),
                         });
@@ -194,6 +201,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
+                    space_positions,
                     is_array: double_bracket,
                     span: anchor.elapsed(lexer),
                 })
@@ -220,6 +228,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            space_positions: Vec::new(),
                             is_array: false,
                             span: anchor.elapsed(lexer),
                         });
@@ -233,6 +242,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                         return Some(SectionAST {
                             sections: Vec::new(),
+                            space_positions: Vec::new(),
                             is_array: false,
                             span: anchor.elapsed(lexer),
                         });
@@ -242,6 +252,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
 
                 Some(SectionAST {
                     sections,
+                    space_positions: Vec::new(),
                     is_array: false,
                     span: anchor.elapsed(lexer),
                 })
@@ -315,4 +326,6 @@ impl<'input> AST<'input> for SectionAST<'input> {
             );
         }
     }
+
+    fn take_formatter_token(&self, _: &mut Vec<super::FormatterTokenInfo>) {}
 }

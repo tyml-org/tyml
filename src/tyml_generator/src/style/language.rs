@@ -360,4 +360,27 @@ impl<'input> AST<'input> for LanguageAST<'input> {
             LanguageAST::Empty { span: _ } => {}
         }
     }
+
+    fn take_formatter_token(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
+        match self {
+            LanguageAST::Section {
+                non_section_key_values,
+                sections,
+                span: _,
+            } => {
+                for key_value in non_section_key_values.iter() {
+                    key_value.take_formatter_token(tokens);
+                }
+
+                for (section, key_values, _) in sections.iter() {
+                    section.take_formatter_token(tokens);
+
+                    for key_value in key_values.iter() {
+                        key_value.take_formatter_token(tokens);
+                    }
+                }
+            }
+            LanguageAST::Empty { span: _ } => {}
+        }
+    }
 }
