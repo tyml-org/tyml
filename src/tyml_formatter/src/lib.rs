@@ -305,7 +305,7 @@ impl<'input> GeneralFormatter<'input> {
                     1
                 }
             }
-            SpaceFormat::LineFeedOrSplit(split) => {
+            SpaceFormat::LineFeedOrSplit { split, is_extra } => {
                 // remove existed lf or split
                 for element in &mut elements[index..] {
                     if let FormatterTokenTree::Leaf { token } = element {
@@ -345,6 +345,198 @@ impl<'input> GeneralFormatter<'input> {
                             },
                         },
                     );
+
+                    2
+                } else {
+                    if is_extra {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: " ".into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    } else {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: split.into(),
+                                    kind: FormatterTokenKind::Normal,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+
+                        elements.insert(
+                            index + 1,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: " ".into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    }
+
+                    if is_extra { 1 } else { 2 }
+                }
+            }
+            SpaceFormat::LineFeedAndSplit { split, is_extra } => {
+                // remove existed lf or split
+                for element in &mut elements[index..] {
+                    if let FormatterTokenTree::Leaf { token } = element {
+                        if token.kind == FormatterTokenKind::LineFeed
+                            || token.text.as_ref() == split
+                        {
+                            *element = FormatterTokenTree::None;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                if should_lf {
+                    if is_extra {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: "\n".into(),
+                                    kind: FormatterTokenKind::LineFeed,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+
+                        elements.insert(
+                            index + 1,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: "    ".repeat(indent).into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    } else {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: split.into(),
+                                    kind: FormatterTokenKind::Normal,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+
+                        elements.insert(
+                            index + 1,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: "\n".into(),
+                                    kind: FormatterTokenKind::LineFeed,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+
+                        elements.insert(
+                            index + 2,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: "    ".repeat(indent).into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    }
+
+                    if is_extra { 2 } else { 3 }
+                } else {
+                    if is_extra {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: " ".into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    } else {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: split.into(),
+                                    kind: FormatterTokenKind::Normal,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+
+                        elements.insert(
+                            index + 1,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: " ".into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
+                            },
+                        );
+                    }
+
+                    if is_extra { 1 } else { 2 }
+                }
+            }
+            SpaceFormat::SplitAndSpace { split, is_extra } => {
+                // remove existed split
+                for element in &mut elements[index..] {
+                    if let FormatterTokenTree::Leaf { token } = element {
+                        if token.text.as_ref() == split {
+                            *element = FormatterTokenTree::None;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                if is_extra {
+                    elements.insert(
+                        index,
+                        FormatterTokenTree::Leaf {
+                            token: FormatterToken {
+                                text: " ".into(),
+                                kind: FormatterTokenKind::Whitespace,
+                                left_space: SpaceFormat::None,
+                                right_space: SpaceFormat::None,
+                            },
+                        },
+                    );
                 } else {
                     elements.insert(
                         index,
@@ -371,7 +563,7 @@ impl<'input> GeneralFormatter<'input> {
                     );
                 }
 
-                2
+                if is_extra { 1 } else { 2 }
             }
             SpaceFormat::None => 0,
         }
@@ -480,6 +672,8 @@ pub enum SpaceFormat {
     Space,
     LineFeed,
     SpaceOrLineFeed,
-    LineFeedOrSplit(&'static str),
+    LineFeedOrSplit { split: &'static str, is_extra: bool },
+    LineFeedAndSplit { split: &'static str, is_extra: bool },
+    SplitAndSpace { split: &'static str, is_extra: bool },
     None,
 }

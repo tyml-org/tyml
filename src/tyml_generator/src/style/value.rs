@@ -492,6 +492,7 @@ pub enum ArrayValueParser {
 #[derive(Debug)]
 pub struct ArrayValueAST<'input> {
     pub values: Vec<ValueAST<'input>>,
+    pub allow_line_feed: bool,
     pub span: Range<usize>,
 }
 
@@ -587,6 +588,7 @@ impl<'input> ArrayValueParser {
 
                 Some(ArrayValueAST {
                     values,
+                    allow_line_feed: *allow_line_feed,
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -713,6 +715,46 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
         for value in self.values.iter() {
             value.take_formatter_token_space(tokens);
         }
+
+        for (index, value) in self.values.iter().enumerate() {
+            if index == 0 {
+                if self.allow_line_feed {
+                    tokens.push(FormatterTokenInfo {
+                        span: value.span.start..value.span.start,
+                        left_space: SpaceFormat::SpaceOrLineFeed,
+                        right_space: SpaceFormat::None,
+                    });
+                } else {
+                    tokens.push(FormatterTokenInfo {
+                        span: value.span.start..value.span.start,
+                        left_space: SpaceFormat::Space,
+                        right_space: SpaceFormat::None,
+                    });
+                }
+            }
+
+            let span = value.span.end..value.span.end;
+
+            if self.allow_line_feed {
+                tokens.push(FormatterTokenInfo {
+                    span,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::LineFeedAndSplit {
+                        split: ",",
+                        is_extra: index == self.values.len() - 1,
+                    },
+                });
+            } else {
+                tokens.push(FormatterTokenInfo {
+                    span,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::SplitAndSpace {
+                        split: ",",
+                        is_extra: index == self.values.len() - 1,
+                    },
+                });
+            }
+        }
     }
 }
 
@@ -763,6 +805,7 @@ pub enum InlineSectionSeparatorParser {
 #[derive(Debug)]
 pub struct InlineSectionAST<'input> {
     pub key_values: Vec<KeyValueAST<'input>>,
+    pub separator: InlineSectionSeparatorParser,
     pub span: Range<usize>,
 }
 
@@ -896,6 +939,7 @@ impl<'input> InlineSectionParser {
 
                 Some(InlineSectionAST {
                     key_values,
+                    separator: self.separator.clone(),
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -1030,21 +1074,54 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
     }
 
     fn take_formatter_token_space(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
-        for (index, key_value) in self.key_values.iter().enumerate() {
+        for key_value in self.key_values.iter() {
             key_value.take_formatter_token_space(tokens);
+        }
 
-            if index == self.key_values.len() - 1 {
-                tokens.push(FormatterTokenInfo {
-                    span: key_value.span(),
-                    left_space: SpaceFormat::None,
-                    right_space: SpaceFormat::LineFeedOrSplit(","),
-                });
-            } else {
-                tokens.push(FormatterTokenInfo {
-                    span: key_value.span(),
-                    left_space: SpaceFormat::None,
-                    right_space: SpaceFormat::LineFeed,
-                });
+        if let InlineSectionSeparatorParser::Comma {
+            allow_line_feed,
+            allow_extra_comma: _,
+            comma: _,
+        } = &self.separator
+        {
+            for (index, key_value) in self.key_values.iter().enumerate() {
+                if index == 0 {
+                    if *allow_line_feed {
+                        tokens.push(FormatterTokenInfo {
+                            span: key_value.span.start..key_value.span.start,
+                            left_space: SpaceFormat::SpaceOrLineFeed,
+                            right_space: SpaceFormat::None,
+                        });
+                    } else {
+                        tokens.push(FormatterTokenInfo {
+                            span: key_value.span.start..key_value.span.start,
+                            left_space: SpaceFormat::Space,
+                            right_space: SpaceFormat::None,
+                        });
+                    }
+                }
+
+                let span = key_value.span.end..key_value.span.end;
+
+                if *allow_line_feed {
+                    tokens.push(FormatterTokenInfo {
+                        span,
+                        left_space: SpaceFormat::None,
+                        right_space: SpaceFormat::LineFeedAndSplit {
+                            split: ",",
+                            is_extra: index == self.key_values.len() - 1,
+                        },
+                    });
+                } else {
+                    tokens.push(FormatterTokenInfo {
+                        span,
+                        left_space: SpaceFormat::None,
+                        right_space: SpaceFormat::SplitAndSpace {
+                            split: ",",
+                            is_extra: index == self.key_values.len() - 1,
+                        },
+                    });
+                }
             }
         }
     }

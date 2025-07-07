@@ -288,5 +288,8 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                 right_space: SpaceFormat::Space,
             });
         }
+        if let Some(value) = &self.value {
+            value.take_formatter_token_space(tokens);
+        }
     }
 }

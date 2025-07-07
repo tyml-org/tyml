@@ -14,7 +14,7 @@ use bumpalo::Bump;
 use tyml_diagnostic::DiagnosticBuilder;
 use tyml_formatter::{FormatterToken, FormatterTokenKind, SpaceFormat};
 use tyml_generator::{
-    lexer::{GeneratorLexer, TokenizerRegistry},
+    lexer::{GeneratorLexer, GeneratorTokenKind, TokenizerRegistry},
     style::{
         error::GeneratedParseError, language::LanguageStyle, ASTTokenKind, Parser, ParserGenerator,
         AST,
@@ -145,12 +145,16 @@ impl<State> TymlContext<State> {
             let lexer = GeneratorLexer::new(&ml_source_code.code, &registry, &allocator);
 
             for token in lexer {
-                let kind = token
-                    .kinds
-                    .iter()
-                    .find_map(|kind| formatter_token_kind_map.get(kind))
-                    .cloned()
-                    .unwrap_or(FormatterTokenKind::Normal);
+                let kind = if token.kinds.contains(&GeneratorTokenKind::LineFeed) {
+                    FormatterTokenKind::LineFeed
+                } else {
+                    token
+                        .kinds
+                        .iter()
+                        .find_map(|kind| formatter_token_kind_map.get(kind))
+                        .cloned()
+                        .unwrap_or(FormatterTokenKind::Normal)
+                };
 
                 let left_space = formatter_token_space_info_map
                     .get(&token.span.start)
@@ -480,11 +484,11 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-test: string @length 0..<3
+test: [int]
 "#;
 
         let ini_source = r#"
-test = "1000"
+test = [ 100,200,300,400,500,600,700 ]
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());

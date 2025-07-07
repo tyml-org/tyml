@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use extension_fn::extension_fn;
 use tyml_formatter::{FormatterToken, FormatterTokenKind, SpaceFormat};
@@ -27,9 +27,13 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                 right_space: SpaceFormat::Space,
             },
             TokenKind::Comma => FormatterToken {
+                // maybe, unused
                 text: token.text.into(),
                 kind: FormatterTokenKind::Normal,
-                left_space: SpaceFormat::LineFeedOrSplit(","),
+                left_space: SpaceFormat::LineFeedOrSplit {
+                    split: ",",
+                    is_extra: false,
+                },
                 right_space: SpaceFormat::SpaceOrLineFeed,
             },
             TokenKind::BraceLeft => FormatterToken {
@@ -141,12 +145,15 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                 right_space: SpaceFormat::LineFeed,
             },
             _ => {
-                if comma_positions.contains(&token.span.end) {
+                if let Some(&is_extra) = comma_positions.get(&token.span.end) {
                     FormatterToken {
                         text: token.text.into(),
                         kind: FormatterTokenKind::Normal,
                         left_space: SpaceFormat::None,
-                        right_space: SpaceFormat::LineFeedOrSplit(","),
+                        right_space: SpaceFormat::LineFeedOrSplit {
+                            split: ",",
+                            is_extra,
+                        },
                     }
                 } else {
                     FormatterToken {
@@ -161,19 +168,19 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
         .collect()
 }
 
-fn collect_comma_position(ast: &Defines) -> HashSet<usize> {
-    let mut positions = HashSet::new();
+fn collect_comma_position(ast: &Defines) -> HashMap<usize, bool> {
+    let mut positions = HashMap::new();
 
     collect_defines(ast, &mut positions);
 
     positions
 }
 
-fn collect_defines(ast: &Defines, positions: &mut HashSet<usize>) {
-    for element in ast.defines.iter() {
+fn collect_defines(ast: &Defines, positions: &mut HashMap<usize, bool>) {
+    for (index, element) in ast.defines.iter().enumerate() {
         match element {
             Define::Element(element_define) => {
-                positions.insert(element_define.span.end);
+                positions.insert(element_define.span.end, index == ast.defines.len() - 1);
 
                 if let Some(inline_type) = &element_define.inline_type {
                     collect_defines(&inline_type.defines, positions);
@@ -184,8 +191,8 @@ fn collect_defines(ast: &Defines, positions: &mut HashSet<usize>) {
                     collect_defines(&struct_define.defines, positions);
                 }
                 TypeDefine::Enum(enum_define) => {
-                    for element in enum_define.elements.iter() {
-                        positions.insert(element.span.end);
+                    for (index, element) in enum_define.elements.iter().enumerate() {
+                        positions.insert(element.span.end, index == enum_define.elements.len() - 1);
                     }
                 }
             },

@@ -51,6 +51,7 @@ pub trait AST<'input> {
     fn take_formatter_token_space(&self, tokens: &mut Vec<FormatterTokenInfo>);
 }
 
+#[derive(Debug)]
 pub struct FormatterTokenInfo {
     pub span: Range<usize>,
     pub left_space: SpaceFormat,
