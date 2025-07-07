@@ -290,8 +290,6 @@ fn parse_element_inline_type<'input, 'allocator>(
     }
     lexer.next();
 
-    lexer.skip_line_feed();
-
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         if let TokenKind::Literal | TokenKind::BracketLeft = lexer.current().get_kind() {
             // This should be a ElementType, so return to parent layer and try to parse as ElementType.
@@ -302,17 +300,14 @@ fn parse_element_inline_type<'input, 'allocator>(
         let error = recover_until(
             ParseErrorKind::InvalidElementTypeFormat,
             lexer,
-            &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceLeft],
+            &[TokenKind::LineFeed, TokenKind::Comma],
             Expected::StructElementBlockOrTypeName,
             Scope::ElementDefine,
             allocator,
         );
         errors.push(error);
 
-        if lexer.current().get_kind() != TokenKind::BraceLeft {
-            // cannot recover as ElementInlineType
-            return None;
-        }
+        return None;
     }
     lexer.next();
 
