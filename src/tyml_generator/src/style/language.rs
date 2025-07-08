@@ -343,10 +343,11 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                             },
                         ),
                         SetValue::CreateSection,
+                        section.is_array,
                     );
 
                     for key_value in key_values.iter() {
-                        key_value.take_value(section_name_stack, validator);
+                        key_value.take_value_(section_name_stack, validator, section.is_array);
                     }
 
                     for _ in 0..stacked {

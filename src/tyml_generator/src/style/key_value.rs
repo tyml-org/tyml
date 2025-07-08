@@ -202,18 +202,15 @@ impl ParserPart for KeyValueParser {
     }
 }
 
-impl<'input> AST<'input> for KeyValueAST<'input> {
-    fn span(&self) -> Range<usize> {
-        self.span.clone()
-    }
-
-    fn take_value(
+impl<'input> KeyValueAST<'input> {
+    pub fn take_value_(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        is_section_array: bool,
     ) {
         let stack = self
             .key
@@ -236,7 +233,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
 
         match &self.value {
             Some(value) => {
-                value.take_value(section_name_stack, validator);
+                value.take_value_(section_name_stack, validator, is_section_array);
             }
             None => {
                 let first_key_span = self.key.first().unwrap().span();
@@ -258,6 +255,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
                         key_span: (first_key_span.start..last_key_span.end).as_utf8_byte_range(),
                         span: self.span.as_utf8_byte_range(),
                     }),
+                    is_section_array,
                 );
             }
         }
@@ -265,6 +263,23 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         for _ in 0..stack_size {
             section_name_stack.pop().unwrap();
         }
+    }
+}
+
+impl<'input> AST<'input> for KeyValueAST<'input> {
+    fn span(&self) -> Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        Self::take_value_(&self, section_name_stack, validator, false);
     }
 
     fn take_token(

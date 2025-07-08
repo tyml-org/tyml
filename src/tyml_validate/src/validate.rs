@@ -200,6 +200,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             ),
         >,
         value: SetValue<'section, 'value>,
+        mut is_section_array: bool,
     ) {
         let root_section = [(
             Cow::Borrowed("root"),
@@ -220,14 +221,19 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             let (current_section, current_section_name_span, current_section_define_span, is_array) =
                 sections.next().unwrap();
 
+            if is_array {
+                is_section_array = false;
+            }
+
             value_tree = match value_tree {
                 ValueTree::Section {
                     elements,
                     name_span: _,
                     define_span: _,
                 } => {
-                    let element_branches =
-                        elements.entry(current_section.into()).or_insert(Vec::new());
+                    let element_branches = elements
+                        .entry(current_section.clone().into())
+                        .or_insert(Vec::new());
 
                     // search same section that already exists
                     let next_branch_position =
@@ -236,7 +242,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                 elements: _,
                                 name_span,
                                 define_span: _,
-                            } => name_span == &current_section_name_span && !is_array,
+                            } => {
+                                (name_span == &current_section_name_span && !is_array)
+                                    || is_section_array
+                            }
                             ValueTree::Array {
                                 elements: _,
                                 key_span: _,
@@ -270,7 +279,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                                                 elements: _,
                                                 name_span,
                                                 define_span: _,
-                                            } => name_span == &current_section_name_span,
+                                            } => {
+                                                (name_span == &current_section_name_span)
+                                                    || is_section_array
+                                            }
                                             ValueTree::Array {
                                                 elements: _,
                                                 key_span: _,

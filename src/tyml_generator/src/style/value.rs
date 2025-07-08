@@ -392,18 +392,15 @@ impl<'input> ValueAST<'input> {
     }
 }
 
-impl<'input> AST<'input> for ValueAST<'input> {
-    fn span(&self) -> std::ops::Range<usize> {
-        self.span.clone()
-    }
-
-    fn take_value(
+impl<'input> ValueAST<'input> {
+    pub fn take_value_(
         &self,
         section_name_stack: &mut allocator_api2::vec::Vec<
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
         validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        is_section_array: bool,
     ) {
         let value_tree = self.create_value(section_name_stack);
 
@@ -419,7 +416,25 @@ impl<'input> AST<'input> for ValueAST<'input> {
                     )
                 }),
             SetValue::Value(value_tree),
+            is_section_array,
         );
+    }
+}
+
+impl<'input> AST<'input> for ValueAST<'input> {
+    fn span(&self) -> std::ops::Range<usize> {
+        self.span.clone()
+    }
+
+    fn take_value(
+        &self,
+        section_name_stack: &mut allocator_api2::vec::Vec<
+            (Cow<'input, str>, Range<usize>, Range<usize>, bool),
+            &bumpalo::Bump,
+        >,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+    ) {
+        Self::take_value_(&self, section_name_stack, validator, false);
     }
 
     fn take_token(

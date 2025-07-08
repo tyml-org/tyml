@@ -484,11 +484,23 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-test: [int]
+type Test1 {
+    test1: int
+}
+
+type Test2 {
+    test2: [Test1]
+}
+
+test: Test2
 "#;
 
         let ini_source = r#"
-test = [ 100,200,300,400,500,600,700 ]
+[[test.test2]]
+test1 = 100
+
+[[test.test2]]
+test1 = 100
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
