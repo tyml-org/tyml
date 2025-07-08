@@ -368,6 +368,14 @@ impl LanguageServer for LSPBackend {
 
         let code = match server {
             Either::Left(server) => {
+                let Some((tyml, _)) = server.tyml.lock().unwrap().clone() else {
+                    return Ok(None);
+                };
+
+                if tyml.has_ml_parse_error() || tyml.has_ml_validate_error() {
+                    return Ok(None);
+                }
+
                 let tokens_lock = server.formatter_tokens.lock().unwrap();
 
                 let Some(tokens) = tokens_lock.as_ref() else {
