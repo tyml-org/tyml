@@ -1577,6 +1577,7 @@ fn provide_completion_recursive_for_type_tree(
                         key_span: _,
                         span: _,
                     } => {
+                        let mut contains = false;
                         for element in elements.iter() {
                             if !element.spans().any(|span| {
                                 span.to_byte_span(code)
@@ -1593,6 +1594,12 @@ fn provide_completion_recursive_for_type_tree(
                                 byte_position,
                                 completions,
                             );
+
+                            contains = true;
+                        }
+
+                        if contains {
+                            return;
                         }
                     }
                     MergedValueTree::Value {

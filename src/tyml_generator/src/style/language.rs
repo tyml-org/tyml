@@ -323,7 +323,9 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                                         literal,
                                         name_span,
                                         define_span,
-                                        section.is_array && index == (section.sections.len() - 1),
+                                        section.is_array
+                                            && index == (section.sections.len() - 1)
+                                            && section.is_complete,
                                     )
                                 }),
                         );
@@ -343,11 +345,10 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                             },
                         ),
                         SetValue::CreateSection,
-                        section.is_array,
                     );
 
                     for key_value in key_values.iter() {
-                        key_value.take_value_(section_name_stack, validator, section.is_array);
+                        key_value.take_value(section_name_stack, validator);
                     }
 
                     for _ in 0..stacked {

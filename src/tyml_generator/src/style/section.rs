@@ -53,6 +53,7 @@ pub struct SectionAST<'input> {
     pub sections: Vec<LiteralSetAST<'input>>,
     pub space_positions: Vec<usize>,
     pub is_array: bool,
+    pub is_complete: bool,
     /// Only section name part span
     pub span: Range<usize>,
 }
@@ -122,6 +123,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                         sections: Vec::new(),
                         space_positions: Vec::new(),
                         is_array: false,
+                        is_complete: false,
                         span: anchor.elapsed(lexer),
                     });
                 };
@@ -175,6 +177,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                         sections,
                         space_positions,
                         is_array: double_bracket,
+                        is_complete: false,
                         span: anchor.elapsed(lexer),
                     });
                 }
@@ -193,6 +196,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                             sections,
                             space_positions,
                             is_array: double_bracket,
+                            is_complete: false,
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -203,6 +207,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     sections,
                     space_positions,
                     is_array: double_bracket,
+                    is_complete: true,
                     span: anchor.elapsed(lexer),
                 })
             }
@@ -230,6 +235,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                             sections: Vec::new(),
                             space_positions: Vec::new(),
                             is_array: false,
+                            is_complete: false,
                             span: anchor.elapsed(lexer),
                         });
                     };
@@ -244,6 +250,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                             sections: Vec::new(),
                             space_positions: Vec::new(),
                             is_array: false,
+                            is_complete: false,
                             span: anchor.elapsed(lexer),
                         });
                     }
@@ -254,6 +261,7 @@ impl<'input> Parser<'input, SectionAST<'input>> for SectionParser {
                     sections,
                     space_positions: Vec::new(),
                     is_array: false,
+                    is_complete: true,
                     span: anchor.elapsed(lexer),
                 })
             }

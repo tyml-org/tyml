@@ -25,7 +25,7 @@ pub trait ToUnicodeCharacterRange {
     fn to_unicode_character_range(&self, source_code: &str) -> Range<usize>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SourceCodeSpan {
     /// 0 indexed, UTF-8 byte index
     UTF8Byte(Range<usize>),
