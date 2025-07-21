@@ -484,13 +484,13 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-setting: int
+setting: int?
 "#;
 
         let ini_source = r#"
 {
     "$comment": "comment",
-    "setting": 100
+    "setting": null
 }
 "#;
 

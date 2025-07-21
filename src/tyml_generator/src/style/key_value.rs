@@ -231,7 +231,9 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
         let stack_size = stack.len();
 
         let last_is_comment = match stack.last() {
-            Some((last, _, _, _)) => last.as_ref() == "$comment",
+            Some((last, _, _, _)) => {
+                last.as_ref().starts_with("$comment") || last.as_ref().starts_with("_comment")
+            }
             None => false,
         };
 
