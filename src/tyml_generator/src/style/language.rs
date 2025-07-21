@@ -7,7 +7,10 @@ use tyml_formatter::FormatterTokenKind;
 use tyml_source::AsUtf8ByteRange;
 use tyml_validate::validate::{SetValue, ValueTree, ValueTypeChecker};
 
-use crate::lexer::{GeneratorTokenKind, GeneratorTokenizer};
+use crate::{
+    lexer::{GeneratorTokenKind, GeneratorTokenizer},
+    style::value::ValueAST,
+};
 
 use super::{
     AST, NamedParserPart, Parser, ParserGenerator, ParserPart,
@@ -20,6 +23,7 @@ use super::{
 #[derive(Debug, Serialize, Deserialize)]
 pub enum LanguageStyle {
     Section(SectionStyle),
+    Value(KeyValue),
     Empty,
 }
 
@@ -38,6 +42,9 @@ pub enum LanguageParser {
         comments: Vec<GeneratorTokenKind>,
         allow_non_section_key_value: bool,
     },
+    Value {
+        key_value: KeyValueParser,
+    },
     Empty {
         empty_lexer: GeneratorTokenKind,
     },
@@ -49,6 +56,9 @@ pub enum LanguageAST<'input> {
         non_section_key_values: Vec<KeyValueAST<'input>>,
         sections: Vec<(SectionAST<'input>, Vec<KeyValueAST<'input>>, Range<usize>)>,
         span: Range<usize>,
+    },
+    Value {
+        value: Option<ValueAST<'input>>,
     },
     Empty {
         span: Range<usize>,
@@ -67,6 +77,9 @@ impl<'input> ParserGenerator<'input, LanguageAST<'input>, LanguageParser> for La
                     .map(|comment| registry.register(GeneratorTokenizer::Regex(comment.regex())))
                     .collect(),
                 allow_non_section_key_value: section.allow_non_section_key_value,
+            },
+            LanguageStyle::Value(key_value) => LanguageParser::Value {
+                key_value: key_value.generate(registry),
             },
             LanguageStyle::Empty => LanguageParser::Empty {
                 empty_lexer: registry.register(GeneratorTokenizer::regex(".*")),
@@ -202,6 +215,15 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                     span: anchor.elapsed(lexer),
                 })
             }
+            LanguageParser::Value { key_value } => {
+                lexer.skip_lf();
+
+                let value = key_value.value.parse(key_value, lexer, errors);
+
+                lexer.skip_lf();
+
+                Some(LanguageAST::Value { value })
+            }
             LanguageParser::Empty { empty_lexer: _ } => {
                 lexer.next();
 
@@ -221,6 +243,7 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 comments: _,
                 allow_non_section_key_value: _,
             } => section.first_token_kinds(),
+            LanguageParser::Value { key_value } => key_value.value.first_token_kinds(),
             LanguageParser::Empty { empty_lexer } => once(*empty_lexer),
         }
     }
@@ -242,6 +265,9 @@ impl<'input> Parser<'input, LanguageAST<'input>> for LanguageParser {
                 for comment in comments.iter() {
                     map.insert(*comment, FormatterTokenKind::Comment);
                 }
+            }
+            LanguageParser::Value { key_value } => {
+                key_value.map_formatter_token_kind(map);
             }
             LanguageParser::Empty { empty_lexer: _ } => {}
         }
@@ -266,6 +292,9 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                 sections: _,
                 span,
             } => span.clone(),
+            LanguageAST::Value { value } => {
+                value.as_ref().map(|value| value.span()).unwrap_or(0..0)
+            }
             LanguageAST::Empty { span } => span.clone(),
         }
     }
@@ -356,6 +385,11 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                     }
                 }
             }
+            LanguageAST::Value { value } => {
+                if let Some(value) = value {
+                    value.take_value(section_name_stack, validator);
+                }
+            }
             LanguageAST::Empty { span: _ } => {}
         }
     }
@@ -382,6 +416,11 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                     }
                 }
             }
+            LanguageAST::Value { value } => {
+                if let Some(value) = value {
+                    value.take_token(tokens);
+                }
+            }
             LanguageAST::Empty { span: _ } => {}
         }
     }
@@ -403,6 +442,11 @@ impl<'input> AST<'input> for LanguageAST<'input> {
                     for key_value in key_values.iter() {
                         key_value.take_formatter_token_space(tokens);
                     }
+                }
+            }
+            LanguageAST::Value { value } => {
+                if let Some(value) = value {
+                    value.take_formatter_token_space(tokens);
                 }
             }
             LanguageAST::Empty { span: _ } => {}

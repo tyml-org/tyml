@@ -22,7 +22,7 @@ use super::{
 pub struct KeyValue {
     pub key: LiteralSet,
     pub key_option: KeyOption,
-    pub kind: KeyValueKind,
+    pub separator: KeyValueSeparatorKind,
     pub value: Value,
 }
 
@@ -32,7 +32,7 @@ pub struct KeyOption {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum KeyValueKind {
+pub enum KeyValueSeparatorKind {
     /// key: value
     Colon,
     /// key = value
@@ -45,7 +45,7 @@ pub struct KeyValueParser {
     pub key: LiteralSetParser,
     pub key_option: KeyOptionTokenKind,
     pub kind: Option<GeneratorTokenKind>,
-    pub parser_kind: KeyValueKind,
+    pub separator_kind: KeyValueSeparatorKind,
     pub value: ValueParser,
 }
 
@@ -58,6 +58,7 @@ pub struct KeyOptionTokenKind {
 pub struct KeyValueAST<'input> {
     pub key: Vec<LiteralSetAST<'input>>,
     pub separator_span: Option<Range<usize>>,
+    pub separator_kind: KeyValueSeparatorKind,
     pub value: Option<ValueAST<'input>>,
     pub on_dot_input: bool,
     pub span: Range<usize>,
@@ -65,10 +66,14 @@ pub struct KeyValueAST<'input> {
 
 impl<'input> ParserGenerator<'input, KeyValueAST<'input>, KeyValueParser> for KeyValue {
     fn generate(&self, registry: &mut crate::lexer::TokenizerRegistry) -> KeyValueParser {
-        let kind = match self.kind {
-            KeyValueKind::Colon => Some(registry.register(GeneratorTokenizer::Keyword(":".into()))),
-            KeyValueKind::Equal => Some(registry.register(GeneratorTokenizer::Keyword("=".into()))),
-            KeyValueKind::NoSeparator => None,
+        let kind = match self.separator {
+            KeyValueSeparatorKind::Colon => {
+                Some(registry.register(GeneratorTokenizer::Keyword(":".into())))
+            }
+            KeyValueSeparatorKind::Equal => {
+                Some(registry.register(GeneratorTokenizer::Keyword("=".into())))
+            }
+            KeyValueSeparatorKind::NoSeparator => None,
         };
 
         KeyValueParser {
@@ -80,7 +85,7 @@ impl<'input> ParserGenerator<'input, KeyValueAST<'input>, KeyValueParser> for Ke
                     .then(|| registry.register(GeneratorTokenizer::Keyword(".".into()))),
             },
             kind,
-            parser_kind: self.kind,
+            separator_kind: self.separator,
             value: self.value.generate(registry),
         }
     }
@@ -131,10 +136,10 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
 
         if let Some(kind) = self.kind {
             if !lexer.current_contains(kind) {
-                let parser_part = match self.parser_kind {
-                    KeyValueKind::Colon => NamedParserPart::KEY_VALUE_COLON,
-                    KeyValueKind::Equal => NamedParserPart::KEY_VALUE_EQUAL,
-                    KeyValueKind::NoSeparator => unreachable!(),
+                let parser_part = match self.separator_kind {
+                    KeyValueSeparatorKind::Colon => NamedParserPart::KEY_VALUE_COLON,
+                    KeyValueSeparatorKind::Equal => NamedParserPart::KEY_VALUE_EQUAL,
+                    KeyValueSeparatorKind::NoSeparator => unreachable!(),
                 };
 
                 // contains key span for error
@@ -148,6 +153,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
                 return Some(KeyValueAST {
                     key,
                     separator_span: None,
+                    separator_kind: self.separator_kind,
                     value: None,
                     on_dot_input,
                     span: anchor.elapsed(lexer),
@@ -169,6 +175,7 @@ impl<'input> Parser<'input, KeyValueAST<'input>> for KeyValueParser {
         Some(KeyValueAST {
             key,
             separator_span: Some(separator.span),
+            separator_kind: self.separator_kind,
             value,
             on_dot_input,
             span: anchor.elapsed(lexer),
@@ -194,10 +201,10 @@ impl ParserPart for KeyValueParser {
     }
 
     fn expected_format(&self) -> Option<std::borrow::Cow<'static, str>> {
-        match self.parser_kind {
-            KeyValueKind::Colon => Some("key: value".into()),
-            KeyValueKind::Equal => Some("key = value".into()),
-            KeyValueKind::NoSeparator => Some("key value".into()),
+        match self.separator_kind {
+            KeyValueSeparatorKind::Colon => Some("key: value".into()),
+            KeyValueSeparatorKind::Equal => Some("key = value".into()),
+            KeyValueSeparatorKind::NoSeparator => Some("key value".into()),
         }
     }
 }
@@ -223,8 +230,14 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
             .collect::<Vec<_>>();
         let stack_size = stack.len();
 
+        let last_is_comment = match stack.last() {
+            Some((last, _, _, _)) => last.as_ref() == "$comment",
+            None => false,
+        };
+
         section_name_stack.extend(stack);
 
+        // for lsp
         if self.on_dot_input {
             section_name_stack.push((
                 "".into(),
@@ -236,7 +249,9 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
 
         match &self.value {
             Some(value) => {
-                value.take_value(section_name_stack, validator);
+                if !last_is_comment {
+                    value.take_value(section_name_stack, validator);
+                }
             }
             None => {
                 let first_key_span = self.key.first().unwrap().span();
@@ -282,11 +297,23 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
 
     fn take_formatter_token_space(&self, tokens: &mut Vec<super::FormatterTokenInfo>) {
         if let Some(separator_span) = &self.separator_span {
-            tokens.push(FormatterTokenInfo {
-                span: separator_span.clone(),
-                left_space: SpaceFormat::Space,
-                right_space: SpaceFormat::Space,
-            });
+            match self.separator_kind {
+                KeyValueSeparatorKind::Colon => {
+                    tokens.push(FormatterTokenInfo {
+                        span: separator_span.clone(),
+                        left_space: SpaceFormat::None,
+                        right_space: SpaceFormat::Space,
+                    });
+                }
+                KeyValueSeparatorKind::Equal => {
+                    tokens.push(FormatterTokenInfo {
+                        span: separator_span.clone(),
+                        left_space: SpaceFormat::Space,
+                        right_space: SpaceFormat::Space,
+                    });
+                }
+                KeyValueSeparatorKind::NoSeparator => {}
+            }
         }
         if let Some(value) = &self.value {
             value.take_formatter_token_space(tokens);

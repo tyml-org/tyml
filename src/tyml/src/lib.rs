@@ -484,31 +484,22 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-type Test1 {
-    test1: int
-}
-
-type Test2 {
-    test2: [Test1]
-}
-
-test: Test2
+setting: int
 "#;
 
         let ini_source = r#"
-[[test.test2]]
-test1 = 100
-
-[[test.test2]]
-test1 = 100
+{
+    "$comment": "comment",
+    "setting": 100
+}
 "#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
-        let ml_source = SourceCode::new("test.toml".to_string(), ini_source.to_string());
+        let ml_source = SourceCode::new("test.json".to_string(), ini_source.to_string());
 
         let tyml = TymlContext::new(tyml_source).parse();
 
-        let language = STYLE_REGISTRY.resolve("toml").unwrap();
+        let language = STYLE_REGISTRY.resolve("json").unwrap();
 
         let mut formatter_tokens = Vec::new();
 

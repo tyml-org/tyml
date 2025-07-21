@@ -1,6 +1,6 @@
 use crate::style::{
     comment::Comment,
-    key_value::{KeyOption, KeyValue, KeyValueKind},
+    key_value::{KeyOption, KeyValue, KeyValueSeparatorKind},
     language::{LanguageStyle, SectionStyle},
     literal::{
         BinaryLiteral, BoolKind, BoolLiteral, CustomLiteralOption, CustomRegexLiteral,
@@ -51,7 +51,7 @@ pub fn ini() -> LanguageStyle {
                 strings: vec![],
                 custom: Some(custom_literal),
             },
-            kind: KeyValueKind::Equal,
+            separator: KeyValueSeparatorKind::Equal,
             value: Value {
                 strings: vec![StringLiteral {
                     quotes_kind: QuotesKind::DoubleQuotes,

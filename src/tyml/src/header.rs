@@ -135,6 +135,9 @@ impl TymlHeader {
                     }
                 } else {
                     if char == ';' || char == '\'' || char == '"' || char == ' ' || char == '　' {
+                        if char == ';' {
+                            literal_length -= 1;
+                        }
                         break;
                     }
                 }

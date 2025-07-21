@@ -896,12 +896,6 @@ impl<'input> InlineSectionParser {
                     }
                 }
 
-                if !lexer.current_contains(*brace_right) {
-                    let error =
-                        recover_until_or_lf(lexer, [].into_iter(), &NamedParserPart::BRACE_RIGHT);
-                    errors.push(error);
-                }
-
                 if let InlineSectionSeparatorParser::Comma {
                     allow_line_feed,
                     allow_extra_comma,

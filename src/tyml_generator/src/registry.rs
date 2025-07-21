@@ -1,4 +1,5 @@
 pub(crate) mod ini;
+pub(crate) mod json;
 pub(crate) mod toml_;
 
 use std::{
@@ -26,6 +27,7 @@ impl StyleRegistry {
         styles.insert("".to_string(), Arc::new(LanguageStyle::Empty));
         styles.insert("ini".to_string(), Arc::new(ini::ini()));
         styles.insert("toml".to_string(), Arc::new(toml_::toml()));
+        styles.insert("json".to_string(), Arc::new(json::json()));
 
         Self {
             styles: RwLock::new(styles),

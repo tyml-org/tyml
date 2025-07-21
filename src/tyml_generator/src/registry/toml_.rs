@@ -1,6 +1,6 @@
 use crate::style::{
     comment::Comment,
-    key_value::{KeyOption, KeyValue, KeyValueKind},
+    key_value::{KeyOption, KeyValue, KeyValueSeparatorKind},
     language::{LanguageStyle, SectionStyle},
     literal::{
         BinaryLiteral, BoolKind, BoolLiteral, EscapeOption, FloatLiteral, InfNanKind, LiteralSet,
@@ -61,7 +61,7 @@ pub fn toml() -> LanguageStyle {
         },
         key_value: KeyValue {
             key: section_key_literal,
-            kind: KeyValueKind::Equal,
+            separator: KeyValueSeparatorKind::Equal,
             value: Value {
                 strings: vec![
                     double_quotes_string,
