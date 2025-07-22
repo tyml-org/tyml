@@ -5,7 +5,7 @@ use crate::style::{
         BoolKind, BoolLiteral, EscapeOption, FloatLiteral, InfNanKind, LiteralSet, QuotesKind,
         StringLiteral, UnicodeFormatKind,
     },
-    value::{ArrayValue, InlineSection, InlineSectionKind, InlineSectionSeparator, Value},
+    value::{ArrayValue, InlineSection, InlineSectionKind, InlineSectionSeparator, Null, Value},
 };
 
 pub fn json() -> LanguageStyle {
@@ -39,11 +39,9 @@ pub fn json() -> LanguageStyle {
                 allow_plus_minus: true,
                 allow_under_line: false,
             }),
-            binary: None,
             bool: Some(BoolLiteral {
                 kind: BoolKind::LowerCase,
             }),
-            any_string: None,
             array: Some(ArrayValue::Bracket {
                 allow_line_feed: true,
                 allow_extra_comma: false,
@@ -55,6 +53,10 @@ pub fn json() -> LanguageStyle {
                     allow_extra_comma: false,
                 },
             }),
+            null: Some(Null {
+                null_regex: r"null".to_string(),
+            }),
+            ..Default::default()
         },
     })
 }

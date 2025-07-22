@@ -67,6 +67,7 @@ pub enum ASTTokenKind {
     StringValue,
     BoolValue,
     Comment,
+    Null,
 }
 
 pub trait ParserPart {

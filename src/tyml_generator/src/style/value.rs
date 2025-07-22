@@ -40,6 +40,7 @@ pub struct Value {
     pub any_string: Option<Literal>,
     pub array: Option<ArrayValue>,
     pub inline_section: Option<InlineSection>,
+    pub null: Option<Null>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +53,7 @@ pub struct ValueParser {
     pub any_string: Option<(GeneratorTokenKind, Option<CustomLiteralOption>)>,
     pub array: Option<ArrayValueParser>,
     pub inline_section: Option<InlineSectionParser>,
+    pub null: Option<GeneratorTokenKind>,
 }
 
 #[derive(Debug)]
@@ -78,6 +80,7 @@ pub enum ValueASTKind<'input> {
     InlineSection {
         inline_section: InlineSectionAST<'input>,
     },
+    Null,
 }
 
 impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
@@ -101,6 +104,10 @@ impl<'input> ParserGenerator<'input, ValueAST<'input>, ValueParser> for Value {
                 .inline_section
                 .as_ref()
                 .map(|inline_section| inline_section.generate(registry)),
+            null: self
+                .null
+                .as_ref()
+                .map(|null| registry.register(GeneratorTokenizer::regex(null.null_regex.as_str()))),
         }
     }
 }
@@ -198,6 +205,18 @@ impl<'input> ValueParser {
                     value: None,
                     kind: ValueASTKind::InlineSection { inline_section },
                     span,
+                });
+            }
+        }
+
+        if let Some(null) = self.null {
+            if lexer.current_contains(null) {
+                return Some(ValueAST {
+                    style: self.style.clone(),
+                    parser: Arc::new(self.clone()),
+                    value: Some(lexer.next().unwrap().into_spanned()),
+                    kind: ValueASTKind::Null,
+                    span: anchor.elapsed(lexer),
                 });
             }
         }
@@ -376,6 +395,7 @@ impl<'input> ValueAST<'input> {
             ValueASTKind::InlineSection { inline_section } => {
                 return inline_section.create_value(section_name_stack);
             }
+            ValueASTKind::Null => ValidateValue::None,
         };
 
         // take last section(maybe key)'s span
@@ -450,6 +470,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
             ValueASTKind::Binary => ASTTokenKind::NumericValue,
             ValueASTKind::Bool => ASTTokenKind::BoolValue,
             ValueASTKind::AnyString => ASTTokenKind::StringValue,
+            ValueASTKind::Null => ASTTokenKind::Null,
             ValueASTKind::Array { array: _ } => unreachable!(),
             ValueASTKind::InlineSection { inline_section: _ } => unreachable!(),
         };
@@ -1119,4 +1140,9 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
             }
         }
     }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct Null {
+    pub null_regex: String,
 }

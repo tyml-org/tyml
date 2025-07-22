@@ -194,6 +194,7 @@ impl GeneratedLanguageServer {
                         ASTTokenKind::StringValue => SemanticTokenType::STRING,
                         ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
                         ASTTokenKind::Comment => SemanticTokenType::COMMENT,
+                        ASTTokenKind::Null => SemanticTokenType::KEYWORD,
                     };
                     for token in span
                         .as_utf8_byte_range()
@@ -252,6 +253,7 @@ impl GeneratedLanguageServer {
                         ASTTokenKind::StringValue => SemanticTokenType::STRING,
                         ASTTokenKind::BoolValue => SemanticTokenType::KEYWORD,
                         ASTTokenKind::Comment => SemanticTokenType::COMMENT,
+                        ASTTokenKind::Null => SemanticTokenType::KEYWORD,
                     };
                     for token in span
                         .as_utf8_byte_range()
