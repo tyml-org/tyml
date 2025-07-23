@@ -14,11 +14,11 @@ mod test {
 
     #[test]
     fn parse_test() {
-        let source = "
-settings: {
-    ip: string
-    port: int
-    mode: Mode?
+        let source = r#"
+settings = {
+    ip = "192.168.1.1"
+    port = 25565
+    mode = "Debug"
 }
 /* comment
 */
@@ -30,10 +30,10 @@ test: {
 }
 
 enum Mode {
-    \"Debug\"
-    \"Release\"
+    "Debug"
+    "Release"
 }
-";
+"#;
         let mut lexer = Lexer::new(source);
         let allocator = Bump::new();
         let mut errors = Vec::new_in(&allocator);

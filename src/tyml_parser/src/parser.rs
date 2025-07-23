@@ -285,14 +285,23 @@ fn parse_element_inline_type<'input, 'allocator>(
 ) -> Option<ElementInlineType<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
-    if lexer.current().get_kind() != TokenKind::Colon {
+    if lexer.current().get_kind() != TokenKind::Colon
+        && lexer.current().get_kind() != TokenKind::Equal
+    {
         return None;
     }
     lexer.next();
 
     if lexer.current().get_kind() != TokenKind::BraceLeft {
-        if let TokenKind::Literal | TokenKind::BracketLeft = lexer.current().get_kind() {
-            // This should be a ElementType, so return to parent layer and try to parse as ElementType.
+        if let TokenKind::Literal
+        | TokenKind::BracketLeft
+        | TokenKind::StringLiteral
+        | TokenKind::FloatNumeric
+        | TokenKind::BinaryNumeric
+        | TokenKind::Null = lexer.current().get_kind()
+        {
+            // This should be a ElementType or DefaultValue,
+            // so return to parent layer and try to parse it as ElementType or DefaultValue.
             lexer.back_to_anchor(anchor);
             return None;
         }
