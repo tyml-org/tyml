@@ -1039,7 +1039,7 @@ mod tyml_semantic_tokens {
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
         AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, OrType,
-        TypeAttribute, TypeDefine, ValueLiteral, either::Either,
+        TypeAttribute, TypeDefine, Value, either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1063,16 +1063,16 @@ mod tyml_semantic_tokens {
                     }
                     if let Some(default_value) = &element_define.default {
                         let token = match &default_value.value {
-                            ValueLiteral::String(literal) => {
+                            Value::String(literal) => {
                                 (SemanticTokenType::STRING, literal.span.clone())
                             }
-                            ValueLiteral::Float(literal) => {
+                            Value::Float(literal) => {
                                 (SemanticTokenType::NUMBER, literal.span())
                             }
-                            ValueLiteral::Binary(literal) => {
+                            Value::Binary(literal) => {
                                 (SemanticTokenType::NUMBER, literal.span())
                             }
-                            ValueLiteral::Null(literal) => {
+                            Value::Null(literal) => {
                                 (SemanticTokenType::KEYWORD, literal.span.clone())
                             }
                         };

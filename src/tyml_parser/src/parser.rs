@@ -6,11 +6,11 @@ use either::Either;
 
 use crate::{
     ast::{
-        ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
-        Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
-        EscapedLiteral, FloatLiteral, FromTo, IntoLiteral, Literal, NamedType, NodeLiteral,
-        NumericAttribute, NumericAttributeKind, OrType, RegexAttribute, Spanned, StructDefine,
-        TypeAttribute, TypeDefine, ValueLiteral,
+        ArrayType, ArrayValue, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue,
+        Define, Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine,
+        EnumElement, EscapedLiteral, FloatLiteral, FromTo, IntoLiteral, Literal, NamedType,
+        NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, RegexAttribute, Spanned,
+        StructDefine, TypeAttribute, TypeDefine, Value, ValueOrDefines,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -953,7 +953,7 @@ fn parse_default_value<'input, 'allocator>(
     lexer: &mut Lexer<'input>,
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
     allocator: &'allocator Bump,
-) -> Option<DefaultValue<'input>> {
+) -> Option<DefaultValue<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
     if lexer.current().get_kind() != TokenKind::Equal {
@@ -961,16 +961,37 @@ fn parse_default_value<'input, 'allocator>(
     }
     lexer.next();
 
+    let Some(value) = parse_value(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::UnknownDefaultValueFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::Comma],
+            Expected::Value,
+            Scope::ElementDefine,
+            allocator,
+        );
+        errors.push(error);
+
+        return None;
+    };
+
+    Some(DefaultValue {
+        value,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_value<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<Value<'input, 'allocator>> {
     let value = match lexer.current().get_kind() {
         TokenKind::FloatNumeric => {
-            ValueLiteral::Float(FloatLiteral::Float(lexer.next().unwrap().into_literal()))
+            Value::Float(FloatLiteral::Float(lexer.next().unwrap().into_literal()))
         }
-        TokenKind::Inf => {
-            ValueLiteral::Float(FloatLiteral::Inf(lexer.next().unwrap().into_literal()))
-        }
-        TokenKind::Nan => {
-            ValueLiteral::Float(FloatLiteral::Nan(lexer.next().unwrap().into_literal()))
-        }
+        TokenKind::Inf => Value::Float(FloatLiteral::Inf(lexer.next().unwrap().into_literal())),
+        TokenKind::Nan => Value::Float(FloatLiteral::Nan(lexer.next().unwrap().into_literal())),
         TokenKind::BinaryNumeric => {
             let current_text = lexer.current().unwrap().text;
 
@@ -986,29 +1007,102 @@ fn parse_default_value<'input, 'allocator>(
                 _ => unreachable!(),
             };
 
-            ValueLiteral::Binary(binary_literal)
+            Value::Binary(binary_literal)
         }
-        TokenKind::StringLiteral => ValueLiteral::String(lexer.next().unwrap().into_literal()),
-        TokenKind::Null => ValueLiteral::Null(lexer.next().unwrap().into_literal()),
+        TokenKind::StringLiteral => Value::String(lexer.next().unwrap().into_literal()),
+        TokenKind::Null => Value::Null(lexer.next().unwrap().into_literal()),
+        TokenKind::BracketLeft => Value::Array(parse_array_value(lexer, errors, allocator)),
         _ => {
-            let error = recover_until(
-                ParseErrorKind::UnknownDefaultValueFormat,
-                lexer,
-                &[TokenKind::LineFeed, TokenKind::Comma],
-                Expected::Value,
-                Scope::ElementDefine,
-                allocator,
-            );
-            errors.push(error);
-
             return None;
         }
     };
 
-    Some(DefaultValue {
-        value,
+    Some(value)
+}
+
+fn parse_array_value<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> ArrayValue<'input, 'allocator> {
+    let anchor = lexer.cast_anchor();
+
+    lexer.next();
+
+    lexer.skip_line_feed();
+
+    let mut elements = Vec::new_in(allocator);
+
+    loop {
+        let element = match lexer.current().get_kind() {
+            TokenKind::BraceLeft => {
+                let anchor = lexer.cast_anchor();
+
+                lexer.next();
+
+                let defines = parse_defines(lexer, errors, allocator);
+
+                if lexer.current().get_kind() != TokenKind::BraceRight {
+                    let error = recover_until(
+                        ParseErrorKind::NonClosedBrace,
+                        lexer,
+                        &[TokenKind::LineFeed, TokenKind::Comma, TokenKind::BraceRight],
+                        Expected::BraceRight,
+                        Scope::ElementDefine,
+                        allocator,
+                    );
+                    errors.push(error);
+                }
+
+                if lexer.current().get_kind() == TokenKind::BraceRight {
+                    lexer.next();
+                }
+
+                ValueOrDefines::Defines {
+                    defines,
+                    span: anchor.elapsed(lexer),
+                }
+            }
+            _ => match parse_value(lexer, errors, allocator) {
+                Some(value) => ValueOrDefines::Value { value },
+                None => break,
+            },
+        };
+
+        elements.push(element);
+
+        if lexer.current().get_kind() != TokenKind::Comma {
+            break;
+        }
+        lexer.next();
+
+        lexer.skip_line_feed();
+    }
+
+    if lexer.current().get_kind() != TokenKind::BracketRight {
+        let error = recover_until(
+            ParseErrorKind::NonClosedBracket,
+            lexer,
+            &[
+                TokenKind::LineFeed,
+                TokenKind::Comma,
+                TokenKind::BracketRight,
+            ],
+            Expected::BracketRight,
+            Scope::ElementDefine,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BracketRight {
+        lexer.next();
+    }
+
+    ArrayValue {
+        elements,
         span: anchor.elapsed(lexer),
-    })
+    }
 }
 
 fn parse_type_define<'input, 'allocator>(

@@ -8,7 +8,7 @@ use regex::Regex;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
     ElementDefine, FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute,
-    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, ValueLiteral, AST,
+    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, Value, AST,
 };
 
 use crate::{
@@ -271,12 +271,12 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 }
 
 fn get_value_type<'input, 'env, 'ast_allocator>(
-    ast: &DefaultValue<'input>,
+    ast: &DefaultValue<'input, 'ast_allocator>,
     ty: &'ast_allocator Bump,
 ) -> Type<'ast_allocator> {
     match &ast.value {
-        ValueLiteral::String(_) => Type::String(StringAttribute::default()),
-        ValueLiteral::Float(float_literal) => match float_literal {
+        Value::String(_) => Type::String(StringAttribute::default()),
+        Value::Float(float_literal) => match float_literal {
             FloatLiteral::Float(literal) => {
                 match (literal.value.parse::<u64>(), literal.value.parse::<i64>()) {
                     (Ok(_), Ok(_)) => Type::MaybeUnsignedInt,
@@ -288,7 +288,7 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
             FloatLiteral::Inf(_) => Type::Float(FloatAttribute::default()),
             FloatLiteral::Nan(_) => Type::Float(FloatAttribute::default()),
         },
-        ValueLiteral::Binary(binary_literal) => {
+        Value::Binary(binary_literal) => {
             let u64_result = match binary_literal {
                 BinaryLiteral::Hex(literal) => {
                     u64::from_str_radix(literal.value.replace("0x", "").as_str(), 16)
@@ -320,25 +320,28 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
                 (Err(_), Err(_)) => Type::Float(FloatAttribute::default()),
             }
         }
-        ValueLiteral::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
+        Value::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
+        Value::Array(array) => Type::Array(),
     }
 }
 
-fn get_value_literal<'ast>(ast: &DefaultValue<'ast>) -> Literal<'ast> {
-    match &ast.value {
-        ValueLiteral::String(literal) => literal.clone(),
-        ValueLiteral::Float(float_literal) => match float_literal {
+fn get_value_literal<'ast>(ast: &DefaultValue<'ast, '_>) -> Option<Literal<'ast>> {
+    let literal = match &ast.value {
+        Value::String(literal) => literal.clone(),
+        Value::Float(float_literal) => match float_literal {
             FloatLiteral::Float(literal) => literal.clone(),
             FloatLiteral::Inf(literal) => literal.clone(),
             FloatLiteral::Nan(literal) => literal.clone(),
         },
-        ValueLiteral::Binary(binary_literal) => match binary_literal {
+        Value::Binary(binary_literal) => match binary_literal {
             BinaryLiteral::Hex(literal) => literal.clone(),
             BinaryLiteral::Oct(literal) => literal.clone(),
             BinaryLiteral::Bin(literal) => literal.clone(),
         },
-        ValueLiteral::Null(literal) => literal.clone(),
-    }
+        Value::Null(literal) => literal.clone(),
+        _ => return None
+    };
+    Some(literal)
 }
 
 fn resolve_or_type<'input, 'env, 'ast_allocator>(
