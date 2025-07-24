@@ -42,9 +42,8 @@ impl_ast!(OrType<'_, '_>, span = self.span);
 impl_ast!(ArrayType<'_, '_>, span = self.span);
 impl_ast!(NamedType<'_>, span = self.span);
 impl_ast!(ElementInlineType<'_, '_>, span = self.span);
-impl_ast!(DefaultValue<'_, '_>, span = self.span);
-impl_ast!(Value<'_, '_>, enum: String, Float, Binary, Null, Array);
-impl_ast!(ArrayValue<'_, '_>, span = self.span);
+impl_ast!(DefaultValue<'_>, span = self.span);
+impl_ast!(ValueLiteral<'_>, enum: String, Float, Binary, Null);
 impl_ast!(FloatLiteral<'_>, enum: Float, Inf, Nan);
 impl_ast!(BinaryLiteral<'_>, enum: Hex, Oct, Bin);
 impl_ast!(TypeDefine<'_, '_>, enum: Struct, Enum);
@@ -101,7 +100,7 @@ pub struct ElementDefine<'input, 'allocator> {
     pub node: NodeLiteral<'input>,
     pub ty: Option<ElementType<'input, 'allocator>>,
     pub inline_type: Option<ElementInlineType<'input, 'allocator>>,
-    pub default: Option<DefaultValue<'input, 'allocator>>,
+    pub default: Option<DefaultValue<'input>>,
     pub span: Range<usize>,
 }
 
@@ -220,35 +219,17 @@ pub struct ElementInlineType<'input, 'allocator> {
 }
 
 #[derive(Debug)]
-pub struct DefaultValue<'input, 'allocator> {
-    pub value: Value<'input, 'allocator>,
+pub struct DefaultValue<'input> {
+    pub value: ValueLiteral<'input>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
-pub enum Value<'input, 'allocator> {
+pub enum ValueLiteral<'input> {
     String(Literal<'input>),
     Float(FloatLiteral<'input>),
     Binary(BinaryLiteral<'input>),
     Null(Literal<'input>),
-    Array(ArrayValue<'input, 'allocator>),
-}
-
-#[derive(Debug)]
-pub struct ArrayValue<'input, 'allocator> {
-    pub elements: Vec<ValueOrDefines<'input, 'allocator>, &'allocator Bump>,
-    pub span: Range<usize>,
-}
-
-#[derive(Debug)]
-pub enum ValueOrDefines<'input, 'allocator> {
-    Value {
-        value: Value<'input, 'allocator>,
-    },
-    Defines {
-        defines: &'allocator Defines<'input, 'allocator>,
-        span: Range<usize>,
-    },
 }
 
 #[derive(Debug)]

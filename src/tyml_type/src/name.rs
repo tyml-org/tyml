@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
@@ -7,7 +7,6 @@ use tyml_parser::ast::TypeDefine;
 pub(crate) struct NameEnvironment<'env, 'input> {
     parent: Option<&'env NameEnvironment<'env, 'input>>,
     map: RefCell<HashMap<&'input str, NameID, DefaultHashBuilder, &'env Bump>>,
-    id: Cell<usize>,
 }
 
 impl<'env, 'input> NameEnvironment<'env, 'input> {
@@ -15,7 +14,6 @@ impl<'env, 'input> NameEnvironment<'env, 'input> {
         allocator.alloc(Self {
             parent,
             map: RefCell::new(HashMap::new_in(allocator)),
-            id: Cell::new(0),
         })
     }
 
@@ -25,7 +23,7 @@ impl<'env, 'input> NameEnvironment<'env, 'input> {
             TypeDefine::Enum(enum_define) => enum_define.name.value,
         };
 
-        let name_id = self.alloc();
+        let name_id = NameID(name.as_ptr().addr());
         self.map.borrow_mut().insert(name, name_id);
     }
 
@@ -35,13 +33,18 @@ impl<'env, 'input> NameEnvironment<'env, 'input> {
             None => self.parent.as_ref()?.resolve(name),
         }
     }
-
-    pub fn alloc(&self) -> NameID {
-        self.id.set(self.id.get() + 1);
-        NameID((self as *const Self as usize, self.id.get()))
-    }
 }
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct NameID((usize, usize));
+pub struct NameID(usize);
+
+impl<'input, 'allocator> From<&TypeDefine<'input, 'allocator>> for NameID {
+    fn from(value: &TypeDefine<'input, 'allocator>) -> Self {
+        let name = match value {
+            TypeDefine::Struct(struct_define) => struct_define.name.value,
+            TypeDefine::Enum(enum_define) => enum_define.name.value,
+        };
+        NameID(name.as_ptr().addr())
+    }
+}
