@@ -30,12 +30,9 @@ mod tests {
         int_attribute      ::= ( "@value" | "@length" | "@u8size" ) [ r"\d+" ] ( "..<" | "..=" | ".." ) [ r"\d+" ]
         regex_attribute    ::= "@regex" string_literal
 
-        inline_type_define ::= ( ":" | "=" ) "{" defines "}"
+        inline_type_define ::= ":" "{" defines "}"
 
-        default_value      ::= "=" value
-        value              ::= ( string_literal | numeric_literal | "null" | array_value )
-
-        array_value        ::= "[" [ lf ] { ( value | "{" defines "}" ) "," [ lf ] } "]"
+        default_value      ::= "=" ( string_literal | numeric_literal | "null" )
 
         string_literal     ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
 
