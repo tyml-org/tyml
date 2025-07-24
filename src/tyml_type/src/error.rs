@@ -16,7 +16,7 @@ pub enum TypeErrorKind<'input, 'ty> {
         name: Spanned<&'input str>,
     },
     IncompatibleValueType {
-        value: Spanned<&'input str>,
+        value: Range<usize>,
         value_type: Type<'ty>,
         expected: Spanned<Type<'ty>>,
     },
@@ -26,6 +26,10 @@ pub enum TypeErrorKind<'input, 'ty> {
     },
     IncompatibleAttributeForType {
         ty: &'static str,
+    },
+    IncompatibleArrayElements {
+        first: Spanned<Type<'ty>>,
+        second: Spanned<Type<'ty>>,
     },
     InvalidRegexAttribute,
 }

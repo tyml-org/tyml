@@ -8,7 +8,7 @@ use regex::Regex;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
     ElementDefine, FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute,
-    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, Value, AST,
+    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, Value, ValueOrDefines, AST,
 };
 
 use crate::{
@@ -84,8 +84,6 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                 }
             }
             Define::Type(type_define) => {
-                let name_id = NameID::from(type_define);
-
                 let (name, name_span, named_type) = match type_define {
                     TypeDefine::Struct(struct_define) => {
                         let tree = resolve_defines_type(
@@ -139,6 +137,8 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     }
                 };
 
+                let name_id = name_env.resolve(name).unwrap();
+
                 named_type_map.register(name_id, name, name_span, named_type);
             }
         }
@@ -179,7 +179,14 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 
     match (&ast.ty, &ast.inline_type, &ast.default) {
         (None, None, Some(default)) => TypeTree::Leaf {
-            ty: get_value_type(default, ty),
+            ty: get_value_type(
+                &default.value,
+                named_type_map,
+                name_env,
+                errors,
+                ty,
+                env,
+            ),
             documents,
             span: ast.span.clone(),
         },
@@ -229,31 +236,34 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 env,
                 ty,
             );
-            let value_type = get_value_type(default, ty);
+            let value_type =
+                get_value_type(&default.value, named_type_map, name_env, errors, ty, env);
 
-            let value = get_value_literal(&default);
+            let value_literal = get_value_literal(&default);
 
             if value_type.try_override_with(&element_type, ty).is_err() {
-                let span = value.span.clone();
+                let span = default.value.span();
 
                 errors.push(TypeError {
                     kind: TypeErrorKind::IncompatibleValueType {
-                        value,
+                        value: span.clone(),
                         value_type,
                         expected: Spanned::new(element_type.clone(), element_type_span),
                     },
                     span,
                 });
-            } else if !element_type.validate_value_with_attribute(value.value) {
-                let span = value.span.clone();
+            } else {
+                if let Some(value_literal) = &value_literal {
+                    let span = default.value.span();
 
-                errors.push(TypeError {
-                    kind: TypeErrorKind::IncompatibleValueForAttribute {
-                        value,
-                        expected: Spanned::new(element_type.clone(), element_type_span),
-                    },
-                    span,
-                });
+                    errors.push(TypeError {
+                        kind: TypeErrorKind::IncompatibleValueForAttribute {
+                            value: value_literal.clone(),
+                            expected: Spanned::new(element_type.clone(), element_type_span),
+                        },
+                        span,
+                    });
+                }
             }
 
             TypeTree::Leaf {
@@ -271,10 +281,14 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 }
 
 fn get_value_type<'input, 'env, 'ast_allocator>(
-    ast: &DefaultValue<'input, 'ast_allocator>,
+    ast: &Value<'input, 'ast_allocator>,
+    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
+    name_env: &'env NameEnvironment<'env, 'input>,
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
     ty: &'ast_allocator Bump,
+    env: &'env Bump,
 ) -> Type<'ast_allocator> {
-    match &ast.value {
+    match &ast {
         Value::String(_) => Type::String(StringAttribute::default()),
         Value::Float(float_literal) => match float_literal {
             FloatLiteral::Float(literal) => {
@@ -321,7 +335,89 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
             }
         }
         Value::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
-        Value::Array(array) => Type::Array(),
+        Value::Array(array) => {
+            let mut first_type = None;
+            let mut first_type_span: Option<Range<usize>> = None;
+
+            for element in array.elements.iter() {
+                let (element_type, element_span) = match element {
+                    ValueOrDefines::Value { value } => (
+                        get_value_type(value, named_type_map, name_env, errors, ty, env),
+                        value.span(),
+                    ),
+                    ValueOrDefines::Defines { defines, span } => {
+                        let tree = resolve_defines_type(
+                            *defines,
+                            None,
+                            Some(span.clone()),
+                            name_env,
+                            named_type_map,
+                            errors,
+                            env,
+                            ty,
+                        );
+
+                        let name_id = name_env.alloc();
+
+                        named_type_map.register(
+                            name_id,
+                            "::InlineValue",
+                            span.clone(),
+                            NamedTypeTree::Struct { tree },
+                        );
+
+                        (Type::Named(name_id), span.clone())
+                    }
+                };
+
+                let mut compatible = true;
+                let mut first_into_optional = false;
+
+                if let Some(first_type) = &first_type {
+                    if let Type::Optional(base_type_second) = &element_type {
+                        if let Type::Optional(_) = &first_type {
+                        } else {
+                            if first_type.try_override_with(&base_type_second, ty).is_err() {
+                                compatible = false;
+                            }
+                            first_into_optional = true;
+                        }
+                    } else {
+                        if first_type.try_override_with(&element_type, ty).is_err() {
+                            compatible = false;
+                        }
+                    }
+                }
+
+                if !compatible {
+                    let error = TypeError {
+                        kind: TypeErrorKind::IncompatibleArrayElements {
+                            first: Spanned::new(
+                                first_type.as_ref().unwrap().clone(),
+                                first_type_span.as_ref().unwrap().clone(),
+                            ),
+                            second: Spanned::new(element_type.clone(), element_span.clone()),
+                        },
+                        span: element_span.clone(),
+                    };
+                    errors.push(error);
+                }
+
+                if first_into_optional {
+                    first_type = Some(Type::Optional(Box::new_in(first_type.unwrap().clone(), ty)));
+                }
+
+                if first_type.is_none() {
+                    first_type = Some(element_type);
+                    first_type_span = Some(element_span);
+                }
+            }
+
+            match first_type {
+                Some(first_type) => Type::Array(Box::new_in(first_type, ty)),
+                None => Type::Array(Box::new_in(Type::Unknown, ty)),
+            }
+        }
     }
 }
 
@@ -339,7 +435,7 @@ fn get_value_literal<'ast>(ast: &DefaultValue<'ast, '_>) -> Option<Literal<'ast>
             BinaryLiteral::Bin(literal) => literal.clone(),
         },
         Value::Null(literal) => literal.clone(),
-        _ => return None
+        _ => return None,
     };
     Some(literal)
 }
