@@ -17,6 +17,10 @@ pub enum TokenKind {
     QuestionMark,
     /// =
     Equal,
+    /// #
+    Hash,
+    /// ->
+    Arrow,
     /// null
     Null,
     /// inf
@@ -31,6 +35,12 @@ pub enum TokenKind {
     Or,
     /// and
     And,
+    /// interface
+    Interface,
+    /// function
+    Function,
+    /// return
+    Return,
     /// (
     ParenthesisLeft,
     /// )
@@ -86,6 +96,8 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Colon, ":"),
     Tokenizer::Keyword(TokenKind::QuestionMark, "?"),
     Tokenizer::Keyword(TokenKind::Equal, "="),
+    Tokenizer::Keyword(TokenKind::Hash, "#"),
+    Tokenizer::Keyword(TokenKind::Arrow, "->"),
     Tokenizer::Keyword(TokenKind::Null, "null"),
     Tokenizer::Keyword(TokenKind::Inf, "inf"),
     Tokenizer::Keyword(TokenKind::Nan, "nan"),
@@ -93,6 +105,9 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Enum, "enum"),
     Tokenizer::Keyword(TokenKind::Or, "or"),
     Tokenizer::Keyword(TokenKind::And, "and"),
+    Tokenizer::Keyword(TokenKind::Interface, "interface"),
+    Tokenizer::Keyword(TokenKind::Function, "function"),
+    Tokenizer::Keyword(TokenKind::Return, "return"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),

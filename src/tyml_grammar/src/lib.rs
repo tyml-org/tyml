@@ -53,7 +53,7 @@ mod tests {
 
         interface          ::= properties "interface" "{" { function lf } "}"
 
-        properties         ::= { property lf }
+        properties         ::= { property [ lf ] }
         property           ::= "#" "[" literal "=" { value_literal } "]"
 
         function           ::= properties "function" literal function_arguments [ return_type ]
@@ -61,7 +61,9 @@ mod tests {
         function_arguments ::= "(" [ lf ] { properties literal element_type "=" json_value "," [ lf ] } ")"
         return_type        ::= "->" or_type
 
-        json_value         ::= value_literal | "{" [ lf ] { literal "=" json_value "," [ lf ] } "}"
+        json_value         ::= value_literal
+                               | "[" [ lf ] { json_value "," [ lf ] } "]"
+                               | "{" [ lf ] { literal "=" json_value "," [ lf ] } "}"
 
         literal            ::= r"(\w|-)+" | string_literal
 

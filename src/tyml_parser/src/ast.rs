@@ -34,7 +34,7 @@ macro_rules! impl_ast {
 
 impl_ast!(Literal<'_>, span = self.span);
 impl_ast!(Defines<'_, '_>, span = self.span);
-impl_ast!(Define<'_, '_>, enum: Element, Type);
+impl_ast!(Define<'_, '_>, enum: Element, Type, Interface);
 impl_ast!(ElementDefine<'_, '_>, span = self.span);
 impl_ast!(NodeLiteral<'_>, enum: Literal, Asterisk);
 impl_ast!(ElementType<'_, '_>, span = self.span);
@@ -103,6 +103,7 @@ pub struct Defines<'input, 'allocator> {
 pub enum Define<'input, 'allocator> {
     Element(ElementDefine<'input, 'allocator>),
     Type(TypeDefine<'input, 'allocator>),
+    Interface(Interface<'input, 'allocator>),
 }
 
 #[derive(Debug)]
@@ -297,8 +298,8 @@ pub struct Properties<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct Property<'input, 'allocator> {
-    pub name: Literal<'input>,
-    pub value: Vec<ValueLiteral<'input>, &'allocator Bump>,
+    pub name: EscapedLiteral<'input>,
+    pub values: Vec<ValueLiteral<'input>, &'allocator Bump>,
     pub span: Range<usize>,
 }
 
@@ -312,7 +313,7 @@ pub struct Interface<'input, 'allocator> {
 #[derive(Debug)]
 pub struct Function<'input, 'allocator> {
     pub properties: Properties<'input, 'allocator>,
-    pub name: Literal<'input>,
+    pub name: EscapedLiteral<'input>,
     pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,
     pub return_type: Option<ReturnType<'input, 'allocator>>,
     pub return_block: Option<ReturnBlock<'input, 'allocator>>,
@@ -322,7 +323,7 @@ pub struct Function<'input, 'allocator> {
 #[derive(Debug)]
 pub struct FunctionArgument<'input, 'allocator> {
     pub properties: Properties<'input, 'allocator>,
-    pub name: Literal<'input>,
+    pub name: EscapedLiteral<'input>,
     pub ty: ElementType<'input, 'allocator>,
     pub default_value: Option<JsonValue<'input, 'allocator>>,
     pub span: Range<usize>,

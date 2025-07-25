@@ -21,6 +21,9 @@ pub enum Scope {
     StructDefine,
     EnumDefine,
     TypeAttribute,
+    Property,
+    Interface,
+    Function,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +40,9 @@ pub enum Expected {
     EnumElementBlock,
     EnumElement,
     EnumElementSeparator,
+    BraceLeft,
     BraceRight,
+    BracketLeft,
     BracketRight,
     StringLiteral,
     FromTo,
@@ -45,7 +50,13 @@ pub enum Expected {
     SmallerNumericLiteral,
     Unnecessary,
     TypeAttribute,
+    ParenthesisLeft,
     ParenthesisRight,
+    PropertyName,
+    Equal,
+    FunctionName,
+    Return,
+    LineFeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +84,10 @@ pub enum ParseErrorKind {
     InvalidAndOrAttributeFormat,
     NonTypeAttribute,
     NonClosedParenthesis,
+    InvalidPropertyFormat,
+    InvalidInterfaceFormat,
+    InvalidFunctionFormat,
+    NonLineFeed,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

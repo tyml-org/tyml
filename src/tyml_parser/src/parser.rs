@@ -8,9 +8,10 @@ use crate::{
     ast::{
         ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
         Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
-        EscapedLiteral, FloatLiteral, FromTo, IntoLiteral, Literal, NamedType, NodeLiteral,
-        NumericAttribute, NumericAttributeKind, OrType, RegexAttribute, Spanned, StructDefine,
-        TypeAttribute, TypeDefine, ValueLiteral,
+        EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface, IntoLiteral,
+        JsonValue, Literal, NamedType, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
+        Properties, Property, RegexAttribute, ReturnBlock, ReturnExpression, ReturnType, Spanned,
+        StructDefine, TypeAttribute, TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -93,6 +94,9 @@ fn parse_define<'input, 'allocator>(
     }
     if let Some(type_define) = parse_type_define(lexer, errors, allocator) {
         return Some(Define::Type(type_define));
+    }
+    if let Some(interface) = parse_interface(lexer, errors, allocator) {
+        return Some(Define::Interface(interface));
     }
     None
 }
@@ -961,6 +965,29 @@ fn parse_default_value<'input, 'allocator>(
     }
     lexer.next();
 
+    let Some(value) = parse_value_literal(lexer) else {
+        let error = recover_until(
+            ParseErrorKind::UnknownDefaultValueFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::Comma],
+            Expected::Value,
+            Scope::ElementDefine,
+            allocator,
+        );
+        errors.push(error);
+
+        return None;
+    };
+
+    Some(DefaultValue {
+        value,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_value_literal<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+) -> Option<ValueLiteral<'input>> {
     let value = match lexer.current().get_kind() {
         TokenKind::FloatNumeric => {
             ValueLiteral::Float(FloatLiteral::Float(lexer.next().unwrap().into_literal()))
@@ -990,25 +1017,9 @@ fn parse_default_value<'input, 'allocator>(
         }
         TokenKind::StringLiteral => ValueLiteral::String(lexer.next().unwrap().into_literal()),
         TokenKind::Null => ValueLiteral::Null(lexer.next().unwrap().into_literal()),
-        _ => {
-            let error = recover_until(
-                ParseErrorKind::UnknownDefaultValueFormat,
-                lexer,
-                &[TokenKind::LineFeed, TokenKind::Comma],
-                Expected::Value,
-                Scope::ElementDefine,
-                allocator,
-            );
-            errors.push(error);
-
-            return None;
-        }
+        _ => return None,
     };
-
-    Some(DefaultValue {
-        value,
-        span: anchor.elapsed(lexer),
-    })
+    return Some(value);
 }
 
 fn parse_type_define<'input, 'allocator>(
@@ -1251,4 +1262,470 @@ fn parse_enum_define<'input, 'allocator>(
         elements,
         span: anchor.elapsed(lexer),
     })
+}
+
+fn parse_interface<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<Interface<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let properties = parse_properties(lexer, errors, allocator);
+
+    if lexer.current().get_kind() != TokenKind::Interface {
+        lexer.back_to_anchor(anchor);
+        return None;
+    }
+    lexer.next();
+
+    if lexer.current().get_kind() != TokenKind::BraceLeft {
+        let error = recover_until(
+            ParseErrorKind::InvalidInterfaceFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::BraceLeft,
+            Scope::Interface,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    }
+    lexer.next();
+
+    let mut functions = Vec::new_in(allocator);
+    loop {
+        let Some(function) = parse_function(lexer, errors, allocator) else {
+            match lexer.current().get_kind() {
+                TokenKind::BraceRight | TokenKind::None => break,
+                TokenKind::LineFeed => {
+                    lexer.skip_line_feed();
+                    continue;
+                }
+                _ => {
+                    let error = recover_until(
+                        ParseErrorKind::NonLineFeed,
+                        lexer,
+                        &[TokenKind::LineFeed],
+                        Expected::LineFeed,
+                        Scope::Interface,
+                        allocator,
+                    );
+                    errors.push(error);
+                    lexer.skip_line_feed();
+                    continue;
+                }
+            }
+        };
+        functions.push(function);
+    }
+
+    if lexer.current().get_kind() != TokenKind::BraceRight {
+        let error = recover_until(
+            ParseErrorKind::NonClosedBrace,
+            lexer,
+            &[TokenKind::BraceRight],
+            Expected::BraceRight,
+            Scope::Interface,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BraceRight {
+        lexer.next();
+    }
+
+    Some(Interface {
+        properties,
+        functions,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_function<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<Function<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let properties = parse_properties(lexer, errors, allocator);
+
+    if lexer.current().get_kind() != TokenKind::Function {
+        lexer.back_to_anchor(anchor);
+        return None;
+    }
+
+    let Some(name) = parse_literal(lexer) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::FunctionName,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    if lexer.current().get_kind() != TokenKind::ParenthesisLeft {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::ParenthesisLeft,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return Some(Function {
+            properties,
+            name,
+            arguments: Vec::new_in(allocator),
+            return_type: None,
+            return_block: None,
+            span: anchor.elapsed(lexer),
+        });
+    }
+    lexer.next();
+
+    lexer.skip_line_feed();
+
+    let mut arguments = Vec::new_in(allocator);
+    loop {
+        let Some(argument) = parse_function_argument(lexer, errors, allocator) else {
+            break;
+        };
+        arguments.push(argument);
+
+        if lexer.current().get_kind() != TokenKind::Comma {
+            break;
+        }
+
+        lexer.skip_line_feed();
+    }
+
+    if lexer.current().get_kind() != TokenKind::ParenthesisRight {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::ParenthesisRight],
+            Expected::ParenthesisRight,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::ParenthesisRight {
+        lexer.next();
+    } else {
+        // failed to recover
+        return Some(Function {
+            properties,
+            name,
+            arguments,
+            return_type: None,
+            return_block: None,
+            span: anchor.elapsed(lexer),
+        });
+    }
+
+    let return_type = parse_return_type(lexer, errors, allocator);
+
+    let return_block = parse_return_block(lexer, errors, allocator);
+
+    Some(Function {
+        properties,
+        name,
+        arguments,
+        return_type,
+        return_block,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_return_type<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<ReturnType<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::Arrow {
+        return None;
+    }
+
+    let Some(type_info) = parse_or_type(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::BraceLeft],
+            Expected::Type,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    Some(ReturnType {
+        type_info,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_return_block<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<ReturnBlock<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::BraceLeft {
+        return None;
+    }
+    lexer.next();
+
+    lexer.skip_line_feed();
+
+    let return_expr_anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::Return {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::BraceRight],
+            Expected::Return,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    }
+    lexer.next();
+
+    let Some(value) = parse_json_value(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::BraceRight],
+            Expected::Value,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    let return_expr_span = return_expr_anchor.elapsed(lexer);
+
+    lexer.skip_line_feed();
+
+    if lexer.current().get_kind() != TokenKind::BraceRight {
+        let error = recover_until(
+            ParseErrorKind::NonClosedBrace,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::BraceRight],
+            Expected::BraceRight,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BraceRight {
+        lexer.next();
+    }
+
+    Some(ReturnBlock {
+        return_expression: ReturnExpression {
+            value,
+            span: return_expr_span,
+        },
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_function_argument<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<FunctionArgument<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let properties = parse_properties(lexer, errors, allocator);
+
+    let Some(name) = parse_literal(lexer) else {
+        lexer.back_to_anchor(anchor);
+        return None;
+    };
+
+    let Some(ty) = parse_element_type(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidFunctionFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::ParenthesisRight],
+            Expected::Type,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    let default_value = parse_json_value(lexer, errors, allocator);
+
+    Some(FunctionArgument {
+        properties,
+        name,
+        ty,
+        default_value,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_json_value<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<JsonValue<'input, 'allocator>> {
+    todo!()
+}
+
+fn parse_properties<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Properties<'input, 'allocator> {
+    let anchor = lexer.cast_anchor();
+
+    let mut elements = Vec::new_in(allocator);
+
+    loop {
+        let Some(property) = parse_property(lexer, errors, allocator) else {
+            break;
+        };
+        elements.push(property);
+
+        lexer.skip_line_feed();
+    }
+
+    Properties {
+        elements,
+        span: anchor.elapsed(lexer),
+    }
+}
+
+fn parse_property<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<Property<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::Hash {
+        return None;
+    }
+    lexer.next();
+
+    if lexer.current().get_kind() != TokenKind::BracketLeft {
+        let error = recover_until(
+            ParseErrorKind::InvalidPropertyFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::BracketLeft,
+            Scope::Property,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    }
+    lexer.next();
+
+    let Some(name) = parse_literal(lexer) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidPropertyFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::PropertyName,
+            Scope::Property,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    if lexer.current().get_kind() != TokenKind::Equal {
+        let error = recover_until(
+            ParseErrorKind::InvalidPropertyFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::Equal,
+            Scope::Property,
+            allocator,
+        );
+        errors.push(error);
+        return Some(Property {
+            name,
+            values: Vec::new_in(allocator),
+            span: anchor.elapsed(lexer),
+        });
+    }
+    lexer.next();
+
+    let mut values = Vec::new_in(allocator);
+    loop {
+        let Some(value) = parse_value_literal(lexer) else {
+            break;
+        };
+        values.push(value);
+    }
+
+    if lexer.current().get_kind() != TokenKind::BracketRight {
+        let error = recover_until(
+            ParseErrorKind::InvalidPropertyFormat,
+            lexer,
+            &[TokenKind::LineFeed],
+            Expected::BracketRight,
+            Scope::Property,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BracketRight {
+        lexer.next();
+    }
+
+    Some(Property {
+        name,
+        values,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_literal<'input>(lexer: &mut Lexer<'input>) -> Option<EscapedLiteral<'input>> {
+    let token = lexer.current();
+
+    match token.get_kind() {
+        TokenKind::Literal => Some(lexer.next().unwrap().into_literal().map(|text| text.into())),
+        TokenKind::StringLiteral => Some(match token.unwrap().text.chars().next().unwrap() {
+            '"' => escape_literal(
+                lexer
+                    .next()
+                    .unwrap()
+                    .into_literal()
+                    .map(|text| &text[1..(text.len() - 1)]),
+            ),
+            '\'' => {
+                let token = lexer.next().unwrap();
+                EscapedLiteral::new(token.text[1..token.text.len() - 1].into(), token.span)
+            }
+            _ => unreachable!(),
+        }),
+        _ => None,
+    }
 }
