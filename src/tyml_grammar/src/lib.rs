@@ -9,7 +9,7 @@ mod tests {
         source             ::= defines
 
         defines            ::= [ lf ] { define ( lf | "," [ lf ] ) }
-        define             ::= documents ( element_define | type_define )
+        define             ::= documents ( element_define | type_define | interface )
 
         documents          ::= { r"(###|///)[^\n\r]*(\n|\r|\r\n)" }
         //comments         ::= r"//[^\n\r]*(\n|\r|\r\n)" | "/\*.*\*/"  /* ignored in lexer */
@@ -32,7 +32,9 @@ mod tests {
 
         inline_type_define ::= ":" "{" defines "}"
 
-        default_value      ::= "=" ( string_literal | numeric_literal | "null" )
+        default_value      ::= "=" value_literal
+
+        value_literal      ::= string_literal | numeric_literal | "true" | "false" | "null"
 
         string_literal     ::= r#""([^"\\]|\\.)*""# | r"'([^'\\]|\\.)*'"
 
@@ -48,6 +50,18 @@ mod tests {
 
         enum_define        ::= "enum" literal [ lf ] "{" enum_elements "}"
         enum_elements      ::= [ lf ] { documents string_literal ( lf | "," [ lf ] ) }
+
+        interface          ::= properties "interface" "{" { function lf } "}"
+
+        properties         ::= { property lf }
+        property           ::= "#" "[" literal "=" { value_literal } "]"
+
+        function           ::= properties "function" literal function_arguments [ return_type ]
+                               [ "{" [ lf ] "return" json_value [ lf ] "}" ]
+        function_arguments ::= "(" [ lf ] { properties literal element_type "=" json_value "," [ lf ] } ")"
+        return_type        ::= "->" or_type
+
+        json_value         ::= value_literal | "{" [ lf ] { literal "=" json_value "," [ lf ] } "}"
 
         literal            ::= r"(\w|-)+" | string_literal
 
