@@ -54,6 +54,17 @@ impl_ast!(AttributeAnd<'_, '_>, span = self.span);
 impl_ast!(TypeAttribute<'_, '_>, enum: NumericAttribute, RegexAttribute, AttributeTree);
 impl_ast!(NumericAttribute, span = self.span);
 impl_ast!(RegexAttribute<'_>, span = self.span);
+impl_ast!(Interface<'_, '_>, span = self.span);
+impl_ast!(Function<'_, '_>, span = self.span);
+impl_ast!(FunctionArgument<'_, '_>, span = self.span);
+impl_ast!(Properties<'_, '_>, span = self.span);
+impl_ast!(Property<'_, '_>, span = self.span);
+impl_ast!(ReturnBlock<'_, '_>, span = self.span);
+impl_ast!(ReturnExpression<'_, '_>, span = self.span);
+impl_ast!(ReturnType<'_, '_>, span = self.span);
+impl_ast!(JsonValue<'_, '_>, enum: Value, Array, Object);
+impl_ast!(JsonArray<'_, '_>, span = self.span);
+impl_ast!(JsonObject<'_, '_>, span = self.span);
 
 #[derive(Debug, Clone)]
 pub struct Spanned<T> {
@@ -275,5 +286,88 @@ pub struct EnumElement<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub literal: Literal<'input>,
     pub literal_value: Cow<'input, str>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct Properties<'input, 'allocator> {
+    pub elements: Vec<Property<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct Property<'input, 'allocator> {
+    pub name: Literal<'input>,
+    pub value: Vec<ValueLiteral<'input>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct Interface<'input, 'allocator> {
+    pub properties: Properties<'input, 'allocator>,
+    pub functions: Vec<Function<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct Function<'input, 'allocator> {
+    pub properties: Properties<'input, 'allocator>,
+    pub name: Literal<'input>,
+    pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,
+    pub return_type: Option<ReturnType<'input, 'allocator>>,
+    pub return_block: Option<ReturnBlock<'input, 'allocator>>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct FunctionArgument<'input, 'allocator> {
+    pub properties: Properties<'input, 'allocator>,
+    pub name: Literal<'input>,
+    pub ty: ElementType<'input, 'allocator>,
+    pub default_value: Option<JsonValue<'input, 'allocator>>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct ReturnType<'input, 'allocator> {
+    pub type_info: OrType<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct ReturnBlock<'input, 'allocator> {
+    pub return_expression: ReturnExpression<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct ReturnExpression<'input, 'allocator> {
+    pub value: JsonValue<'input, 'allocator>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub enum JsonValue<'input, 'allocator> {
+    Value(ValueLiteral<'input>),
+    Array(JsonArray<'input, 'allocator>),
+    Object(JsonObject<'input, 'allocator>),
+}
+
+#[derive(Debug)]
+pub struct JsonArray<'input, 'allocator> {
+    pub elements: Vec<JsonValue<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct JsonObject<'input, 'allocator> {
+    pub elements: Vec<JsonObjectElement<'input, 'allocator>, &'allocator Bump>,
+    pub span: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct JsonObjectElement<'input, 'allocator> {
+    pub name: Literal<'input>,
+    pub value: JsonValue<'input, 'allocator>,
     pub span: Range<usize>,
 }
