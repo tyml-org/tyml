@@ -1357,6 +1357,7 @@ fn parse_function<'input, 'allocator>(
         lexer.back_to_anchor(anchor);
         return None;
     }
+    lexer.next();
 
     let Some(name) = parse_literal(lexer) else {
         let error = recover_until(
@@ -1404,6 +1405,7 @@ fn parse_function<'input, 'allocator>(
         if lexer.current().get_kind() != TokenKind::Comma {
             break;
         }
+        lexer.next();
 
         lexer.skip_line_feed();
     }
@@ -1458,6 +1460,7 @@ fn parse_return_type<'input, 'allocator>(
     if lexer.current().get_kind() != TokenKind::Arrow {
         return None;
     }
+    lexer.next();
 
     let Some(type_info) = parse_or_type(lexer, errors, allocator) else {
         let error = recover_until(
@@ -1577,7 +1580,13 @@ fn parse_function_argument<'input, 'allocator>(
         return None;
     };
 
-    let default_value = parse_json_value(lexer, errors, allocator);
+    let mut default_value = None;
+
+    if lexer.current().get_kind() == TokenKind::Equal {
+        lexer.next();
+
+        default_value = parse_json_value(lexer, errors, allocator);
+    }
 
     Some(FunctionArgument {
         properties,
@@ -1617,6 +1626,8 @@ fn parse_json_array<'input, 'allocator>(
     }
     lexer.next();
 
+    lexer.skip_line_feed();
+
     let mut elements = Vec::new_in(allocator);
     loop {
         let Some(element) = parse_json_value(lexer, errors, allocator) else {
@@ -1631,6 +1642,8 @@ fn parse_json_array<'input, 'allocator>(
 
         lexer.skip_line_feed();
     }
+
+    lexer.skip_line_feed();
 
     if lexer.current().get_kind() != TokenKind::BracketRight {
         let error = recover_until(
@@ -1666,6 +1679,8 @@ fn parse_json_object<'input, 'allocator>(
     }
     lexer.next();
 
+    lexer.skip_line_feed();
+
     let mut elements = Vec::new_in(allocator);
     loop {
         let Some(element) = parse_json_object_element(lexer, errors, allocator) else {
@@ -1680,6 +1695,8 @@ fn parse_json_object<'input, 'allocator>(
 
         lexer.skip_line_feed();
     }
+
+    lexer.skip_line_feed();
 
     if lexer.current().get_kind() != TokenKind::BraceRight {
         let error = recover_until(

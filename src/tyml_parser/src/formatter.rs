@@ -4,7 +4,7 @@ use extension_fn::extension_fn;
 use tyml_formatter::{FormatterToken, FormatterTokenKind, SpaceFormat};
 
 use crate::{
-    ast::{Define, Defines, TypeDefine},
+    ast::{Define, Defines, Interface, JsonValue, TypeDefine, AST},
     lexer::{Lexer, TokenKind},
 };
 
@@ -63,13 +63,13 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
             TokenKind::ParenthesisLeft => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::TreeIn,
-                left_space: SpaceFormat::Space,
-                right_space: SpaceFormat::SpaceOrLineFeed,
+                left_space: SpaceFormat::None,
+                right_space: SpaceFormat::None,
             },
             TokenKind::ParenthesisRight => FormatterToken {
                 text: token.text.into(),
                 kind: FormatterTokenKind::TreeOut,
-                left_space: SpaceFormat::SpaceOrLineFeed,
+                left_space: SpaceFormat::None,
                 right_space: SpaceFormat::None,
             },
             TokenKind::VerticalLine => FormatterToken {
@@ -144,6 +144,18 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                 left_space: SpaceFormat::None,
                 right_space: SpaceFormat::LineFeed,
             },
+            TokenKind::Function => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::None,
+                right_space: SpaceFormat::Space,
+            },
+            TokenKind::Arrow => FormatterToken {
+                text: token.text.into(),
+                kind: FormatterTokenKind::Normal,
+                left_space: SpaceFormat::Space,
+                right_space: SpaceFormat::Space,
+            },
             _ => {
                 if let Some(&is_extra) = comma_positions.get(&token.span.end) {
                     FormatterToken {
@@ -171,24 +183,24 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
 fn collect_comma_position(ast: &Defines) -> HashMap<usize, bool> {
     let mut positions = HashMap::new();
 
-    collect_defines(ast, &mut positions);
+    collect_comma_position_on_defines(ast, &mut positions);
 
     positions
 }
 
-fn collect_defines(ast: &Defines, positions: &mut HashMap<usize, bool>) {
+fn collect_comma_position_on_defines(ast: &Defines, positions: &mut HashMap<usize, bool>) {
     for (index, element) in ast.defines.iter().enumerate() {
         match element {
             Define::Element(element_define) => {
                 positions.insert(element_define.span.end, index == ast.defines.len() - 1);
 
                 if let Some(inline_type) = &element_define.inline_type {
-                    collect_defines(&inline_type.defines, positions);
+                    collect_comma_position_on_defines(&inline_type.defines, positions);
                 }
             }
             Define::Type(type_define) => match type_define {
                 TypeDefine::Struct(struct_define) => {
-                    collect_defines(&struct_define.defines, positions);
+                    collect_comma_position_on_defines(&struct_define.defines, positions);
                 }
                 TypeDefine::Enum(enum_define) => {
                     for (index, element) in enum_define.elements.iter().enumerate() {
@@ -196,6 +208,45 @@ fn collect_defines(ast: &Defines, positions: &mut HashMap<usize, bool>) {
                     }
                 }
             },
+            Define::Interface(interface) => {
+                collect_comma_position_on_interface(interface, positions);
+            }
+        }
+    }
+}
+
+fn collect_comma_position_on_interface(ast: &Interface, positions: &mut HashMap<usize, bool>) {
+    for function in ast.functions.iter() {
+        for (index, argument) in function.arguments.iter().enumerate() {
+            positions.insert(argument.span.end, index == function.arguments.len() - 1);
+
+            if let Some(default_value) = &argument.default_value {
+                collect_comma_position_on_json(default_value, positions);
+            }
+        }
+
+        if let Some(return_block) = &function.return_block {
+            collect_comma_position_on_json(&return_block.return_expression.value, positions);
+        }
+    }
+}
+
+fn collect_comma_position_on_json(ast: &JsonValue, positions: &mut HashMap<usize, bool>) {
+    match ast {
+        JsonValue::Value(_) => {}
+        JsonValue::Array(json_array) => {
+            for (index, element) in json_array.elements.iter().enumerate() {
+                positions.insert(element.span().end, index == json_array.elements.len() - 1);
+
+                collect_comma_position_on_json(element, positions);
+            }
+        }
+        JsonValue::Object(json_object) => {
+            for (index, element) in json_object.elements.iter().enumerate() {
+                positions.insert(element.span.end, index == json_object.elements.len() - 1);
+
+                collect_comma_position_on_json(&element.value, positions);
+            }
         }
     }
 }

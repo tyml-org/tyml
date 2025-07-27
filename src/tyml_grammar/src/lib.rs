@@ -58,7 +58,7 @@ mod tests {
 
         function           ::= properties "function" literal function_arguments [ return_type ]
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
-        function_arguments ::= "(" [ lf ] { properties literal element_type "=" json_value "," [ lf ] } ")"
+        function_arguments ::= "(" [ lf ] { properties literal element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type
 
         json_value         ::= value_literal

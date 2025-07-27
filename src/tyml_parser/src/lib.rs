@@ -12,11 +12,9 @@ mod test {
 
     use crate::{formatter::IntoFormatterToken, lexer::Lexer, parser::parse_defines};
 
-    #[test]
-    fn parse_test() {
-        let source = r#"
+    static SOURCE: &'static str = r#"
 settings = {
-    ip = "192.168.1.1"
+    ip: string @regex '\d+\.\d+\.\d+\.\d+' and ( @length 0..<10 )
     port = 25565
     mode = "Debug"
 }
@@ -33,8 +31,29 @@ enum Mode {
     "Debug"
     "Release"
 }
+
+type Type {
+    test: int
+    test2: {
+        test: int
+    }
+}
+
+interface {
+    function test(test: Mode = "Debug") -> Type {
+        return {
+            test = 100,
+            test2 = {
+                test = 200
+            }
+        }
+    }
+}
 "#;
-        let mut lexer = Lexer::new(source);
+
+    #[test]
+    fn parse_test() {
+        let mut lexer = Lexer::new(SOURCE);
         let allocator = Bump::new();
         let mut errors = Vec::new_in(&allocator);
 
@@ -45,38 +64,13 @@ enum Mode {
 
     #[test]
     fn formatter() {
-        let source = r#"
-settings: {
-    ip: string
-    port: int
-    mode: Mode?
-}
-
-/* comment
-*/
-
-// comment
-/// Document1
-/// Document2
-test: {
-    /// AAAA
-    /// AAAA
-    mode: Mode
-}
-
-enum Mode {
-    "Debug"
-    "Release"
-}
-        "#;
-
-        let mut lexer = Lexer::new(source);
+        let mut lexer = Lexer::new(SOURCE);
         let allocator = Bump::new();
         let mut errors = Vec::new_in(&allocator);
         let ast = parse_defines(&mut lexer, &mut errors, &allocator);
 
         let mut formatter = GeneralFormatter::new(
-            Lexer::new(source)
+            Lexer::new(SOURCE)
                 .enable_comment_token()
                 .into_formatter_token(ast)
                 .into_iter(),
