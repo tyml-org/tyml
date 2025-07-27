@@ -24,6 +24,7 @@ pub enum Scope {
     Property,
     Interface,
     Function,
+    Json,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,6 +89,8 @@ pub enum ParseErrorKind {
     InvalidInterfaceFormat,
     InvalidFunctionFormat,
     NonLineFeed,
+    InvalidJsonArrayFormat,
+    InvalidJsonObjectFormat,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

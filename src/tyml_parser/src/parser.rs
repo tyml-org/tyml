@@ -9,9 +9,10 @@ use crate::{
         ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
         Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
         EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface, IntoLiteral,
-        JsonValue, Literal, NamedType, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
-        Properties, Property, RegexAttribute, ReturnBlock, ReturnExpression, ReturnType, Spanned,
-        StructDefine, TypeAttribute, TypeDefine, ValueLiteral,
+        JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal, NamedType, NodeLiteral,
+        NumericAttribute, NumericAttributeKind, OrType, Properties, Property, RegexAttribute,
+        ReturnBlock, ReturnExpression, ReturnType, Spanned, StructDefine, TypeAttribute,
+        TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -1592,7 +1593,159 @@ fn parse_json_value<'input, 'allocator>(
     errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
     allocator: &'allocator Bump,
 ) -> Option<JsonValue<'input, 'allocator>> {
-    todo!()
+    if let Some(value) = parse_value_literal(lexer) {
+        return Some(JsonValue::Value(value));
+    }
+    if let Some(array) = parse_json_array(lexer, errors, allocator) {
+        return Some(JsonValue::Array(array));
+    }
+    if let Some(object) = parse_json_object(lexer, errors, allocator) {
+        return Some(JsonValue::Object(object));
+    }
+    None
+}
+
+fn parse_json_array<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<JsonArray<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::BracketLeft {
+        return None;
+    }
+    lexer.next();
+
+    let mut elements = Vec::new_in(allocator);
+    loop {
+        let Some(element) = parse_json_value(lexer, errors, allocator) else {
+            break;
+        };
+        elements.push(element);
+
+        if lexer.current().get_kind() != TokenKind::Comma {
+            break;
+        }
+        lexer.next();
+
+        lexer.skip_line_feed();
+    }
+
+    if lexer.current().get_kind() != TokenKind::BracketRight {
+        let error = recover_until(
+            ParseErrorKind::InvalidJsonArrayFormat,
+            lexer,
+            &[TokenKind::BracketRight],
+            Expected::BracketRight,
+            Scope::Json,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BracketRight {
+        lexer.next();
+    }
+
+    Some(JsonArray {
+        elements,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_json_object<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<JsonObject<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::BraceLeft {
+        return None;
+    }
+    lexer.next();
+
+    let mut elements = Vec::new_in(allocator);
+    loop {
+        let Some(element) = parse_json_object_element(lexer, errors, allocator) else {
+            break;
+        };
+        elements.push(element);
+
+        if lexer.current().get_kind() != TokenKind::Comma {
+            break;
+        }
+        lexer.next();
+
+        lexer.skip_line_feed();
+    }
+
+    if lexer.current().get_kind() != TokenKind::BraceRight {
+        let error = recover_until(
+            ParseErrorKind::InvalidJsonObjectFormat,
+            lexer,
+            &[TokenKind::BraceRight],
+            Expected::BraceRight,
+            Scope::Json,
+            allocator,
+        );
+        errors.push(error);
+    }
+
+    if lexer.current().get_kind() == TokenKind::BraceRight {
+        lexer.next();
+    }
+
+    Some(JsonObject {
+        elements,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_json_object_element<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<JsonObjectElement<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let Some(name) = parse_literal(lexer) else {
+        return None;
+    };
+
+    if lexer.current().get_kind() != TokenKind::Equal {
+        let error = recover_until(
+            ParseErrorKind::InvalidJsonObjectFormat,
+            lexer,
+            &[TokenKind::Comma, TokenKind::BraceRight],
+            Expected::Equal,
+            Scope::Json,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    }
+    lexer.next();
+
+    let Some(value) = parse_json_value(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidJsonObjectFormat,
+            lexer,
+            &[TokenKind::Comma, TokenKind::BraceRight],
+            Expected::Value,
+            Scope::Json,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    Some(JsonObjectElement {
+        name,
+        value,
+        span: anchor.elapsed(lexer),
+    })
 }
 
 fn parse_properties<'input, 'allocator>(

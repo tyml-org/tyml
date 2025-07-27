@@ -368,7 +368,7 @@ pub struct JsonObject<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct JsonObjectElement<'input, 'allocator> {
-    pub name: Literal<'input>,
+    pub name: EscapedLiteral<'input>,
     pub value: JsonValue<'input, 'allocator>,
     pub span: Range<usize>,
 }
