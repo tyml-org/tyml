@@ -35,7 +35,9 @@ impl<'input> GeneralFormatter<'input> {
 
         // trim space (for ini)
         for token in tokens.iter_mut() {
-            if let SpaceFormat::Space | SpaceFormat::SpaceOrLineFeed = token.right_space {
+            if let SpaceFormat::Space | SpaceFormat::SpaceOrLineFeed { need_whitespace: _ } =
+                token.right_space
+            {
                 token.text = match &token.text {
                     Cow::Borrowed(text) => text.trim_end().into(),
                     Cow::Owned(text) => text.clone().into(),
@@ -248,7 +250,7 @@ impl<'input> GeneralFormatter<'input> {
 
                 2
             }
-            SpaceFormat::SpaceOrLineFeed => {
+            SpaceFormat::SpaceOrLineFeed { need_whitespace } => {
                 // remove existed lf
                 // better logic?
                 for element in &mut elements[index.checked_sub(1).unwrap_or_default()..] {
@@ -290,22 +292,30 @@ impl<'input> GeneralFormatter<'input> {
 
                     2
                 } else {
-                    elements.insert(
-                        index,
-                        FormatterTokenTree::Leaf {
-                            token: FormatterToken {
-                                text: " ".into(),
-                                kind: FormatterTokenKind::Whitespace,
-                                left_space: SpaceFormat::None,
-                                right_space: SpaceFormat::None,
+                    if need_whitespace {
+                        elements.insert(
+                            index,
+                            FormatterTokenTree::Leaf {
+                                token: FormatterToken {
+                                    text: " ".into(),
+                                    kind: FormatterTokenKind::Whitespace,
+                                    left_space: SpaceFormat::None,
+                                    right_space: SpaceFormat::None,
+                                },
                             },
-                        },
-                    );
+                        );
 
-                    1
+                        1
+                    } else {
+                        0
+                    }
                 }
             }
-            SpaceFormat::LineFeedOrSplit { split, is_extra } => {
+            SpaceFormat::LineFeedOrSplit {
+                split,
+                is_extra,
+                need_whitespace,
+            } => {
                 // remove existed lf or split
                 for element in &mut elements[index..] {
                     if let FormatterTokenTree::Leaf { token } = element {
@@ -349,17 +359,19 @@ impl<'input> GeneralFormatter<'input> {
                     2
                 } else {
                     if is_extra {
-                        elements.insert(
-                            index,
-                            FormatterTokenTree::Leaf {
-                                token: FormatterToken {
-                                    text: " ".into(),
-                                    kind: FormatterTokenKind::Whitespace,
-                                    left_space: SpaceFormat::None,
-                                    right_space: SpaceFormat::None,
+                        if need_whitespace {
+                            elements.insert(
+                                index,
+                                FormatterTokenTree::Leaf {
+                                    token: FormatterToken {
+                                        text: " ".into(),
+                                        kind: FormatterTokenKind::Whitespace,
+                                        left_space: SpaceFormat::None,
+                                        right_space: SpaceFormat::None,
+                                    },
                                 },
-                            },
-                        );
+                            );
+                        }
                     } else {
                         elements.insert(
                             index,
@@ -373,23 +385,33 @@ impl<'input> GeneralFormatter<'input> {
                             },
                         );
 
-                        elements.insert(
-                            index + 1,
-                            FormatterTokenTree::Leaf {
-                                token: FormatterToken {
-                                    text: " ".into(),
-                                    kind: FormatterTokenKind::Whitespace,
-                                    left_space: SpaceFormat::None,
-                                    right_space: SpaceFormat::None,
+                        if need_whitespace {
+                            elements.insert(
+                                index + 1,
+                                FormatterTokenTree::Leaf {
+                                    token: FormatterToken {
+                                        text: " ".into(),
+                                        kind: FormatterTokenKind::Whitespace,
+                                        left_space: SpaceFormat::None,
+                                        right_space: SpaceFormat::None,
+                                    },
                                 },
-                            },
-                        );
+                            );
+                        }
                     }
 
-                    if is_extra { 1 } else { 2 }
+                    if is_extra {
+                        if need_whitespace { 1 } else { 0 }
+                    } else {
+                        if need_whitespace { 2 } else { 1 }
+                    }
                 }
             }
-            SpaceFormat::LineFeedAndSplit { split, is_extra } => {
+            SpaceFormat::LineFeedAndSplit {
+                split,
+                is_extra,
+                need_whitespace,
+            } => {
                 // remove existed lf or split
                 for element in &mut elements[index..] {
                     if let FormatterTokenTree::Leaf { token } = element {
@@ -471,17 +493,19 @@ impl<'input> GeneralFormatter<'input> {
                     if is_extra { 2 } else { 3 }
                 } else {
                     if is_extra {
-                        elements.insert(
-                            index,
-                            FormatterTokenTree::Leaf {
-                                token: FormatterToken {
-                                    text: " ".into(),
-                                    kind: FormatterTokenKind::Whitespace,
-                                    left_space: SpaceFormat::None,
-                                    right_space: SpaceFormat::None,
+                        if need_whitespace {
+                            elements.insert(
+                                index,
+                                FormatterTokenTree::Leaf {
+                                    token: FormatterToken {
+                                        text: " ".into(),
+                                        kind: FormatterTokenKind::Whitespace,
+                                        left_space: SpaceFormat::None,
+                                        right_space: SpaceFormat::None,
+                                    },
                                 },
-                            },
-                        );
+                            );
+                        }
                     } else {
                         elements.insert(
                             index,
@@ -495,20 +519,26 @@ impl<'input> GeneralFormatter<'input> {
                             },
                         );
 
-                        elements.insert(
-                            index + 1,
-                            FormatterTokenTree::Leaf {
-                                token: FormatterToken {
-                                    text: " ".into(),
-                                    kind: FormatterTokenKind::Whitespace,
-                                    left_space: SpaceFormat::None,
-                                    right_space: SpaceFormat::None,
+                        if need_whitespace {
+                            elements.insert(
+                                index + 1,
+                                FormatterTokenTree::Leaf {
+                                    token: FormatterToken {
+                                        text: " ".into(),
+                                        kind: FormatterTokenKind::Whitespace,
+                                        left_space: SpaceFormat::None,
+                                        right_space: SpaceFormat::None,
+                                    },
                                 },
-                            },
-                        );
+                            );
+                        }
                     }
 
-                    if is_extra { 1 } else { 2 }
+                    if is_extra {
+                        if need_whitespace { 1 } else { 0 }
+                    } else {
+                        if need_whitespace { 2 } else { 1 }
+                    }
                 }
             }
             SpaceFormat::SplitAndSpace { split, is_extra } => {
@@ -671,9 +701,58 @@ pub enum FormatterTokenKind {
 pub enum SpaceFormat {
     Space,
     LineFeed,
-    SpaceOrLineFeed,
-    LineFeedOrSplit { split: &'static str, is_extra: bool },
-    LineFeedAndSplit { split: &'static str, is_extra: bool },
-    SplitAndSpace { split: &'static str, is_extra: bool },
+    SpaceOrLineFeed {
+        need_whitespace: bool,
+    },
+    LineFeedOrSplit {
+        split: &'static str,
+        is_extra: bool,
+        need_whitespace: bool,
+    },
+    LineFeedAndSplit {
+        split: &'static str,
+        is_extra: bool,
+        need_whitespace: bool,
+    },
+    SplitAndSpace {
+        split: &'static str,
+        is_extra: bool,
+    },
     None,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{FormatterToken, FormatterTokenKind, GeneralFormatter, SpaceFormat};
+
+    #[test]
+    fn general_formatter() {
+        let mut formatter = GeneralFormatter::new(
+            vec![
+                FormatterToken {
+                    text: "(".into(),
+                    kind: FormatterTokenKind::TreeIn,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::None,
+                },
+                FormatterToken {
+                    text: "aaa".into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::None,
+                },
+                FormatterToken {
+                    text: ")".into(),
+                    kind: FormatterTokenKind::TreeOut,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::None,
+                },
+            ]
+            .into_iter(),
+            25,
+        );
+        formatter.format();
+
+        println!("{}", formatter.generate_code());
+    }
 }

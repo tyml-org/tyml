@@ -742,7 +742,9 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
                 if self.allow_line_feed {
                     tokens.push(FormatterTokenInfo {
                         span: value.span.start..value.span.start,
-                        left_space: SpaceFormat::SpaceOrLineFeed,
+                        left_space: SpaceFormat::SpaceOrLineFeed {
+                            need_whitespace: true,
+                        },
                         right_space: SpaceFormat::None,
                     });
                 } else {
@@ -763,6 +765,7 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
                     right_space: SpaceFormat::LineFeedAndSplit {
                         split: ",",
                         is_extra: index == self.values.len() - 1,
+                        need_whitespace: true,
                     },
                 });
             } else {
@@ -1104,7 +1107,9 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
                     if *allow_line_feed {
                         tokens.push(FormatterTokenInfo {
                             span: key_value.span.start..key_value.span.start,
-                            left_space: SpaceFormat::SpaceOrLineFeed,
+                            left_space: SpaceFormat::SpaceOrLineFeed {
+                                need_whitespace: true,
+                            },
                             right_space: SpaceFormat::None,
                         });
                     } else {
@@ -1125,6 +1130,7 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
                         right_space: SpaceFormat::LineFeedAndSplit {
                             split: ",",
                             is_extra: index == self.key_values.len() - 1,
+                            need_whitespace: true
                         },
                     });
                 } else {

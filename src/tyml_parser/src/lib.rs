@@ -40,7 +40,7 @@ type Type {
 }
 
 interface {
-    function test(test: Mode = "Debug") -> Type {
+    function test(test1: Mode = "Debug", test2: Type = { test = 100, test2 = { test = 100 } }) -> Type {
         return {
             test = 100,
             test2 = {
