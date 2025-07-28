@@ -23,6 +23,12 @@ parse_error: {
     "0021": Diagnostic
     "0022": Diagnostic
     "0023": Diagnostic
+    "0024": Diagnostic
+    "0025": Diagnostic
+    "0026": Diagnostic
+    "0027": Diagnostic
+    "0028": Diagnostic
+    "0029": Diagnostic
 }
 
 type_error: {

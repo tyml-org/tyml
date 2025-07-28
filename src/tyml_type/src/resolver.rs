@@ -141,6 +141,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
 
                 named_type_map.register(name_id, name, name_span, named_type);
             }
+            Define::Interface(_) => {},
         }
     }
 

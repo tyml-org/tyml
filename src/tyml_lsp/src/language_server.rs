@@ -1016,6 +1016,24 @@ mod on_type_tag {
                 ),
                 TypeDefine::Enum(_) => false,
             },
+            Define::Interface(interface) => {
+                for function in interface.functions.iter() {
+                    for argument in function.arguments.iter() {
+                        if argument.ty.span.to_inclusive().contains(&position) {
+                            swap(names, completions);
+                            return true;
+                        }
+                    }
+
+                    if let Some(return_type) = &function.return_type {
+                        if return_type.span.to_inclusive().contains(&position) {
+                            swap(names, completions);
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
         }
     }
 
@@ -1038,8 +1056,8 @@ mod tyml_semantic_tokens {
 
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
-        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, OrType,
-        TypeAttribute, TypeDefine, ValueLiteral, either::Either,
+        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
+        OrType, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1062,25 +1080,86 @@ mod tyml_semantic_tokens {
                         collect_tokens_for_defines(&inline_type.defines, tokens);
                     }
                     if let Some(default_value) = &element_define.default {
-                        let token = match &default_value.value {
-                            ValueLiteral::String(literal) => {
-                                (SemanticTokenType::STRING, literal.span.clone())
-                            }
-                            ValueLiteral::Float(literal) => {
-                                (SemanticTokenType::NUMBER, literal.span())
-                            }
-                            ValueLiteral::Binary(literal) => {
-                                (SemanticTokenType::NUMBER, literal.span())
-                            }
-                            ValueLiteral::Null(literal) => {
-                                (SemanticTokenType::KEYWORD, literal.span.clone())
-                            }
-                        };
-                        tokens.insert(token.1.start, token);
+                        collect_tokens_for_value_literal(&default_value.value, tokens);
                     }
                 }
                 Define::Type(type_define) => {
                     collect_tokens_for_type_define(type_define, tokens);
+                }
+                Define::Interface(interface) => {
+                    collect_tokens_for_interface(interface, tokens);
+                }
+            }
+        }
+    }
+
+    fn collect_tokens_for_value_literal(
+        ast: &ValueLiteral,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        let token = match ast {
+            ValueLiteral::String(literal) => (SemanticTokenType::STRING, literal.span.clone()),
+            ValueLiteral::Float(literal) => (SemanticTokenType::NUMBER, literal.span()),
+            ValueLiteral::Binary(literal) => (SemanticTokenType::NUMBER, literal.span()),
+            ValueLiteral::Null(literal) => (SemanticTokenType::KEYWORD, literal.span.clone()),
+        };
+        tokens.insert(token.1.start, token);
+    }
+
+    fn collect_tokens_for_interface(
+        ast: &Interface,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        let span = ast.keyword_span.clone();
+        tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+
+        for function in ast.functions.iter() {
+            let span = function.keyword_span.clone();
+            tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+
+            let span = function.name.span.clone();
+            tokens.insert(span.start, (SemanticTokenType::FUNCTION, span));
+
+            for argument in function.arguments.iter() {
+                let span = argument.name.span.clone();
+                tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+
+                collect_tokens_for_or_type(&argument.ty.type_info, tokens);
+
+                if let Some(default_value) = &argument.default_value {
+                    collect_tokens_for_json_value(default_value, tokens);
+                }
+            }
+
+            if let Some(return_type) = &function.return_type {
+                collect_tokens_for_or_type(&return_type.type_info, tokens);
+            }
+
+            if let Some(return_block) = &function.return_block {
+                collect_tokens_for_json_value(&return_block.return_expression.value, tokens);
+            }
+        }
+    }
+
+    fn collect_tokens_for_json_value(
+        ast: &JsonValue,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        match ast {
+            JsonValue::Value(value_literal) => {
+                collect_tokens_for_value_literal(value_literal, tokens)
+            }
+            JsonValue::Array(json_array) => {
+                for element in json_array.elements.iter() {
+                    collect_tokens_for_json_value(element, tokens);
+                }
+            }
+            JsonValue::Object(json_object) => {
+                for element in json_object.elements.iter() {
+                    let span = element.name.span.clone();
+                    tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+
+                    collect_tokens_for_json_value(&element.value, tokens);
                 }
             }
         }
@@ -1268,6 +1347,16 @@ mod tyml_documents_from_ast {
                         }
                     }
                 },
+                Define::Interface(interface) => {
+                    for function in interface.functions.iter() {
+                        if function.name.span.to_inclusive().contains(&position) {
+                            *result = Some(function.documents.lines.iter().cloned().collect());
+                            return;
+                        }
+                    }
+
+                    *result = Some(interface.documents.lines.iter().cloned().collect());
+                }
             }
         }
     }

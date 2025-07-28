@@ -1272,13 +1272,15 @@ fn parse_interface<'input, 'allocator>(
 ) -> Option<Interface<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
+    let documents = parse_documents(lexer, allocator);
+
     let properties = parse_properties(lexer, errors, allocator);
 
     if lexer.current().get_kind() != TokenKind::Interface {
         lexer.back_to_anchor(anchor);
         return None;
     }
-    lexer.next();
+    let keyword_span = lexer.next().unwrap().span;
 
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         let error = recover_until(
@@ -1338,7 +1340,9 @@ fn parse_interface<'input, 'allocator>(
     }
 
     Some(Interface {
+        documents,
         properties,
+        keyword_span,
         functions,
         span: anchor.elapsed(lexer),
     })
@@ -1351,13 +1355,15 @@ fn parse_function<'input, 'allocator>(
 ) -> Option<Function<'input, 'allocator>> {
     let anchor = lexer.cast_anchor();
 
+    let documents = parse_documents(lexer, allocator);
+
     let properties = parse_properties(lexer, errors, allocator);
 
     if lexer.current().get_kind() != TokenKind::Function {
         lexer.back_to_anchor(anchor);
         return None;
     }
-    lexer.next();
+    let keyword_span = lexer.next().unwrap().span;
 
     let Some(name) = parse_literal(lexer) else {
         let error = recover_until(
@@ -1383,7 +1389,9 @@ fn parse_function<'input, 'allocator>(
         );
         errors.push(error);
         return Some(Function {
+            documents,
             properties,
+            keyword_span,
             name,
             arguments: Vec::new_in(allocator),
             return_type: None,
@@ -1427,7 +1435,9 @@ fn parse_function<'input, 'allocator>(
     } else {
         // failed to recover
         return Some(Function {
+            documents,
             properties,
+            keyword_span,
             name,
             arguments,
             return_type: None,
@@ -1441,7 +1451,9 @@ fn parse_function<'input, 'allocator>(
     let return_block = parse_return_block(lexer, errors, allocator);
 
     Some(Function {
+        documents,
         properties,
+        keyword_span,
         name,
         arguments,
         return_type,

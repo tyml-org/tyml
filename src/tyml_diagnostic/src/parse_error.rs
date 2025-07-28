@@ -1,3 +1,5 @@
+use std::vec;
+
 use ariadne::Color;
 use tyml_parser::error::{ParseError, ParseErrorKind};
 use tyml_source::AsUtf8ByteRange;
@@ -349,6 +351,84 @@ impl<'input, 'allocator> DiagnosticBuilder for ParseError<'input, 'allocator> {
                 message: TymlDiagnosticMessage {
                     section: MessageSection::ParseError,
                     code: 0023,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidPropertyFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0024,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidInterfaceFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0025,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidFunctionFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0026,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::NonLineFeed => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0027,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidJsonArrayFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0028,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
+            ParseErrorKind::InvalidJsonObjectFormat => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::ParseError,
+                    code: 0029,
                     arguments: vec![],
                 },
                 labels: vec![DiagnosticLabel {

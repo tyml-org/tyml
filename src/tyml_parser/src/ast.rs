@@ -305,14 +305,18 @@ pub struct Property<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct Interface<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
     pub properties: Properties<'input, 'allocator>,
+    pub keyword_span: Range<usize>,
     pub functions: Vec<Function<'input, 'allocator>, &'allocator Bump>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub struct Function<'input, 'allocator> {
+    pub documents: Documents<'input, 'allocator>,
     pub properties: Properties<'input, 'allocator>,
+    pub keyword_span: Range<usize>,
     pub name: EscapedLiteral<'input>,
     pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,
     pub return_type: Option<ReturnType<'input, 'allocator>>,

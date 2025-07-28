@@ -79,6 +79,25 @@ label_0 = "'%color:cyan{(}'と'%color:cyan{)}'の間には型の属性を記述�
 [parse_error.0023]
 message = "括弧'%color:yellow{(}'が閉じられていません"
 label_0 = "'%color:cyan{)}'で閉じる必要があります"
+[parse_error.0024]
+message = "プロパティの記述形式が正しくありません"
+label_0 = "プロパティの記述形式は'%color:cyan{#[name = value]}'です"
+[parse_error.0025]
+message = "インタフェースの記述形式が正しくありません"
+label_0 = "不明な記述形式です"
+[parse_error.0026]
+message = "関数の記述形式が正しくありません"
+label_0 = "不明な記述形式です"
+[parse_error.0027]
+message = "改行されていません"
+label_0 = "要素の間には改行が必要です"
+[parse_error.0028]
+message = "JSONの配列の記述形式が正しくありません"
+label_0 = "不明な記述形式です"
+[parse_error.0029]
+message = "JSONオブジェクトの記述形式が正しくありません"
+label_0 = "不明な記述形式です"
+note = "TYML内のJSONオブジェクトの記述形式は通常のものとは異なります"
 
 [type_error]
 name = "%color:red{[TE%0] 型エラー}"
