@@ -1130,7 +1130,7 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
                         right_space: SpaceFormat::LineFeedAndSplit {
                             split: ",",
                             is_extra: index == self.key_values.len() - 1,
-                            need_whitespace: true
+                            need_whitespace: true,
                         },
                     });
                 } else {
