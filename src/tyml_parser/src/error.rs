@@ -58,6 +58,7 @@ pub enum Expected {
     FunctionName,
     Return,
     LineFeed,
+    InterfaceName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1057,7 +1057,7 @@ mod tyml_semantic_tokens {
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
         AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
-        OrType, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
+        OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1101,6 +1101,7 @@ mod tyml_semantic_tokens {
             ValueLiteral::String(literal) => (SemanticTokenType::STRING, literal.span.clone()),
             ValueLiteral::Float(literal) => (SemanticTokenType::NUMBER, literal.span()),
             ValueLiteral::Binary(literal) => (SemanticTokenType::NUMBER, literal.span()),
+            ValueLiteral::Bool(literal) => (SemanticTokenType::MACRO, literal.span.clone()),
             ValueLiteral::Null(literal) => (SemanticTokenType::KEYWORD, literal.span.clone()),
         };
         tokens.insert(token.1.start, token);
@@ -1110,10 +1111,23 @@ mod tyml_semantic_tokens {
         ast: &Interface,
         tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
     ) {
+        let span = ast.documents.span.clone();
+        tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
+        collect_tokens_for_properties(&ast.properties, tokens);
+
         let span = ast.keyword_span.clone();
         tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
 
+        let span = ast.name.span.clone();
+        tokens.insert(span.start, (SemanticTokenType::TYPE, span));
+
         for function in ast.functions.iter() {
+            let span = function.documents.span.clone();
+            tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
+
+            collect_tokens_for_properties(&function.properties, tokens);
+
             let span = function.keyword_span.clone();
             tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
 
@@ -1137,6 +1151,20 @@ mod tyml_semantic_tokens {
 
             if let Some(return_block) = &function.return_block {
                 collect_tokens_for_json_value(&return_block.return_expression.value, tokens);
+            }
+        }
+    }
+
+    fn collect_tokens_for_properties(
+        ast: &Properties,
+        tokens: &mut BTreeMap<usize, (SemanticTokenType, Range<usize>)>,
+    ) {
+        for property in ast.elements.iter() {
+            let span = property.name.span.clone();
+            tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+
+            for value in property.values.iter() {
+                collect_tokens_for_value_literal(value, tokens);
             }
         }
     }
@@ -1348,14 +1376,17 @@ mod tyml_documents_from_ast {
                     }
                 },
                 Define::Interface(interface) => {
+                    if interface.name.span.to_inclusive().contains(&position) {
+                        *result = Some(interface.documents.lines.iter().cloned().collect());
+                        return;
+                    }
+
                     for function in interface.functions.iter() {
                         if function.name.span.to_inclusive().contains(&position) {
                             *result = Some(function.documents.lines.iter().cloned().collect());
                             return;
                         }
                     }
-
-                    *result = Some(interface.documents.lines.iter().cloned().collect());
                 }
             }
         }

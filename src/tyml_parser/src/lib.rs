@@ -39,8 +39,9 @@ type Type {
     }
 }
 
-interface {
-    function test(test1: Mode = "Debug", test2: Type = { test = 100, test2 = { test = 100 } }) -> Type {
+#[test = "aaa"]
+interface Test {
+    function test(test1: Mode = "Debug") -> Type {
         return {
             test = 100,
             test2 = {

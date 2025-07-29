@@ -21,7 +21,7 @@ mod tests {
         or_type            ::= base_type { "|" [ lf ] base_type }
         base_type          ::= ( named_type | array_type ) [ "?" ] attribute_or
         array_type         ::= "[" [ lf ] or_type [ lf ] "]"
-        named_type         ::= literal
+        named_type         ::= normal_literal
 
         attribute_or       ::= attribute_and { "or" attribute_and }
         attribute_and      ::= type_attribute { "and" type_attribute }
@@ -46,17 +46,17 @@ mod tests {
 
         type_define        ::= struct_define | enum_define
 
-        struct_define      ::= "type" literal [ lf ] "{" defines "}"
+        struct_define      ::= "type" normal_literal [ lf ] "{" defines "}"
 
-        enum_define        ::= "enum" literal [ lf ] "{" enum_elements "}"
+        enum_define        ::= "enum" normal_literal [ lf ] "{" enum_elements "}"
         enum_elements      ::= [ lf ] { documents string_literal ( lf | "," [ lf ] ) }
 
-        interface          ::= properties "interface" "{" { function lf } "}"
+        interface          ::= properties "interface" literal "{" { function lf } "}"
 
         properties         ::= { property [ lf ] }
         property           ::= "#" "[" literal "=" { value_literal } "]"
 
-        function           ::= properties "function" literal function_arguments [ return_type ]
+        function           ::= properties "function" normal_literal function_arguments [ return_type ]
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
         function_arguments ::= "(" [ lf ] { properties literal element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type
@@ -65,7 +65,8 @@ mod tests {
                                | "[" [ lf ] { json_value "," [ lf ] } "]"
                                | "{" [ lf ] { literal "=" json_value "," [ lf ] } "}"
 
-        literal            ::= r"(\w|-)+" | string_literal
+        literal            ::= normal_literal | string_literal
+        normal_literal     ::= r"(\w|-)+"
 
         lf                 ::= r"(\n|\r|\r\n)+"
     }

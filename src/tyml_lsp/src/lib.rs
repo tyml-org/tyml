@@ -60,6 +60,7 @@ static TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::STRUCT,
     SemanticTokenType::TYPE,
     SemanticTokenType::COMMENT,
+    SemanticTokenType::MACRO,
 ];
 
 #[tower_lsp::async_trait]

@@ -141,7 +141,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
 
                 named_type_map.register(name_id, name, name_span, named_type);
             }
-            Define::Interface(_) => {},
+            Define::Interface(_) => {}
         }
     }
 
@@ -321,6 +321,7 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
                 (Err(_), Err(_)) => Type::Float(FloatAttribute::default()),
             }
         }
+        ValueLiteral::Bool(_) => Type::Bool,
         ValueLiteral::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
     }
 }
@@ -338,6 +339,7 @@ fn get_value_literal<'ast>(ast: &DefaultValue<'ast>) -> Literal<'ast> {
             BinaryLiteral::Oct(literal) => literal.clone(),
             BinaryLiteral::Bin(literal) => literal.clone(),
         },
+        ValueLiteral::Bool(literal) => literal.clone(),
         ValueLiteral::Null(literal) => literal.clone(),
     }
 }

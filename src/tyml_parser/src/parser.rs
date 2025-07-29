@@ -1017,6 +1017,8 @@ fn parse_value_literal<'input, 'allocator>(
             ValueLiteral::Binary(binary_literal)
         }
         TokenKind::StringLiteral => ValueLiteral::String(lexer.next().unwrap().into_literal()),
+        TokenKind::True => ValueLiteral::Bool(lexer.next().unwrap().into_literal()),
+        TokenKind::False => ValueLiteral::Bool(lexer.next().unwrap().into_literal()),
         TokenKind::Null => ValueLiteral::Null(lexer.next().unwrap().into_literal()),
         _ => return None,
     };
@@ -1282,6 +1284,22 @@ fn parse_interface<'input, 'allocator>(
     }
     let keyword_span = lexer.next().unwrap().span;
 
+    let name = match lexer.current().get_kind() {
+        TokenKind::Literal => lexer.next().unwrap().into_literal(),
+        _ => {
+            let error = recover_until(
+                ParseErrorKind::InvalidInterfaceFormat,
+                lexer,
+                &[TokenKind::LineFeed],
+                Expected::InterfaceName,
+                Scope::Interface,
+                allocator,
+            );
+            errors.push(error);
+            return None;
+        }
+    };
+
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         let error = recover_until(
             ParseErrorKind::InvalidInterfaceFormat,
@@ -1342,6 +1360,7 @@ fn parse_interface<'input, 'allocator>(
     Some(Interface {
         documents,
         properties,
+        name,
         keyword_span,
         functions,
         span: anchor.elapsed(lexer),

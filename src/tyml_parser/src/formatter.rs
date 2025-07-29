@@ -59,16 +59,16 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                 TokenKind::BracketLeft => FormatterToken {
                     text: token.text.into(),
                     kind: FormatterTokenKind::TreeIn,
-                    left_space: SpaceFormat::Space,
+                    left_space: SpaceFormat::None,
                     right_space: SpaceFormat::SpaceOrLineFeed {
-                        need_whitespace: true,
+                        need_whitespace: false,
                     },
                 },
                 TokenKind::BracketRight => FormatterToken {
                     text: token.text.into(),
                     kind: FormatterTokenKind::TreeOut,
                     left_space: SpaceFormat::SpaceOrLineFeed {
-                        need_whitespace: true,
+                        need_whitespace: false,
                     },
                     right_space: SpaceFormat::None,
                 },
@@ -172,6 +172,12 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                     left_space: SpaceFormat::Space,
                     right_space: SpaceFormat::Space,
                 },
+                TokenKind::Interface => FormatterToken {
+                    text: token.text.into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::None,
+                    right_space: SpaceFormat::Space,
+                },
                 _ => FormatterToken {
                     text: token.text.into(),
                     kind: FormatterTokenKind::Normal,
@@ -253,7 +259,7 @@ fn collect_comma_position_on_interface(
     for function in ast.functions.iter() {
         for (index, argument) in function.arguments.iter().enumerate() {
             let is_extra = index == function.arguments.len() - 1;
-            positions.insert(argument.span.end, (true, is_extra, is_extra));
+            positions.insert(argument.span.end, (true, is_extra, !is_extra));
 
             if let Some(default_value) = &argument.default_value {
                 collect_comma_position_on_json(default_value, positions);

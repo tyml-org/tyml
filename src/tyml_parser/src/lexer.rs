@@ -35,6 +35,10 @@ pub enum TokenKind {
     Or,
     /// and
     And,
+    /// true
+    True,
+    /// false
+    False,
     /// interface
     Interface,
     /// function
@@ -105,6 +109,8 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Enum, "enum"),
     Tokenizer::Keyword(TokenKind::Or, "or"),
     Tokenizer::Keyword(TokenKind::And, "and"),
+    Tokenizer::Keyword(TokenKind::True, "true"),
+    Tokenizer::Keyword(TokenKind::False, "false"),
     Tokenizer::Keyword(TokenKind::Interface, "interface"),
     Tokenizer::Keyword(TokenKind::Function, "function"),
     Tokenizer::Keyword(TokenKind::Return, "return"),

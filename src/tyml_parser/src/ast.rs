@@ -43,7 +43,7 @@ impl_ast!(ArrayType<'_, '_>, span = self.span);
 impl_ast!(NamedType<'_>, span = self.span);
 impl_ast!(ElementInlineType<'_, '_>, span = self.span);
 impl_ast!(DefaultValue<'_>, span = self.span);
-impl_ast!(ValueLiteral<'_>, enum: String, Float, Binary, Null);
+impl_ast!(ValueLiteral<'_>, enum: String, Float, Binary, Bool, Null);
 impl_ast!(FloatLiteral<'_>, enum: Float, Inf, Nan);
 impl_ast!(BinaryLiteral<'_>, enum: Hex, Oct, Bin);
 impl_ast!(TypeDefine<'_, '_>, enum: Struct, Enum);
@@ -241,6 +241,7 @@ pub enum ValueLiteral<'input> {
     String(Literal<'input>),
     Float(FloatLiteral<'input>),
     Binary(BinaryLiteral<'input>),
+    Bool(Literal<'input>),
     Null(Literal<'input>),
 }
 
@@ -307,6 +308,7 @@ pub struct Property<'input, 'allocator> {
 pub struct Interface<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub properties: Properties<'input, 'allocator>,
+    pub name: Literal<'input>,
     pub keyword_span: Range<usize>,
     pub functions: Vec<Function<'input, 'allocator>, &'allocator Bump>,
     pub span: Range<usize>,
