@@ -349,6 +349,7 @@ pub struct ReturnBlock<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct ReturnExpression<'input, 'allocator> {
+    pub keyword_span: Range<usize>,
     pub value: JsonValue<'input, 'allocator>,
     pub span: Range<usize>,
 }

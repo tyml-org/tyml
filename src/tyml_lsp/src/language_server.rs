@@ -1150,6 +1150,9 @@ mod tyml_semantic_tokens {
             }
 
             if let Some(return_block) = &function.return_block {
+                let span = return_block.return_expression.keyword_span.clone();
+                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+
                 collect_tokens_for_json_value(&return_block.return_expression.value, tokens);
             }
         }

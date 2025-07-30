@@ -1540,7 +1540,7 @@ fn parse_return_block<'input, 'allocator>(
         errors.push(error);
         return None;
     }
-    lexer.next();
+    let keyword_span = lexer.next().unwrap().span;
 
     let Some(value) = parse_json_value(lexer, errors, allocator) else {
         let error = recover_until(
@@ -1577,6 +1577,7 @@ fn parse_return_block<'input, 'allocator>(
 
     Some(ReturnBlock {
         return_expression: ReturnExpression {
+            keyword_span,
             value,
             span: return_expr_span,
         },
