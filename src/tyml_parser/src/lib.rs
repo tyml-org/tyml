@@ -41,6 +41,7 @@ type Type {
 
 #[test = "aaa"]
 interface Test {
+    #[test = true]
     function test(test1: Mode = "Debug") -> Type {
         return {
             test = 100,

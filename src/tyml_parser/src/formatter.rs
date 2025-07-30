@@ -185,21 +185,27 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                     right_space: SpaceFormat::None,
                 },
             };
-            if let Some((need_comma, is_extra, need_whitespace)) =
+            if let Some((comma_kind, is_extra, need_whitespace)) =
                 comma_positions.get(&token.span.end)
             {
-                if *need_comma {
-                    formatter_token.right_space = SpaceFormat::LineFeedAndSplit {
-                        split: ",",
-                        is_extra: *is_extra,
-                        need_whitespace: *need_whitespace,
-                    };
-                } else {
-                    formatter_token.right_space = SpaceFormat::LineFeedOrSplit {
-                        split: ",",
-                        is_extra: *is_extra,
-                        need_whitespace: *need_whitespace,
-                    };
+                match comma_kind {
+                    CommaKind::Necessary => {
+                        formatter_token.right_space = SpaceFormat::LineFeedAndSplit {
+                            split: ",",
+                            is_extra: *is_extra,
+                            need_whitespace: *need_whitespace,
+                        };
+                    }
+                    CommaKind::Unnecessary => {
+                        formatter_token.right_space = SpaceFormat::LineFeedOrSplit {
+                            split: ",",
+                            is_extra: *is_extra,
+                            need_whitespace: *need_whitespace,
+                        };
+                    }
+                    CommaKind::LineFeedOnly => {
+                        formatter_token.right_space = SpaceFormat::LineFeed;
+                    }
                 }
             }
 
@@ -208,7 +214,13 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
         .collect()
 }
 
-fn collect_comma_position(ast: &Defines) -> HashMap<usize, (bool, bool, bool)> {
+enum CommaKind {
+    Necessary,
+    Unnecessary,
+    LineFeedOnly,
+}
+
+fn collect_comma_position(ast: &Defines) -> HashMap<usize, (CommaKind, bool, bool)> {
     let mut positions = HashMap::new();
 
     collect_comma_position_on_defines(ast, &mut positions);
@@ -218,14 +230,14 @@ fn collect_comma_position(ast: &Defines) -> HashMap<usize, (bool, bool, bool)> {
 
 fn collect_comma_position_on_defines(
     ast: &Defines,
-    positions: &mut HashMap<usize, (bool, bool, bool)>,
+    positions: &mut HashMap<usize, (CommaKind, bool, bool)>,
 ) {
     for (index, element) in ast.defines.iter().enumerate() {
         match element {
             Define::Element(element_define) => {
                 positions.insert(
                     element_define.span.end,
-                    (false, index == ast.defines.len() - 1, true),
+                    (CommaKind::Unnecessary, index == ast.defines.len() - 1, true),
                 );
 
                 if let Some(inline_type) = &element_define.inline_type {
@@ -240,7 +252,11 @@ fn collect_comma_position_on_defines(
                     for (index, element) in enum_define.elements.iter().enumerate() {
                         positions.insert(
                             element.span.end,
-                            (false, index == enum_define.elements.len() - 1, true),
+                            (
+                                CommaKind::Unnecessary,
+                                index == enum_define.elements.len() - 1,
+                                true,
+                            ),
                         );
                     }
                 }
@@ -254,12 +270,15 @@ fn collect_comma_position_on_defines(
 
 fn collect_comma_position_on_interface(
     ast: &Interface,
-    positions: &mut HashMap<usize, (bool, bool, bool)>,
+    positions: &mut HashMap<usize, (CommaKind, bool, bool)>,
 ) {
     for function in ast.functions.iter() {
         for (index, argument) in function.arguments.iter().enumerate() {
             let is_extra = index == function.arguments.len() - 1;
-            positions.insert(argument.span.end, (true, is_extra, !is_extra));
+            positions.insert(
+                argument.span.end,
+                (CommaKind::Necessary, is_extra, !is_extra),
+            );
 
             if let Some(default_value) = &argument.default_value {
                 collect_comma_position_on_json(default_value, positions);
@@ -269,12 +288,21 @@ fn collect_comma_position_on_interface(
         if let Some(return_block) = &function.return_block {
             collect_comma_position_on_json(&return_block.return_expression.value, positions);
         }
+
+        if !function.properties.elements.is_empty() {
+            positions.insert(
+                function.properties.elements.last().unwrap().span.end,
+                (CommaKind::LineFeedOnly, false, false),
+            );
+        }
+
+        positions.insert(function.span.end, (CommaKind::LineFeedOnly, false, false));
     }
 }
 
 fn collect_comma_position_on_json(
     ast: &JsonValue,
-    positions: &mut HashMap<usize, (bool, bool, bool)>,
+    positions: &mut HashMap<usize, (CommaKind, bool, bool)>,
 ) {
     match ast {
         JsonValue::Value(_) => {}
@@ -282,7 +310,11 @@ fn collect_comma_position_on_json(
             for (index, element) in json_array.elements.iter().enumerate() {
                 positions.insert(
                     element.span().end,
-                    (true, index == json_array.elements.len() - 1, true),
+                    (
+                        CommaKind::Necessary,
+                        index == json_array.elements.len() - 1,
+                        true,
+                    ),
                 );
 
                 collect_comma_position_on_json(element, positions);
@@ -292,7 +324,11 @@ fn collect_comma_position_on_json(
             for (index, element) in json_object.elements.iter().enumerate() {
                 positions.insert(
                     element.span.end,
-                    (true, index == json_object.elements.len() - 1, true),
+                    (
+                        CommaKind::Necessary,
+                        index == json_object.elements.len() - 1,
+                        true,
+                    ),
                 );
 
                 collect_comma_position_on_json(&element.value, positions);
