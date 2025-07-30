@@ -76,7 +76,7 @@ interface Test {
                 .enable_comment_token()
                 .into_formatter_token(ast)
                 .into_iter(),
-            20,
+            25,
         );
         formatter.format();
 

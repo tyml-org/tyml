@@ -906,7 +906,7 @@ impl TymlLanguageServer {
                 .enable_comment_token()
                 .into_formatter_token(ast)
                 .into_iter(),
-            30,
+            25,
         );
         formatter.format();
 
