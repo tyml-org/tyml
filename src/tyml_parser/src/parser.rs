@@ -1016,7 +1016,7 @@ fn parse_value_literal<'input, 'allocator>(
 
             ValueLiteral::Binary(binary_literal)
         }
-        TokenKind::StringLiteral => ValueLiteral::String(lexer.next().unwrap().into_literal()),
+        TokenKind::StringLiteral => ValueLiteral::String(parse_literal(lexer).unwrap()),
         TokenKind::True => ValueLiteral::Bool(lexer.next().unwrap().into_literal()),
         TokenKind::False => ValueLiteral::Bool(lexer.next().unwrap().into_literal()),
         TokenKind::Null => ValueLiteral::Null(lexer.next().unwrap().into_literal()),

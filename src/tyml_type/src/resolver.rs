@@ -6,8 +6,8 @@ use either::Either;
 use hashbrown::HashMap;
 use regex::Regex;
 use tyml_parser::ast::{
-    AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define, Defines, Documents,
-    ElementDefine, FloatLiteral, FromTo, Literal, NodeLiteral, NumericAttribute,
+    AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
+    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, NodeLiteral, NumericAttribute,
     NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, ValueLiteral, AST,
 };
 
@@ -15,7 +15,8 @@ use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        AttributeSet, AttributeTree, FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree,
+        AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo, FunctionInfo,
+        FunctionReturnInfo, IntAttribute, InterfaceInfo, NamedTypeMap, NamedTypeTree,
         NumericalValueRange, StringAttribute, Type, TypeTree, UnsignedIntAttribute,
     },
 };
@@ -26,12 +27,14 @@ pub fn resolve_type<'input, 'ast_allocator>(
 ) -> (
     TypeTree<'input, 'ast_allocator>,
     NamedTypeMap<'input, 'ast_allocator>,
+    Vec<InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>, &'ast_allocator Bump>,
     Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
 ) {
     let env_allocator = Bump::new();
     let name_env = NameEnvironment::new(None, &env_allocator);
 
     let mut named_type_map = NamedTypeMap::new(type_allocator);
+    let mut interfaces = Vec::new_in(type_allocator);
     let mut errors = Vec::new_in(type_allocator);
 
     let root_tree = resolve_defines_type(
@@ -40,20 +43,25 @@ pub fn resolve_type<'input, 'ast_allocator>(
         None,
         name_env,
         &mut named_type_map,
+        &mut interfaces,
         &mut errors,
         &env_allocator,
         type_allocator,
     );
 
-    (root_tree, named_type_map, errors)
+    (root_tree, named_type_map, interfaces, errors)
 }
 
 fn resolve_defines_type<'input, 'env, 'ast_allocator>(
-    ast: &Defines<'input, 'ast_allocator>,
+    ast: &'ast_allocator Defines<'input, 'ast_allocator>,
     documents: Option<&Documents<'input, 'ast_allocator>>,
     tree_span: Option<Range<usize>>,
     name_env: &'env NameEnvironment<'env, 'input>,
     named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
+    interfaces: &mut Vec<
+        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
+        &'ast_allocator Bump,
+    >,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
     env: &'env Bump,
     ty: &'ast_allocator Bump,
@@ -71,8 +79,15 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     for define in ast.defines.iter() {
         match define {
             Define::Element(element_define) => {
-                let element_type =
-                    get_element_type(element_define, name_env, named_type_map, errors, env, ty);
+                let element_type = get_element_type(
+                    element_define,
+                    name_env,
+                    named_type_map,
+                    interfaces,
+                    errors,
+                    env,
+                    ty,
+                );
 
                 match &element_define.node {
                     NodeLiteral::Literal(name) => {
@@ -94,6 +109,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             Some(struct_define.span.clone()),
                             name_env,
                             named_type_map,
+                            interfaces,
                             errors,
                             env,
                             ty,
@@ -141,7 +157,17 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
 
                 named_type_map.register(name_id, name, name_span, named_type);
             }
-            Define::Interface(_) => {}
+            Define::Interface(interface) => {
+                collect_interface_info(
+                    interface,
+                    name_env,
+                    named_type_map,
+                    interfaces,
+                    errors,
+                    env,
+                    ty,
+                );
+            }
         }
     }
 
@@ -165,10 +191,273 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     }
 }
 
+fn collect_interface_info<'input, 'env, 'ast_allocator>(
+    ast: &'ast_allocator Interface<'input, 'ast_allocator>,
+    name_env: &'env NameEnvironment<'env, 'input>,
+    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
+    interfaces: &mut Vec<
+        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
+        &'ast_allocator Bump,
+    >,
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    env: &'env Bump,
+    ty_allocator: &'ast_allocator Bump,
+) {
+    let mut functions = Vec::new_in(ty_allocator);
+    for function in ast.functions.iter() {
+        let mut arguments = Vec::new_in(ty_allocator);
+        for argument in function.arguments.iter() {
+            let ty = resolve_or_type(
+                &argument.ty.type_info,
+                name_env,
+                named_type_map,
+                errors,
+                env,
+                ty_allocator,
+            );
+            if let Some(default_value) = &argument.default_value {
+                validate_json_type(
+                    default_value,
+                    &ty,
+                    argument.ty.span(),
+                    named_type_map,
+                    errors,
+                    ty_allocator,
+                );
+            }
+
+            arguments.push(FunctionArgumentInfo {
+                name: argument.name.clone(),
+                ty,
+                default_value: argument.default_value.as_ref(),
+            });
+        }
+
+        let return_info = match &function.return_type {
+            Some(return_type) => {
+                let ty = resolve_or_type(
+                    &return_type.type_info,
+                    name_env,
+                    named_type_map,
+                    errors,
+                    env,
+                    ty_allocator,
+                );
+                if let Some(return_block) = &function.return_block {
+                    validate_json_type(
+                        &return_block.return_expression.value,
+                        &ty,
+                        return_type.span(),
+                        named_type_map,
+                        errors,
+                        ty_allocator,
+                    );
+                }
+                Some(FunctionReturnInfo {
+                    ty,
+                    default_value: function
+                        .return_block
+                        .as_ref()
+                        .map(|return_block| &return_block.return_expression.value),
+                })
+            }
+            None => None,
+        };
+
+        functions.push(FunctionInfo {
+            name: function.name.clone(),
+            arguments,
+            return_info,
+        });
+    }
+
+    interfaces.push(InterfaceInfo {
+        name: ast.name.clone(),
+        functions,
+    });
+}
+
+fn validate_json_type<'input, 'ast_allocator>(
+    json_value: &JsonValue<'input, 'ast_allocator>,
+    ty: &Type<'ast_allocator>,
+    type_span: Range<usize>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    type_allocator: &'ast_allocator Bump,
+) {
+    if !check_json_type(json_value, ty, named_type_map, type_allocator) {
+        let error = TypeError {
+            kind: TypeErrorKind::IncompatibleJsonValueType {
+                json: json_value.span(),
+                expected: Spanned::new(ty.clone(), type_span.clone()),
+            },
+            span: type_span,
+        };
+        errors.push(error);
+    }
+}
+
+fn check_json_type<'input, 'ast_allocator>(
+    value: &JsonValue<'input, 'ast_allocator>,
+    ty: &Type<'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    type_allocator: &'ast_allocator Bump,
+) -> bool {
+    match ty {
+        Type::Named(name_id) => check_json_named_type_tree(
+            value,
+            named_type_map.get_type(*name_id).unwrap(),
+            named_type_map,
+            type_allocator,
+        ),
+        Type::Or(items) => items
+            .iter()
+            .any(|ty| check_json_type(value, ty, named_type_map, type_allocator)),
+        Type::Array(base_type) => match value {
+            JsonValue::Array(value) => {
+                for element in value.elements.iter() {
+                    if !check_json_type(element, &base_type, named_type_map, type_allocator) {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
+        },
+        Type::Optional(base_type) => match value {
+            JsonValue::Value(ValueLiteral::Null(_)) => true,
+            _ => check_json_type(value, &base_type, named_type_map, type_allocator),
+        },
+        Type::Any => true,
+        Type::Unknown => true,
+        _ => {
+            let JsonValue::Value(value_literal) = value else {
+                return false;
+            };
+
+            let value_infer_type = get_value_type(value_literal, type_allocator);
+
+            if value_infer_type
+                .try_override_with(ty, type_allocator)
+                .is_err()
+            {
+                return false;
+            } else if !ty
+                .validate_value_with_attribute(get_value_literal(value_literal).value.as_ref())
+            {
+                return false;
+            }
+
+            true
+        }
+    }
+}
+
+fn check_json_named_type_tree<'input, 'ast_allocator>(
+    value: &JsonValue<'input, 'ast_allocator>,
+    type_tree: &NamedTypeTree<'input, 'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    type_allocator: &'ast_allocator Bump,
+) -> bool {
+    match type_tree {
+        NamedTypeTree::Struct { tree } => {
+            check_json_type_tree(value, tree, named_type_map, type_allocator)
+        }
+        NamedTypeTree::Enum {
+            elements,
+            documents: _,
+        } => match value {
+            JsonValue::Value(ValueLiteral::String(string)) => elements
+                .iter()
+                .map(|element| &element.0.value)
+                .any(|element| element.as_ref() == string.value.as_ref()),
+            _ => false,
+        },
+    }
+}
+
+fn check_json_type_tree<'input, 'ast_allocator>(
+    value: &JsonValue<'input, 'ast_allocator>,
+    type_tree: &TypeTree<'input, 'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    type_allocator: &'ast_allocator Bump,
+) -> bool {
+    match type_tree {
+        TypeTree::Node {
+            node,
+            any_node,
+            documents: _,
+            span: _,
+        } => match value {
+            JsonValue::Object(value) => {
+                for (element_name, element_type_tree) in node.iter() {
+                    match value
+                        .elements
+                        .iter()
+                        .find(|element| element.name.value.as_ref() == element_name.as_ref())
+                    {
+                        Some(value) => {
+                            if !check_json_type_tree(
+                                &value.value,
+                                element_type_tree,
+                                named_type_map,
+                                type_allocator,
+                            ) {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+
+                match any_node {
+                    Some(any_node_tree) => {
+                        for value in value.elements.iter() {
+                            if node.contains_key(value.name.value.as_ref()) {
+                                continue;
+                            }
+
+                            if !check_json_type_tree(
+                                &value.value,
+                                &any_node_tree,
+                                named_type_map,
+                                type_allocator,
+                            ) {
+                                return false;
+                            }
+                        }
+                    }
+                    None => {
+                        if value
+                            .elements
+                            .iter()
+                            .any(|value| !node.contains_key(value.name.value.as_ref()))
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                true
+            }
+            _ => false,
+        },
+        TypeTree::Leaf {
+            ty,
+            documents: _,
+            span: _,
+        } => check_json_type(value, ty, named_type_map, type_allocator),
+    }
+}
+
 fn get_element_type<'input, 'env, 'ast_allocator>(
     ast: &ElementDefine<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
     named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
+    interfaces: &mut Vec<
+        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
+        &'ast_allocator Bump,
+    >,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
     env: &'env Bump,
     ty: &'ast_allocator Bump,
@@ -180,7 +469,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 
     match (&ast.ty, &ast.inline_type, &ast.default) {
         (None, None, Some(default)) => TypeTree::Leaf {
-            ty: get_value_type(default, ty),
+            ty: get_value_type(&default.value, ty),
             documents,
             span: ast.span.clone(),
         },
@@ -190,6 +479,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             Some(ast.span.clone()),
             name_env,
             named_type_map,
+            interfaces,
             errors,
             env,
             ty,
@@ -200,6 +490,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             Some(ast.span.clone()),
             name_env,
             named_type_map,
+            interfaces,
             errors,
             env,
             ty,
@@ -230,9 +521,9 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 env,
                 ty,
             );
-            let value_type = get_value_type(default, ty);
+            let value_type = get_value_type(&default.value, ty);
 
-            let value = get_value_literal(&default);
+            let value = get_value_literal(&default.value);
 
             if value_type.try_override_with(&element_type, ty).is_err() {
                 let span = value.span.clone();
@@ -245,7 +536,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                     },
                     span,
                 });
-            } else if !element_type.validate_value_with_attribute(value.value) {
+            } else if !element_type.validate_value_with_attribute(value.value.as_ref()) {
                 let span = value.span.clone();
 
                 errors.push(TypeError {
@@ -272,10 +563,10 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
 }
 
 fn get_value_type<'input, 'env, 'ast_allocator>(
-    ast: &DefaultValue<'input>,
+    ast: &ValueLiteral<'input>,
     ty: &'ast_allocator Bump,
 ) -> Type<'ast_allocator> {
-    match &ast.value {
+    match &ast {
         ValueLiteral::String(_) => Type::String(StringAttribute::default()),
         ValueLiteral::Float(float_literal) => match float_literal {
             FloatLiteral::Float(literal) => {
@@ -326,21 +617,23 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
     }
 }
 
-fn get_value_literal<'ast>(ast: &DefaultValue<'ast>) -> Literal<'ast> {
-    match &ast.value {
+fn get_value_literal<'ast>(ast: &ValueLiteral<'ast>) -> EscapedLiteral<'ast> {
+    match ast {
         ValueLiteral::String(literal) => literal.clone(),
         ValueLiteral::Float(float_literal) => match float_literal {
             FloatLiteral::Float(literal) => literal.clone(),
             FloatLiteral::Inf(literal) => literal.clone(),
             FloatLiteral::Nan(literal) => literal.clone(),
-        },
+        }
+        .map(|literal| literal.into()),
         ValueLiteral::Binary(binary_literal) => match binary_literal {
             BinaryLiteral::Hex(literal) => literal.clone(),
             BinaryLiteral::Oct(literal) => literal.clone(),
             BinaryLiteral::Bin(literal) => literal.clone(),
-        },
-        ValueLiteral::Bool(literal) => literal.clone(),
-        ValueLiteral::Null(literal) => literal.clone(),
+        }
+        .map(|literal| literal.into()),
+        ValueLiteral::Bool(literal) => literal.clone().map(|literal| literal.into()),
+        ValueLiteral::Null(literal) => literal.clone().map(|literal| literal.into()),
     }
 }
 

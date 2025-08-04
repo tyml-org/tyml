@@ -9,7 +9,7 @@ use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
-use tyml_parser::ast::EscapedLiteral;
+use tyml_parser::ast::{EscapedLiteral, JsonValue, Spanned};
 
 use crate::name::NameID;
 
@@ -322,7 +322,10 @@ impl<'ty> ToTypeName for Type<'ty> {
             Type::String(attribute) => format!("string{}", attribute.to_type_name(named_type_map)),
             Type::MaybeInt => "int(maybe)".into(),
             Type::MaybeUnsignedInt => "uint(maybe)".into(),
-            Type::Named(name_id) => named_type_map.get_name(*name_id).unwrap().to_string(),
+            Type::Named(name_id) => named_type_map
+                .get_name(*name_id)
+                .unwrap_or("unknown")
+                .to_string(),
             Type::Or(items) => items
                 .iter()
                 .map(|item| item.to_type_name(named_type_map))
@@ -445,6 +448,32 @@ impl ToTypeName for StringAttribute {
     fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
         self.attribute.to_type_name(named_type_map)
     }
+}
+
+#[derive(Debug)]
+pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
+    pub name: Spanned<&'input str>,
+    pub functions: Vec<FunctionInfo<'input, 'ty, 'ast_allocator>, &'ast_allocator Bump>,
+}
+
+#[derive(Debug)]
+pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
+    pub name: EscapedLiteral<'input>,
+    pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
+    pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
+}
+
+#[derive(Debug)]
+pub struct FunctionArgumentInfo<'input, 'ty, 'ast_allocator> {
+    pub name: EscapedLiteral<'input>,
+    pub ty: Type<'ty>,
+    pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
+}
+
+#[derive(Debug)]
+pub struct FunctionReturnInfo<'input, 'ty, 'ast_allocator> {
+    pub ty: Type<'ty>,
+    pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }
 
 #[derive(Debug)]

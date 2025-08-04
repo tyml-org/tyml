@@ -100,6 +100,10 @@ note = "Please double-check whether the attribute kind and its numeric value are
 [type_error.0005]
 message = "The specified string is not a valid regular expression"
 label_0 = "This is not a valid regular expression"
+[type_error.0006]
+message = "The JSON default value and type do not match"
+label_0 = "This JSON value does not match the type '%color:yellow{%0}'"
+label_1 = "The type is declared here"
 
 [validate_error]
 name = "%color:red{[VE%0] Validation Error}"

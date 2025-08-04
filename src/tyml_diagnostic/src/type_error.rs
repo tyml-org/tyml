@@ -101,6 +101,27 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     message_override: None,
                 }],
             },
+            TypeErrorKind::IncompatibleJsonValueType { json, expected } => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::TypeError,
+                    code: 0006,
+                    arguments: vec![expected.value.to_type_name(named_type_map)],
+                },
+                labels: vec![
+                    DiagnosticLabel {
+                        kind: SourceCodeKind::Tyml,
+                        span: json.as_utf8_byte_range(),
+                        color: Color::Red,
+                        message_override: None,
+                    },
+                    DiagnosticLabel {
+                        kind: SourceCodeKind::Tyml,
+                        span: expected.span.as_utf8_byte_range(),
+                        color: Color::Yellow,
+                        message_override: None,
+                    },
+                ],
+            },
         }
     }
 }

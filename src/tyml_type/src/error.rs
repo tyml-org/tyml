@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Cow, ops::Range};
 
 use tyml_parser::ast::Spanned;
 
@@ -16,16 +16,20 @@ pub enum TypeErrorKind<'input, 'ty> {
         name: Spanned<&'input str>,
     },
     IncompatibleValueType {
-        value: Spanned<&'input str>,
+        value: Spanned<Cow<'input, str>>,
         value_type: Type<'ty>,
         expected: Spanned<Type<'ty>>,
     },
     IncompatibleValueForAttribute {
-        value: Spanned<&'input str>,
+        value: Spanned<Cow<'input, str>>,
         expected: Spanned<Type<'ty>>,
     },
     IncompatibleAttributeForType {
         ty: &'static str,
     },
     InvalidRegexAttribute,
+    IncompatibleJsonValueType {
+        json: Range<usize>,
+        expected: Spanned<Type<'ty>>,
+    },
 }

@@ -25,7 +25,7 @@ use tyml_source::SourceCode;
 use tyml_type::{
     error::TypeError,
     resolver::resolve_type,
-    types::{NamedTypeMap, TypeTree},
+    types::{InterfaceInfo, NamedTypeMap, TypeTree},
 };
 use tyml_validate::{error::TymlValueValidateError, validate::ValueTypeChecker};
 
@@ -384,23 +384,29 @@ impl Tyml {
     }
 
     pub fn ast<'this>(&'this self) -> &'this Defines<'this, 'this> {
-        unsafe { transmute(self.inner.ast) }
+        self.inner.ast
     }
 
     pub fn type_tree<'this>(&'this self) -> &'this TypeTree<'this, 'this> {
-        unsafe { transmute(&self.inner.type_tree) }
+        &self.inner.type_tree
     }
 
     pub fn named_type_map<'this>(&'this self) -> &'this NamedTypeMap<'this, 'this> {
-        unsafe { transmute(&self.inner.named_type_map) }
+        &self.inner.named_type_map
     }
 
     pub fn parse_errors<'this>(&'this self) -> &'this Vec<ParseError<'this, 'this>, &'this Bump> {
-        unsafe { transmute(&self.inner.parse_errors) }
+        &self.inner.parse_errors
+    }
+
+    pub fn interfaces<'this>(
+        &'this self,
+    ) -> &'this Vec<InterfaceInfo<'this, 'this, 'this>, &'this Bump> {
+        &self.inner.interfaces
     }
 
     pub fn type_errors<'this>(&'this self) -> &'this Vec<TypeError<'this, 'this>, &'this Bump> {
-        unsafe { transmute(&self.inner.type_errors) }
+        &self.inner.type_errors
     }
 
     pub fn has_error(&self) -> bool {
@@ -426,12 +432,14 @@ impl Tyml {
 
         let comments = lexer.comments.into_iter().collect();
 
-        let (type_tree, named_type_map, type_errors) = resolve_type(ast, allocator.deref());
+        let (type_tree, named_type_map, interfaces, type_errors) =
+            resolve_type(ast, allocator.deref());
 
         let fake_static_ast = unsafe { transmute(ast) };
         let fake_static_type_tree = unsafe { transmute(type_tree) };
         let fake_static_named_type_map = unsafe { transmute(named_type_map) };
         let fake_static_parse_errors = unsafe { transmute(parse_errors) };
+        let fake_static_interfaces = unsafe { transmute(interfaces) };
         let fake_static_type_errors = unsafe { transmute(type_errors) };
 
         let tyml_inner = TymlInner {
@@ -441,6 +449,7 @@ impl Tyml {
             type_tree: fake_static_type_tree,
             named_type_map: fake_static_named_type_map,
             parse_errors: fake_static_parse_errors,
+            interfaces: fake_static_interfaces,
             type_errors: fake_static_type_errors,
             _allocator: allocator,
         };
@@ -461,6 +470,7 @@ struct TymlInner {
     type_tree: TypeTree<'static, 'static>,
     named_type_map: NamedTypeMap<'static, 'static>,
     parse_errors: Vec<ParseError<'static, 'static>, &'static Bump>,
+    interfaces: Vec<InterfaceInfo<'static, 'static, 'static>, &'static Bump>,
     type_errors: Vec<TypeError<'static, 'static>, &'static Bump>,
     /// freezed
     _allocator: Box<Bump>,
@@ -484,15 +494,20 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-setting: int?
-"#;
+/// User
+type User { id: int, name: string }
 
-        let ini_source = r#"
-{
-    "$comment": "comment",
-    "setting": null
+/// API
+interface API {
+    /// get user
+    #[kind = "get"]
+    function get_user(id: int = 100) -> User {
+        return { id = 0, name = "test" }
+    }
 }
 "#;
+
+        let ini_source = r#""#;
 
         let tyml_source = SourceCode::new("test.tyml".to_string(), source.to_string());
         let ml_source = SourceCode::new("test.json".to_string(), ini_source.to_string());

@@ -238,7 +238,7 @@ pub struct DefaultValue<'input> {
 
 #[derive(Debug)]
 pub enum ValueLiteral<'input> {
-    String(Literal<'input>),
+    String(EscapedLiteral<'input>),
     Float(FloatLiteral<'input>),
     Binary(BinaryLiteral<'input>),
     Bool(Literal<'input>),

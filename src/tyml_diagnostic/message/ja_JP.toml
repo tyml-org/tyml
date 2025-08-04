@@ -119,6 +119,10 @@ note = "属性の種類と数値が有効かどうか再度確かめてみてく
 [type_error.0005]
 message = "正規表現として有効ではない文字列が指定されています"
 label_0 = "正規表現として有効ではありません"
+[type_error.0006]
+message = "JSONの既定値と型が一致しません"
+label_0 = "このJSONの値は型'%color:yellow{%0}'と一致しません"
+label_1 = "型はここで宣言されています"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

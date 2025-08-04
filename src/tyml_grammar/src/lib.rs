@@ -51,12 +51,12 @@ mod tests {
         enum_define        ::= "enum" normal_literal [ lf ] "{" enum_elements "}"
         enum_elements      ::= [ lf ] { documents string_literal ( lf | "," [ lf ] ) }
 
-        interface          ::= properties "interface" literal "{" { function lf } "}"
+        interface          ::= properties "interface" normal_literal "{" { function lf } "}"
 
         properties         ::= { property [ lf ] }
         property           ::= "#" "[" literal "=" { value_literal } "]"
 
-        function           ::= properties "function" normal_literal function_arguments [ return_type ]
+        function           ::= properties "function" literal function_arguments [ return_type ]
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
         function_arguments ::= "(" [ lf ] { properties literal element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type
