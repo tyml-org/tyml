@@ -1,9 +1,9 @@
-use std::{fmt::Display, ops::Range, sync::Arc};
+use std::{borrow::Cow, fmt::Display, ops::Range, sync::Arc};
 
 use allocator_api2::{boxed::Box, vec::Vec};
 use bumpalo::Bump;
 use either::Either;
-use hashbrown::HashMap;
+use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
@@ -75,6 +75,8 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
 
     let mut node = HashMap::new_in(ty);
     let mut any_node = None;
+    let mut node_key_span = HashMap::new_in(ty);
+    let mut any_node_key_span = None;
 
     for define in ast.defines.iter() {
         match define {
@@ -92,9 +94,11 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                 match &element_define.node {
                     NodeLiteral::Literal(name) => {
                         node.insert(name.value.clone(), element_type);
+                        node_key_span.insert(name.value.clone(), name.span());
                     }
-                    NodeLiteral::Asterisk(_) => {
+                    NodeLiteral::Asterisk(literal) => {
                         any_node = Some(Box::new_in(element_type, ty));
+                        any_node_key_span = Some(literal.span.clone());
                     }
                 }
             }
@@ -186,6 +190,8 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     TypeTree::Node {
         node,
         any_node,
+        node_key_span,
+        any_node_key_span,
         documents: tree_documents,
         span: tree_span.unwrap_or(ast.span.clone()),
     }
@@ -204,6 +210,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     ty_allocator: &'ast_allocator Bump,
 ) {
     let mut functions = Vec::new_in(ty_allocator);
+    let mut json_tree_type_cache = JsonTreeTypeCache::new(ty_allocator);
     for function in ast.functions.iter() {
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
@@ -221,6 +228,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                     &ty,
                     argument.ty.span(),
                     named_type_map,
+                    &mut json_tree_type_cache,
                     errors,
                     ty_allocator,
                 );
@@ -249,6 +257,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                         &ty,
                         return_type.span(),
                         named_type_map,
+                        &mut json_tree_type_cache,
                         errors,
                         ty_allocator,
                     );
@@ -274,7 +283,70 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     interfaces.push(InterfaceInfo {
         name: ast.name.clone(),
         functions,
+        json_tree_type_cache,
     });
+}
+
+#[derive(Debug)]
+pub struct JsonTreeTypeCache<'input, 'ast_allocator> {
+    pub field_user_map: HashMap<
+        Range<usize>,
+        Vec<Range<usize>, &'ast_allocator Bump>,
+        DefaultHashBuilder,
+        &'ast_allocator Bump,
+    >,
+    pub field_completion_map: HashMap<
+        Range<usize>,
+        Vec<Spanned<Cow<'input, str>>, &'ast_allocator Bump>,
+        DefaultHashBuilder,
+        &'ast_allocator Bump,
+    >,
+}
+
+impl<'input, 'ast_allocator> JsonTreeTypeCache<'input, 'ast_allocator> {
+    pub fn new(allocator: &'ast_allocator Bump) -> Self {
+        Self {
+            field_user_map: HashMap::new_in(allocator),
+            field_completion_map: HashMap::new_in(allocator),
+        }
+    }
+
+    fn link_user(&mut self, define: Range<usize>, user: Range<usize>) {
+        let allocator = *self.field_user_map.allocator();
+        let users = self
+            .field_user_map
+            .entry(define)
+            .or_insert(Vec::new_in(allocator));
+        users.push(user);
+    }
+
+    fn link_field_completions(
+        &mut self,
+        field_value_span: Range<usize>,
+        type_tree: &TypeTree<'input, 'ast_allocator>,
+    ) {
+        let allocator = *self.field_completion_map.allocator();
+
+        if let TypeTree::Node {
+            node,
+            any_node: _,
+            node_key_span,
+            any_node_key_span: _,
+            documents: _,
+            span: _,
+        } = type_tree
+        {
+            let mut completions = Vec::with_capacity_in(node.keys().count(), allocator);
+            for element_name in node.keys() {
+                completions.push(Spanned::new(
+                    element_name.clone(),
+                    node_key_span.get(element_name.as_ref()).cloned().unwrap(),
+                ));
+            }
+            self.field_completion_map
+                .insert(field_value_span, completions);
+        }
+    }
 }
 
 fn validate_json_type<'input, 'ast_allocator>(
@@ -282,10 +354,17 @@ fn validate_json_type<'input, 'ast_allocator>(
     ty: &Type<'ast_allocator>,
     type_span: Range<usize>,
     named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
     errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
     type_allocator: &'ast_allocator Bump,
 ) {
-    if !check_json_type(json_value, ty, named_type_map, type_allocator) {
+    if !check_json_type(
+        json_value,
+        ty,
+        named_type_map,
+        json_tree_type_cache,
+        type_allocator,
+    ) {
         let error = TypeError {
             kind: TypeErrorKind::IncompatibleJsonValueType {
                 json: json_value.span(),
@@ -301,6 +380,7 @@ fn check_json_type<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
     ty: &Type<'ast_allocator>,
     named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
     type_allocator: &'ast_allocator Bump,
 ) -> bool {
     match ty {
@@ -308,15 +388,28 @@ fn check_json_type<'input, 'ast_allocator>(
             value,
             named_type_map.get_type(*name_id).unwrap(),
             named_type_map,
+            json_tree_type_cache,
             type_allocator,
         ),
-        Type::Or(items) => items
-            .iter()
-            .any(|ty| check_json_type(value, ty, named_type_map, type_allocator)),
+        Type::Or(items) => items.iter().any(|ty| {
+            check_json_type(
+                value,
+                ty,
+                named_type_map,
+                json_tree_type_cache,
+                type_allocator,
+            )
+        }),
         Type::Array(base_type) => match value {
             JsonValue::Array(value) => {
                 for element in value.elements.iter() {
-                    if !check_json_type(element, &base_type, named_type_map, type_allocator) {
+                    if !check_json_type(
+                        element,
+                        &base_type,
+                        named_type_map,
+                        json_tree_type_cache,
+                        type_allocator,
+                    ) {
                         return false;
                     }
                 }
@@ -326,7 +419,13 @@ fn check_json_type<'input, 'ast_allocator>(
         },
         Type::Optional(base_type) => match value {
             JsonValue::Value(ValueLiteral::Null(_)) => true,
-            _ => check_json_type(value, &base_type, named_type_map, type_allocator),
+            _ => check_json_type(
+                value,
+                &base_type,
+                named_type_map,
+                json_tree_type_cache,
+                type_allocator,
+            ),
         },
         Type::Any => true,
         Type::Unknown => true,
@@ -357,12 +456,17 @@ fn check_json_named_type_tree<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
     type_tree: &NamedTypeTree<'input, 'ast_allocator>,
     named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
     type_allocator: &'ast_allocator Bump,
 ) -> bool {
     match type_tree {
-        NamedTypeTree::Struct { tree } => {
-            check_json_type_tree(value, tree, named_type_map, type_allocator)
-        }
+        NamedTypeTree::Struct { tree } => check_json_type_tree(
+            value,
+            tree,
+            named_type_map,
+            json_tree_type_cache,
+            type_allocator,
+        ),
         NamedTypeTree::Enum {
             elements,
             documents: _,
@@ -380,12 +484,17 @@ fn check_json_type_tree<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
     type_tree: &TypeTree<'input, 'ast_allocator>,
     named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
     type_allocator: &'ast_allocator Bump,
 ) -> bool {
+    json_tree_type_cache.link_field_completions(value.span(), type_tree);
+
     match type_tree {
         TypeTree::Node {
             node,
             any_node,
+            node_key_span,
+            any_node_key_span,
             documents: _,
             span: _,
         } => match value {
@@ -397,10 +506,15 @@ fn check_json_type_tree<'input, 'ast_allocator>(
                         .find(|element| element.name.value.as_ref() == element_name.as_ref())
                     {
                         Some(value) => {
+                            let define_span =
+                                node_key_span.get(element_name.as_ref()).unwrap().clone();
+                            json_tree_type_cache.link_user(define_span, value.name.span());
+
                             if !check_json_type_tree(
                                 &value.value,
                                 element_type_tree,
                                 named_type_map,
+                                json_tree_type_cache,
                                 type_allocator,
                             ) {
                                 return false;
@@ -417,10 +531,14 @@ fn check_json_type_tree<'input, 'ast_allocator>(
                                 continue;
                             }
 
+                            let define_span = any_node_key_span.clone().unwrap();
+                            json_tree_type_cache.link_user(define_span.clone(), value.name.span());
+
                             if !check_json_type_tree(
                                 &value.value,
                                 &any_node_tree,
                                 named_type_map,
+                                json_tree_type_cache,
                                 type_allocator,
                             ) {
                                 return false;
@@ -446,7 +564,13 @@ fn check_json_type_tree<'input, 'ast_allocator>(
             ty,
             documents: _,
             span: _,
-        } => check_json_type(value, ty, named_type_map, type_allocator),
+        } => check_json_type(
+            value,
+            ty,
+            named_type_map,
+            json_tree_type_cache,
+            type_allocator,
+        ),
     }
 }
 

@@ -11,7 +11,7 @@ use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
 use tyml_parser::ast::{EscapedLiteral, JsonValue, Spanned};
 
-use crate::name::NameID;
+use crate::{name::NameID, resolver::JsonTreeTypeCache};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type<'ty> {
@@ -454,6 +454,7 @@ impl ToTypeName for StringAttribute {
 pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
     pub name: Spanned<&'input str>,
     pub functions: Vec<FunctionInfo<'input, 'ty, 'ast_allocator>, &'ast_allocator Bump>,
+    pub json_tree_type_cache: JsonTreeTypeCache<'input, 'ast_allocator>,
 }
 
 #[derive(Debug)]
@@ -481,6 +482,8 @@ pub enum TypeTree<'input, 'ty> {
     Node {
         node: HashMap<Cow<'input, str>, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
         any_node: Option<Box<TypeTree<'input, 'ty>, &'ty Bump>>,
+        node_key_span: HashMap<Cow<'input, str>, Range<usize>, DefaultHashBuilder, &'ty Bump>,
+        any_node_key_span: Option<Range<usize>>,
         documents: Vec<&'input str, &'ty Bump>,
         span: Range<usize>,
     },
@@ -497,6 +500,8 @@ impl TypeTree<'_, '_> {
             TypeTree::Node {
                 node: _,
                 any_node: _,
+                node_key_span: _,
+                any_node_key_span: _,
                 documents: _,
                 span: _,
             } => false,
@@ -513,6 +518,8 @@ impl TypeTree<'_, '_> {
             TypeTree::Node {
                 node: _,
                 any_node: _,
+                node_key_span: _,
+                any_node_key_span: _,
                 documents: _,
                 span,
             } => span.clone(),
@@ -529,6 +536,8 @@ impl TypeTree<'_, '_> {
             TypeTree::Node {
                 node: _,
                 any_node: _,
+                node_key_span: _,
+                any_node_key_span: _,
                 documents,
                 span: _,
             } => documents,

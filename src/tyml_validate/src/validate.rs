@@ -429,6 +429,8 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             TypeTree::Node {
                 node,
                 any_node,
+                node_key_span: _,
+                any_node_key_span: _,
                 documents: _,
                 span: tyml_span,
             } => match value_tree {

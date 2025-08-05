@@ -762,6 +762,66 @@ impl TymlLanguageServer {
                     .collect(),
             )
         } else {
+            // from json type tree
+            let interfaces = tyml.tyml().interfaces();
+            let json_values = interfaces
+                .iter()
+                .map(|interface| interface.functions.iter())
+                .flatten()
+                .map(|function| {
+                    [function
+                        .return_info
+                        .as_ref()
+                        .map(|return_info| return_info.default_value.as_ref())
+                        .flatten()]
+                    .into_iter()
+                    .chain(
+                        function
+                            .arguments
+                            .iter()
+                            .map(|argument| argument.default_value.as_ref()),
+                    )
+                })
+                .flatten()
+                .flatten();
+
+            for &json_value in json_values {
+                if !tyml_json::is_position_on_json_value_literal(json_value, byte_position) {
+                    let span_and_fields = interfaces
+                        .iter()
+                        .map(|interface| interface.json_tree_type_cache.field_completion_map.iter())
+                        .flatten()
+                        .filter(|(span, _)| span.to_inclusive().contains(&byte_position));
+
+                    let mut sorted = BTreeMap::new();
+                    for (span, fields) in span_and_fields {
+                        sorted.insert(span.len(), fields);
+                    }
+
+                    if let Some((_, fields)) = sorted.pop_first() {
+                        return Some(
+                            fields
+                                .iter()
+                                .map(|field_name| CompletionItem {
+                                    label: field_name.value.to_string(),
+                                    kind: Some(CompletionItemKind::FIELD),
+                                    documentation: Some(Documentation::MarkupContent(
+                                        MarkupContent {
+                                            kind: MarkupKind::Markdown,
+                                            value: tyml_json::take_documents(
+                                                field_name.span(),
+                                                ast,
+                                                &tyml.tyml_source.code,
+                                            ),
+                                        },
+                                    )),
+                                    ..Default::default()
+                                })
+                                .collect(),
+                        );
+                    }
+                }
+            }
             None
         }
     }
@@ -775,6 +835,7 @@ impl TymlLanguageServer {
 
         let named_type_map = tyml.tyml().named_type_map();
 
+        // from type name
         let name_id = named_type_map
             .use_link_map
             .iter()
@@ -785,13 +846,32 @@ impl TymlLanguageServer {
             })
             .map(|(&name_id, _)| name_id);
 
-        name_id.map(|name_id| {
-            named_type_map
-                .get_define_span(name_id)
-                .unwrap()
-                .as_utf8_byte_range()
-                .to_lsp_span(&tyml.tyml_source.code)
-        })
+        // from json field
+        let interfaces = tyml.tyml().interfaces();
+        let define_span = interfaces
+            .iter()
+            .map(|interface| interface.json_tree_type_cache.field_user_map.iter())
+            .flatten()
+            .find(|(_, user_spans)| {
+                user_spans
+                    .iter()
+                    .any(|user_span| user_span.to_inclusive().contains(&byte_position))
+            })
+            .map(|(define_span, _)| define_span.clone());
+
+        name_id
+            .map(|name_id| {
+                named_type_map
+                    .get_define_span(name_id)
+                    .unwrap()
+                    .as_utf8_byte_range()
+                    .to_lsp_span(&tyml.tyml_source.code)
+            })
+            .or(define_span.map(|define_span| {
+                define_span
+                    .as_utf8_byte_range()
+                    .to_lsp_span(&tyml.tyml_source.code)
+            }))
     }
 
     pub fn get_references(&self, position: Position) -> Vec<LSPRange> {
@@ -813,21 +893,49 @@ impl TymlLanguageServer {
             })
             .map(|(&name_id, _)| name_id);
 
-        let Some(name_id) = name_id else {
-            return Vec::new();
-        };
+        match name_id {
+            Some(name_id) => {
+                let Some(users) = named_type_map.use_link_map.get(&name_id) else {
+                    return Vec::new();
+                };
 
-        let Some(users) = named_type_map.use_link_map.get(&name_id) else {
-            return Vec::new();
-        };
-
-        users
-            .iter()
-            .map(|span| {
-                span.as_utf8_byte_range()
-                    .to_lsp_span(&tyml.tyml_source.code)
-            })
-            .collect()
+                users
+                    .iter()
+                    .map(|span| {
+                        span.as_utf8_byte_range()
+                            .to_lsp_span(&tyml.tyml_source.code)
+                    })
+                    .collect()
+            }
+            None => {
+                // from json type
+                tyml.tyml()
+                    .interfaces()
+                    .iter()
+                    .map(|interface| interface.json_tree_type_cache.field_user_map.iter())
+                    .flatten()
+                    .find(|(define_span, user_spans)| {
+                        define_span.to_inclusive().contains(&byte_position)
+                            || user_spans
+                                .iter()
+                                .any(|user_span| user_span.to_inclusive().contains(&byte_position))
+                    })
+                    .map(|(define_span, user_spans)| {
+                        [define_span.clone()]
+                            .into_iter()
+                            .chain(user_spans.iter().cloned())
+                    })
+                    .map(|spans| {
+                        spans
+                            .map(|span| {
+                                span.as_utf8_byte_range()
+                                    .to_lsp_span(&tyml.tyml_source.code)
+                            })
+                            .collect()
+                    })
+                    .unwrap_or(Vec::new())
+            }
+        }
     }
 
     pub fn hover(&self, position: Position) -> Option<String> {
@@ -852,6 +960,27 @@ impl TymlLanguageServer {
                     .collect::<Vec<_>>()
                     .join(""),
             );
+        }
+
+        // from json field
+        let interfaces = tyml.tyml().interfaces();
+        let json_field_define_span = interfaces
+            .iter()
+            .map(|interface| interface.json_tree_type_cache.field_user_map.iter())
+            .flatten()
+            .find(|(_, user_spans)| {
+                user_spans
+                    .iter()
+                    .any(|user_span| user_span.to_inclusive().contains(&byte_position))
+            })
+            .map(|(define_span, _)| define_span.clone());
+
+        if let Some(json_field_define_span) = json_field_define_span {
+            return Some(tyml_json::take_documents(
+                json_field_define_span,
+                &tyml.tyml().ast(),
+                &tyml.tyml_source.code,
+            ));
         }
 
         let named_type_map = tyml.tyml().named_type_map();
@@ -1048,6 +1177,95 @@ mod on_type_tag {
         }
 
         is_position_on_type_tag_for_defines(&ast.defines, position, names, completions)
+    }
+}
+
+mod tyml_json {
+    use std::ops::Range;
+
+    use tyml::tyml_parser::ast::{AST, Define, Defines, JsonValue, TypeDefine};
+
+    use crate::language_server::{ToInclusive, create_hover_code_block};
+
+    pub fn is_position_on_json_value_literal(value: &JsonValue, position: usize) -> bool {
+        match value {
+            JsonValue::Value(value_literal) => {
+                if value_literal.span().to_inclusive().contains(&position) {
+                    return true;
+                }
+            }
+            JsonValue::Array(json_array) => {
+                for element in json_array.elements.iter() {
+                    if is_position_on_json_value_literal(element, position) {
+                        return true;
+                    }
+                }
+            }
+            JsonValue::Object(json_object) => {
+                for element in json_object.elements.iter() {
+                    if is_position_on_json_value_literal(&element.value, position) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn take_documents<'input>(
+        define_span: Range<usize>,
+        ast: &Defines<'input, '_>,
+        code: &str,
+    ) -> String {
+        let mut result = None;
+        take_documents_span_for_defines(&define_span, ast, &mut result);
+
+        match result {
+            Some((span, documents)) => {
+                format!(
+                    "{}\n{}",
+                    documents
+                        .into_iter()
+                        .map(|line| line.to_string())
+                        .collect::<Vec<_>>()
+                        .join(""),
+                    create_hover_code_block(&code[span])
+                )
+            }
+            None => String::new(),
+        }
+    }
+
+    fn take_documents_span_for_defines<'input>(
+        define_span: &Range<usize>,
+        ast: &Defines<'input, '_>,
+        result: &mut Option<(Range<usize>, Vec<&'input str>)>,
+    ) {
+        for define in ast.defines.iter() {
+            match define {
+                Define::Element(element_define) => {
+                    if &element_define.node.span() == define_span {
+                        *result = Some((
+                            element_define.span.clone(),
+                            element_define.documents.lines.iter().cloned().collect(),
+                        ));
+                        return;
+                    }
+
+                    if let Some(inline_type) = &element_define.inline_type {
+                        take_documents_span_for_defines(define_span, inline_type.defines, result);
+                    }
+                }
+                Define::Type(type_define) => match type_define {
+                    TypeDefine::Struct(struct_define) => {
+                        take_documents_span_for_defines(define_span, struct_define.defines, result);
+                    }
+                    TypeDefine::Enum(_) => {}
+                },
+                Define::Interface(_) => {}
+            }
+        }
     }
 }
 
@@ -1625,6 +1843,8 @@ fn provide_completion_recursive_for_type_tree(
         TypeTree::Node {
             node,
             any_node,
+            node_key_span: _,
+            any_node_key_span: _,
             documents: _,
             span: _,
         } => {
@@ -1735,6 +1955,8 @@ fn provide_completion_recursive_for_type_tree(
                         if let TypeTree::Node {
                             node,
                             any_node: _,
+                            node_key_span: _,
+                            any_node_key_span: _,
                             documents: _,
                             span: _,
                         } = type_tree
@@ -1858,6 +2080,8 @@ fn goto_define_and_documents_recursive<'a>(
         TypeTree::Node {
             node,
             any_node,
+            node_key_span: _,
+            any_node_key_span: _,
             documents,
             span,
         } => {
@@ -1939,6 +2163,8 @@ fn goto_define_and_documents_recursive<'a>(
                         let TypeTree::Node {
                             node,
                             any_node,
+                            node_key_span: _,
+                            any_node_key_span: _,
                             documents: _,
                             span: _,
                         } = tree
