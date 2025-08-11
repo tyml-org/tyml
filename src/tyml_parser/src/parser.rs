@@ -8,11 +8,11 @@ use crate::{
     ast::{
         ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
         Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
-        EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface, IntoLiteral,
-        JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal, NamedType, NodeLiteral,
-        NumericAttribute, NumericAttributeKind, OrType, Properties, Property, RegexAttribute,
-        ReturnBlock, ReturnExpression, ReturnType, Spanned, StructDefine, TypeAttribute,
-        TypeDefine, ValueLiteral,
+        ErrorType, EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface,
+        IntoLiteral, JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal,
+        LiteralOrDefault, NamedType, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
+        Properties, Property, RegexAttribute, ReturnBlock, ReturnExpression, ReturnType, Spanned,
+        StructDefine, Throws, TypeAttribute, TypeDefine, ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -1414,6 +1414,7 @@ fn parse_function<'input, 'allocator>(
             name,
             arguments: Vec::new_in(allocator),
             return_type: None,
+            throws: None,
             return_block: None,
             span: anchor.elapsed(lexer),
         });
@@ -1460,12 +1461,15 @@ fn parse_function<'input, 'allocator>(
             name,
             arguments,
             return_type: None,
+            throws: None,
             return_block: None,
             span: anchor.elapsed(lexer),
         });
     }
 
     let return_type = parse_return_type(lexer, errors, allocator);
+
+    let throws = parse_throws(lexer, errors, allocator);
 
     let return_block = parse_return_block(lexer, errors, allocator);
 
@@ -1476,6 +1480,7 @@ fn parse_function<'input, 'allocator>(
         name,
         arguments,
         return_type,
+        throws,
         return_block,
         span: anchor.elapsed(lexer),
     })
@@ -1508,6 +1513,109 @@ fn parse_return_type<'input, 'allocator>(
 
     Some(ReturnType {
         type_info,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_throws<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<Throws<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    lexer.skip_line_feed();
+
+    if lexer.current().get_kind() != TokenKind::Throws {
+        lexer.back_to_anchor(anchor);
+        return None;
+    }
+    let keyword = lexer.next().unwrap().span;
+
+    lexer.skip_line_feed();
+
+    let mut error_types = Vec::new_in(allocator);
+    let Some(error_type) = parse_error_type(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidThrowsFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::BraceLeft],
+            Expected::ErrorType,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    error_types.push(error_type);
+
+    loop {
+        if lexer.current().get_kind() != TokenKind::Comma {
+            break;
+        }
+        lexer.next();
+
+        lexer.skip_line_feed();
+
+        let Some(error_type) = parse_error_type(lexer, errors, allocator) else {
+            break;
+        };
+        error_types.push(error_type);
+    }
+
+    Some(Throws {
+        keyword,
+        error_types,
+        span: anchor.elapsed(lexer),
+    })
+}
+
+fn parse_error_type<'input, 'allocator>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError<'input, 'allocator>, &'allocator Bump>,
+    allocator: &'allocator Bump,
+) -> Option<ErrorType<'input, 'allocator>> {
+    let anchor = lexer.cast_anchor();
+
+    let name = match lexer.current().get_kind() {
+        TokenKind::Default => LiteralOrDefault::Default(lexer.next().unwrap().into_literal()),
+        _ => match parse_literal(lexer) {
+            Some(literal) => LiteralOrDefault::Literal(literal),
+            None => return None,
+        },
+    };
+
+    if lexer.current().get_kind() != TokenKind::Colon {
+        let error = recover_until(
+            ParseErrorKind::InvalidThrowsFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::BraceLeft],
+            Expected::Colon,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    }
+    lexer.next();
+
+    let Some(ty) = parse_or_type(lexer, errors, allocator) else {
+        let error = recover_until(
+            ParseErrorKind::InvalidThrowsFormat,
+            lexer,
+            &[TokenKind::LineFeed, TokenKind::BraceLeft],
+            Expected::Type,
+            Scope::Function,
+            allocator,
+        );
+        errors.push(error);
+        return None;
+    };
+
+    Some(ErrorType {
+        name,
+        ty,
         span: anchor.elapsed(lexer),
     })
 }

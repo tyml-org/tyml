@@ -45,6 +45,10 @@ pub enum TokenKind {
     Function,
     /// return
     Return,
+    /// throws
+    Throws,
+    /// default
+    Default,
     /// (
     ParenthesisLeft,
     /// )
@@ -114,6 +118,8 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Interface, "interface"),
     Tokenizer::Keyword(TokenKind::Function, "function"),
     Tokenizer::Keyword(TokenKind::Return, "return"),
+    Tokenizer::Keyword(TokenKind::Throws, "throws"),
+    Tokenizer::Keyword(TokenKind::Default, "default"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),

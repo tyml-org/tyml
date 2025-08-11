@@ -56,10 +56,12 @@ mod tests {
         properties         ::= { property [ lf ] }
         property           ::= "#" "[" literal "=" { value_literal } "]"
 
-        function           ::= properties "function" literal function_arguments [ return_type ]
+        function           ::= properties "function" literal function_arguments [ return_type ] [ throws ]
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
         function_arguments ::= "(" [ lf ] { properties literal element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type
+        throws             ::= ( "throws" | r"(\n|\r|\r\n)+throws" ) [ lf ] error_type { "," [ lf ] error_type }
+        error_type         ::= ( literal | "default" ) ":" or_type
 
         json_value         ::= value_literal
                                | "[" [ lf ] { json_value "," [ lf ] } "]"

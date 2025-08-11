@@ -7,8 +7,9 @@ use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
-    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, NodeLiteral, NumericAttribute,
-    NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine, ValueLiteral, AST,
+    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, LiteralOrDefault, NodeLiteral,
+    NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine,
+    ValueLiteral, AST,
 };
 
 use crate::{
@@ -16,8 +17,9 @@ use crate::{
     name::{NameEnvironment, NameID},
     types::{
         AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo, FunctionInfo,
-        FunctionReturnInfo, IntAttribute, InterfaceInfo, NamedTypeMap, NamedTypeTree,
-        NumericalValueRange, StringAttribute, Type, TypeTree, UnsignedIntAttribute,
+        FunctionReturnInfo, FunctionThrowsInfo, IntAttribute, InterfaceInfo, NamedThrowsInfo,
+        NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type, TypeTree,
+        UnsignedIntAttribute,
     },
 };
 
@@ -273,10 +275,42 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             None => None,
         };
 
+        let throws = match &function.throws {
+            Some(throws) => {
+                let mut default = None;
+                let mut named = Vec::new_in(ty_allocator);
+
+                for error_type in throws.error_types.iter() {
+                    let ty = resolve_or_type(
+                        &error_type.ty,
+                        name_env,
+                        named_type_map,
+                        errors,
+                        env,
+                        ty_allocator,
+                    );
+
+                    match &error_type.name {
+                        LiteralOrDefault::Literal(name) => {
+                            named.push(NamedThrowsInfo {
+                                name: name.clone(),
+                                ty,
+                            });
+                        }
+                        LiteralOrDefault::Default(_) => default = Some(ty),
+                    }
+                }
+
+                Some(FunctionThrowsInfo { default, named })
+            }
+            None => None,
+        };
+
         functions.push(FunctionInfo {
             name: function.name.clone(),
             arguments,
             return_info,
+            throws,
         });
     }
 

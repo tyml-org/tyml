@@ -59,6 +59,8 @@ pub enum Expected {
     Return,
     LineFeed,
     InterfaceName,
+    Colon,
+    ErrorType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,6 +94,7 @@ pub enum ParseErrorKind {
     NonLineFeed,
     InvalidJsonArrayFormat,
     InvalidJsonObjectFormat,
+    InvalidThrowsFormat,
 }
 
 pub(crate) fn recover_until<'input, 'allocator>(

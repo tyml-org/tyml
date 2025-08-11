@@ -42,7 +42,7 @@ type Type {
 #[test = "aaa"]
 interface Test {
     #[test = true]
-    function test(test1: Mode = "Debug") -> Type {
+    function test(test1: Mode = "Debug") -> Type throws default: Type {
         return {
             test = 100,
             test2 = {

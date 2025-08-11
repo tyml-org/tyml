@@ -1154,6 +1154,15 @@ mod on_type_tag {
                         }
                     }
 
+                    if let Some(throws) = &function.throws {
+                        for error_type in throws.error_types.iter() {
+                            if error_type.ty.span.to_inclusive().contains(&position) {
+                                swap(names, completions);
+                                return true;
+                            }
+                        }
+                    }
+
                     if let Some(return_type) = &function.return_type {
                         if return_type.span.to_inclusive().contains(&position) {
                             swap(names, completions);
@@ -1274,8 +1283,7 @@ mod tyml_semantic_tokens {
 
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
-        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
-        OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
+        either::Either, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue, LiteralOrDefault, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, AST
     };
 
     pub fn collect_tokens_for_defines(
@@ -1365,6 +1373,25 @@ mod tyml_semantic_tokens {
 
             if let Some(return_type) = &function.return_type {
                 collect_tokens_for_or_type(&return_type.type_info, tokens);
+            }
+
+            if let Some(throws) = &function.throws {
+                let span = throws.keyword.clone();
+                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+
+                for error_type in throws.error_types.iter() {
+                    let span = error_type.name.span();
+                    match &error_type.name {
+                        LiteralOrDefault::Literal(_) => {
+                            tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
+                        },
+                        LiteralOrDefault::Default(_) => {
+                            tokens.insert(span.start, (SemanticTokenType::MACRO, span));
+                        },
+                    }
+
+                    collect_tokens_for_or_type(&error_type.ty, tokens);
+                }
             }
 
             if let Some(return_block) = &function.return_block {

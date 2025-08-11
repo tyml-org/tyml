@@ -98,6 +98,9 @@ label_0 = "不明な記述形式です"
 message = "JSONオブジェクトの記述形式が正しくありません"
 label_0 = "不明な記述形式です"
 note = "TYML内のJSONオブジェクトの記述形式は通常のものとは異なります"
+[parse_error.0030]
+message = "throws節の記述形式が正しくありません"
+label_0 = "throws節の記述形式は'%color:cyan{throws name: Type}'です"
 
 [type_error]
 name = "%color:red{[TE%0] 型エラー}"

@@ -79,6 +79,9 @@ label_0 = "Type attributes must be written between '%color:cyan{(}' and '%color:
 [parse_error.0023]
 message = "Bracket '%color:yellow{(}' is not closed"
 label_0 = "It must be closed with '%color:cyan{)}'"
+[parse_error.0030]
+message = "The format of the throws clause is incorrect"
+label_0 = "The format of a throws clause is '%color:cyan{throws name: Type}'"
 
 [type_error]
 name = "%color:red{[TE%0] Type Error}"

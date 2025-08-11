@@ -28,10 +28,9 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                     right_space: SpaceFormat::Space,
                 },
                 TokenKind::Comma => FormatterToken {
-                    // maybe, unused
                     text: token.text.into(),
                     kind: FormatterTokenKind::Normal,
-                    left_space: SpaceFormat::LineFeedOrSplit {
+                    left_space: SpaceFormat::LineFeedAndSplit {
                         split: ",",
                         is_extra: false,
                         need_whitespace: true,
@@ -177,6 +176,22 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                     kind: FormatterTokenKind::Normal,
                     left_space: SpaceFormat::None,
                     right_space: SpaceFormat::Space,
+                },
+                TokenKind::Throws => FormatterToken {
+                    text: token.text.into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::SpaceOrLineFeed {
+                        need_whitespace: true,
+                    },
+                    right_space: SpaceFormat::SpaceOrLineFeed {
+                        need_whitespace: true,
+                    },
+                },
+                TokenKind::Default => FormatterToken {
+                    text: token.text.into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::Space,
+                    right_space: SpaceFormat::None,
                 },
                 _ => FormatterToken {
                     text: token.text.into(),

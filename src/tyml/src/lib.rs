@@ -501,7 +501,7 @@ type User { id: int, name: string }
 interface API {
     /// get user
     #[kind = "get"]
-    function get_user(id: int = 100) -> User {
+    function get_user(id: int = 100) -> User throws default: Error {
         return { id = 0, name = "test" }
     }
 }
