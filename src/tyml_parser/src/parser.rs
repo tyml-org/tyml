@@ -1378,6 +1378,11 @@ fn parse_function<'input, 'allocator>(
 
     let properties = parse_properties(lexer, errors, allocator);
 
+    let authed = match lexer.current().get_kind() {
+        TokenKind::Authed => Some(lexer.next().unwrap().span),
+        _ => None,
+    };
+
     if lexer.current().get_kind() != TokenKind::Function {
         lexer.back_to_anchor(anchor);
         return None;
@@ -1410,6 +1415,7 @@ fn parse_function<'input, 'allocator>(
         return Some(Function {
             documents,
             properties,
+            authed,
             keyword_span,
             name,
             arguments: Vec::new_in(allocator),
@@ -1457,6 +1463,7 @@ fn parse_function<'input, 'allocator>(
         return Some(Function {
             documents,
             properties,
+            authed,
             keyword_span,
             name,
             arguments,
@@ -1476,6 +1483,7 @@ fn parse_function<'input, 'allocator>(
     Some(Function {
         documents,
         properties,
+        authed,
         keyword_span,
         name,
         arguments,

@@ -321,6 +321,7 @@ pub struct Interface<'input, 'allocator> {
 pub struct Function<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub properties: Properties<'input, 'allocator>,
+    pub authed: Option<Range<usize>>,
     pub keyword_span: Range<usize>,
     pub name: EscapedLiteral<'input>,
     pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,

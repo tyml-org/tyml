@@ -497,11 +497,14 @@ mod tests {
 /// User
 type User { id: int, name: string }
 
+/// Error
+type Error { code: int, message: string }
+
 /// API
 interface API {
     /// get user
     #[kind = "get"]
-    function get_user(id: int = 100) -> User throws default: Error {
+    authed function get_user(id: int = 100) -> User throws default: Error {
         return { id = 0, name = "test" }
     }
 }

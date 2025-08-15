@@ -49,6 +49,8 @@ pub enum TokenKind {
     Throws,
     /// default
     Default,
+    /// authed
+    Authed,
     /// (
     ParenthesisLeft,
     /// )
@@ -120,6 +122,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Return, "return"),
     Tokenizer::Keyword(TokenKind::Throws, "throws"),
     Tokenizer::Keyword(TokenKind::Default, "default"),
+    Tokenizer::Keyword(TokenKind::Authed, "authed"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),
