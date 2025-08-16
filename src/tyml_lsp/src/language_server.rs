@@ -1283,7 +1283,9 @@ mod tyml_semantic_tokens {
 
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
-        either::Either, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue, LiteralOrDefault, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, AST
+        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
+        LiteralOrDefault, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral,
+        either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1349,6 +1351,10 @@ mod tyml_semantic_tokens {
         tokens.insert(span.start, (SemanticTokenType::TYPE, span));
 
         for function in ast.functions.iter() {
+            if let Some(span) = &function.authed {
+                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span.clone()));
+            }
+
             let span = function.documents.span.clone();
             tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
 
@@ -1384,10 +1390,10 @@ mod tyml_semantic_tokens {
                     match &error_type.name {
                         LiteralOrDefault::Literal(_) => {
                             tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
-                        },
+                        }
                         LiteralOrDefault::Default(_) => {
                             tokens.insert(span.start, (SemanticTokenType::MACRO, span));
-                        },
+                        }
                     }
 
                     collect_tokens_for_or_type(&error_type.ty, tokens);

@@ -214,6 +214,8 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     let mut functions = Vec::new_in(ty_allocator);
     let mut json_tree_type_cache = JsonTreeTypeCache::new(ty_allocator);
     for function in ast.functions.iter() {
+        let authed = function.authed.clone();
+
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
@@ -307,6 +309,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         };
 
         functions.push(FunctionInfo {
+            authed,
             name: function.name.clone(),
             arguments,
             return_info,

@@ -459,6 +459,7 @@ pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
 
 #[derive(Debug)]
 pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
+    pub authed: Option<Range<usize>>,
     pub name: EscapedLiteral<'input>,
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
     pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
