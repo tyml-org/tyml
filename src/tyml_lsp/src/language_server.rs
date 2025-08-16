@@ -1351,17 +1351,17 @@ mod tyml_semantic_tokens {
         tokens.insert(span.start, (SemanticTokenType::TYPE, span));
 
         for function in ast.functions.iter() {
-            if let Some(span) = &function.authed {
-                tokens.insert(span.start, (SemanticTokenType::KEYWORD, span.clone()));
-            }
-
             let span = function.documents.span.clone();
             tokens.insert(span.start, (SemanticTokenType::COMMENT, span));
 
             collect_tokens_for_properties(&function.properties, tokens);
 
+            if let Some(span) = &function.authed {
+                tokens.insert(span.start, (SemanticTokenType::MACRO, span.clone()));
+            }
+
             let span = function.keyword_span.clone();
-            tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
+            tokens.insert(span.start, (SemanticTokenType::MACRO, span));
 
             let span = function.name.span.clone();
             tokens.insert(span.start, (SemanticTokenType::FUNCTION, span));
