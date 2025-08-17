@@ -32,4 +32,7 @@ pub enum TypeErrorKind<'input, 'ty> {
         json: Range<usize>,
         expected: Spanned<Type<'ty>>,
     },
+    NameAlreadyExists {
+        exists: Spanned<Cow<'input, str>>,
+    },
 }

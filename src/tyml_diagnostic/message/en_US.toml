@@ -107,6 +107,10 @@ label_0 = "This is not a valid regular expression"
 message = "The JSON default value and type do not match"
 label_0 = "This JSON value does not match the type '%color:yellow{%0}'"
 label_1 = "The type is declared here"
+[type_error.0007]
+message = "An element name conflicts"
+label_0 = "The name '%color:yellow{%0}' already exists"
+label_1 = "It is already defined here"
 
 [validate_error]
 name = "%color:red{[VE%0] Validation Error}"

@@ -40,6 +40,7 @@ type_error: {
     "0004": Diagnostic
     "0005": Diagnostic
     "0006": Diagnostic
+    "0007": Diagnostic
 }
 
 validate_error: {

@@ -507,6 +507,8 @@ interface API {
     authed function get_user(id: int = 100) -> User throws default: Error {
         return { id = 0, name = "test" }
     }
+
+    function get_user()
 }
 "#;
 

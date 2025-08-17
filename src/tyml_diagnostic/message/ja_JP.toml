@@ -126,6 +126,10 @@ label_0 = "正規表現として有効ではありません"
 message = "JSONの既定値と型が一致しません"
 label_0 = "このJSONの値は型'%color:yellow{%0}'と一致しません"
 label_1 = "型はここで宣言されています"
+[type_error.0007]
+message = "要素の名称が衝突しています"
+label_0 = "この名称'%color:yellow{%0}'は既に存在しています"
+label_1 = "ここで既に定義されています"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

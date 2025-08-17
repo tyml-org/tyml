@@ -211,9 +211,39 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     env: &'env Bump,
     ty_allocator: &'ast_allocator Bump,
 ) {
-    let mut functions = Vec::new_in(ty_allocator);
+    let same_name = interfaces
+        .iter()
+        .map(|interface| &interface.name)
+        .find(|name| name.value == ast.name.value);
+
+    if let Some(name) = same_name {
+        let error = TypeError {
+            kind: TypeErrorKind::NameAlreadyExists {
+                exists: name.clone().map(|name| name.into()),
+            },
+            span: ast.name.span(),
+        };
+        errors.push(error);
+    }
+
+    let mut functions: Vec<FunctionInfo, &'ast_allocator Bump> = Vec::new_in(ty_allocator);
     let mut json_tree_type_cache = JsonTreeTypeCache::new(ty_allocator);
     for function in ast.functions.iter() {
+        let same_name = functions
+            .iter()
+            .map(|function| &function.name)
+            .find(|name| name.value.as_ref() == function.name.value.as_ref());
+
+        if let Some(name) = same_name {
+            let error = TypeError {
+                kind: TypeErrorKind::NameAlreadyExists {
+                    exists: name.clone(),
+                },
+                span: function.name.span(),
+            };
+            errors.push(error);
+        }
+
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
