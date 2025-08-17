@@ -151,7 +151,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Regex(TokenKind::Whitespace, r"[ 　\t]+"),
     Tokenizer::Regex(TokenKind::Comment, r"//[^\n\r]*"),
     Tokenizer::Regex(TokenKind::Comment, r"/\*(.|\n|\r)*\*/"),
-    Tokenizer::Regex(TokenKind::Document, r"///[^\n\r]*(\n|\r|\r\n|$)"),
+    Tokenizer::Regex(TokenKind::Document, r"///[^\n\r]*(\r\n|\n|\r$)"),
 ];
 
 enum Tokenizer {
@@ -373,5 +373,19 @@ impl Anchor {
         let end = lexer.current_byte_position.max(start);
 
         start..end
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lexer::Lexer;
+
+    #[test]
+    fn lexer() {
+        let source = "/// Test\r\ntype User { id: int, name: string }";
+
+        for token in Lexer::new(source) {
+            println!("{:?} : {:?}", token.kind, token.text);
+        }
     }
 }
