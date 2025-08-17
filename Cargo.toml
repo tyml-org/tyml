@@ -8,6 +8,7 @@ members = [
     "src/tyml_generator",
     "src/tyml_grammar",
     "src/tyml_lsp",
+    "src/tyml_mock",
     "src/tyml_parser",
     "src/tyml_source",
     "src/tyml_type",

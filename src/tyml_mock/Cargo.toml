@@ -1,0 +1,7 @@
+[package]
+name = "tyml_mock"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tyml = { path = "../tyml", version = "0.1.0" }
