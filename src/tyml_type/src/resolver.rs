@@ -244,6 +244,8 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             errors.push(error);
         }
 
+        let authed = function.authed.clone();
+
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
@@ -337,6 +339,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         };
 
         functions.push(FunctionInfo {
+            authed,
             name: function.name.clone(),
             arguments,
             return_info,
