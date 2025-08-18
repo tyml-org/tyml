@@ -7,19 +7,19 @@ use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
-    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, LiteralOrDefault, NodeLiteral,
-    NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine,
-    ValueLiteral, AST,
+    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, LiteralOrDefault, NameOrAtBody,
+    NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute,
+    TypeDefine, ValueLiteral, AST,
 };
 
 use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo, FunctionInfo,
-        FunctionReturnInfo, FunctionThrowsInfo, IntAttribute, InterfaceInfo, NamedThrowsInfo,
-        NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type, TypeTree,
-        UnsignedIntAttribute,
+        AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo,
+        FunctionBodyArgumentInfo, FunctionInfo, FunctionReturnInfo, FunctionThrowsInfo,
+        IntAttribute, InterfaceInfo, NamedThrowsInfo, NamedTypeMap, NamedTypeTree,
+        NumericalValueRange, StringAttribute, Type, TypeTree, UnsignedIntAttribute,
     },
 };
 
@@ -246,6 +246,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
 
         let authed = function.authed.clone();
 
+        let mut body_argument_info: Option<FunctionBodyArgumentInfo<'_, '_, '_>> = None;
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
@@ -268,11 +269,32 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                 );
             }
 
-            arguments.push(FunctionArgumentInfo {
-                name: argument.name.clone(),
-                ty,
-                default_value: argument.default_value.as_ref(),
-            });
+            match &argument.name {
+                NameOrAtBody::Name(name) => {
+                    arguments.push(FunctionArgumentInfo {
+                        name: name.clone(),
+                        ty,
+                        default_value: argument.default_value.as_ref(),
+                    });
+                }
+                NameOrAtBody::AtBody(name) => {
+                    if let Some(exists) = &body_argument_info {
+                        let error = TypeError {
+                            kind: TypeErrorKind::BodyArgumentAlreadyExists {
+                                exists: exists.name.clone(),
+                            },
+                            span: name.span(),
+                        };
+                        errors.push(error);
+                    }
+
+                    body_argument_info = Some(FunctionBodyArgumentInfo {
+                        name: name.span(),
+                        ty,
+                        default_value: argument.default_value.as_ref(),
+                    })
+                }
+            }
         }
 
         let return_info = match &function.return_type {
@@ -342,6 +364,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             authed,
             name: function.name.clone(),
             arguments,
+            body_argument_info,
             return_info,
             throws,
         });

@@ -10,9 +10,10 @@ use crate::{
         Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
         ErrorType, EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface,
         IntoLiteral, JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal,
-        LiteralOrDefault, NamedType, NodeLiteral, NumericAttribute, NumericAttributeKind, OrType,
-        Properties, Property, RegexAttribute, ReturnBlock, ReturnExpression, ReturnType, Spanned,
-        StructDefine, Throws, TypeAttribute, TypeDefine, ValueLiteral,
+        LiteralOrDefault, NameOrAtBody, NamedType, NodeLiteral, NumericAttribute,
+        NumericAttributeKind, OrType, Properties, Property, RegexAttribute, ReturnBlock,
+        ReturnExpression, ReturnType, Spanned, StructDefine, Throws, TypeAttribute, TypeDefine,
+        ValueLiteral,
     },
     error::{recover_until, Expected, ParseError, ParseErrorKind, Scope},
     lexer::{GetKind, Lexer, TokenKind},
@@ -1444,6 +1445,8 @@ fn parse_function<'input, 'allocator>(
         lexer.skip_line_feed();
     }
 
+    lexer.skip_line_feed();
+
     if lexer.current().get_kind() != TokenKind::ParenthesisRight {
         let error = recover_until(
             ParseErrorKind::InvalidFunctionFormat,
@@ -1587,7 +1590,7 @@ fn parse_error_type<'input, 'allocator>(
     let anchor = lexer.cast_anchor();
 
     let name = match lexer.current().get_kind() {
-        TokenKind::Default => LiteralOrDefault::Default(lexer.next().unwrap().into_literal()),
+        TokenKind::AtDefault => LiteralOrDefault::Default(lexer.next().unwrap().into_literal()),
         _ => match parse_literal(lexer) {
             Some(literal) => LiteralOrDefault::Literal(literal),
             None => return None,
@@ -1710,9 +1713,15 @@ fn parse_function_argument<'input, 'allocator>(
 
     let properties = parse_properties(lexer, errors, allocator);
 
-    let Some(name) = parse_literal(lexer) else {
-        lexer.back_to_anchor(anchor);
-        return None;
+    let name = match lexer.current().get_kind() {
+        TokenKind::Literal | TokenKind::StringLiteral => {
+            NameOrAtBody::Name(parse_literal(lexer).unwrap())
+        }
+        TokenKind::AtBody => NameOrAtBody::AtBody(lexer.next().unwrap().into_literal()),
+        _ => {
+            lexer.back_to_anchor(anchor);
+            return None;
+        }
     };
 
     let Some(ty) = parse_element_type(lexer, errors, allocator) else {

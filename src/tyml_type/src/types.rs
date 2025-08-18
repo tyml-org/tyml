@@ -462,6 +462,7 @@ pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
     pub authed: Option<Range<usize>>,
     pub name: EscapedLiteral<'input>,
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
+    pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator>>,
     pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
     pub throws: Option<FunctionThrowsInfo<'input, 'ty>>,
 }
@@ -481,6 +482,13 @@ pub struct NamedThrowsInfo<'input, 'ty> {
 #[derive(Debug)]
 pub struct FunctionArgumentInfo<'input, 'ty, 'ast_allocator> {
     pub name: EscapedLiteral<'input>,
+    pub ty: Type<'ty>,
+    pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
+}
+
+#[derive(Debug)]
+pub struct FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator> {
+    pub name: Range<usize>,
     pub ty: Type<'ty>,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }

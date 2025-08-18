@@ -130,6 +130,10 @@ label_1 = "型はここで宣言されています"
 message = "要素の名称が衝突しています"
 label_0 = "この名称'%color:yellow{%0}'は既に存在しています"
 label_1 = "ここで既に定義されています"
+[type_error.0008]
+message = "@body引数の宣言が衝突しています"
+label_0 = "@body引数は既に存在しています"
+label_1 = "ここで既に宣言されています"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

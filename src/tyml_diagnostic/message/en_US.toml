@@ -111,6 +111,11 @@ label_1 = "The type is declared here"
 message = "An element name conflicts"
 label_0 = "The name '%color:yellow{%0}' already exists"
 label_1 = "It is already defined here"
+[type_error.0008]
+message = "The @body parameter declaration conflicts"
+label_0 = "The @body parameter already exists"
+label_1 = "It is already declared here"
+
 
 [validate_error]
 name = "%color:red{[VE%0] Validation Error}"

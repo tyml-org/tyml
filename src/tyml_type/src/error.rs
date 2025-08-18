@@ -35,4 +35,7 @@ pub enum TypeErrorKind<'input, 'ty> {
     NameAlreadyExists {
         exists: Spanned<Cow<'input, str>>,
     },
+    BodyArgumentAlreadyExists {
+        exists: Range<usize>,
+    },
 }
