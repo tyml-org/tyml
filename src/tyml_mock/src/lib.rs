@@ -1,4 +1,5 @@
 pub mod client;
+pub(crate) mod json;
 pub mod server;
 
 use tyml::Tyml;
@@ -20,4 +21,3 @@ impl TymlMock {
         }
     }
 }
-

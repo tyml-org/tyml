@@ -5,6 +5,7 @@ use bumpalo::Bump;
 use either::Either;
 use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
+use serde_json::Value;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
     EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, LiteralOrDefault, NameOrAtBody,
@@ -199,6 +200,37 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     }
 }
 
+pub fn camel_to_snake(s: &str) -> String {
+    use std::iter::Peekable;
+    let mut out = String::with_capacity(s.len() * 2);
+    let mut chars: Peekable<_> = s.chars().peekable();
+    let mut prev: Option<char> = None;
+
+    while let Some(c) = chars.next() {
+        let next = chars.peek().copied();
+
+        if c.is_uppercase() {
+            let need_underscore = matches!(prev, Some(p) if p != '_' &&
+                (p.is_lowercase() || p.is_ascii_digit() ||
+                 next.map(|n| n.is_lowercase()).unwrap_or(false)));
+
+            if need_underscore {
+                out.push('_');
+            }
+
+            for lc in c.to_lowercase() {
+                out.push(lc);
+            }
+        } else {
+            out.push(c);
+        }
+
+        prev = Some(c);
+    }
+
+    out
+}
+
 fn collect_interface_info<'input, 'env, 'ast_allocator>(
     ast: &'ast_allocator Interface<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
@@ -211,10 +243,25 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     env: &'env Bump,
     ty_allocator: &'ast_allocator Bump,
 ) {
+    let final_name = ast
+        .properties
+        .elements
+        .iter()
+        .find(|property| property.name.value.as_ref() == "rename")
+        .map(|property| {
+            property.values.get(0).map(|value| match value {
+                ValueLiteral::String(literal) => Some(literal.clone().map(|name| name.to_string())),
+                _ => None,
+            })
+        })
+        .flatten()
+        .flatten()
+        .unwrap_or(ast.name.clone().map(|name| camel_to_snake(name)));
+
     let same_name = interfaces
         .iter()
         .map(|interface| &interface.name)
-        .find(|name| name.value == ast.name.value);
+        .find(|name| name.value == final_name.value.as_str());
 
     if let Some(name) = same_name {
         let error = TypeError {
@@ -229,15 +276,32 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     let mut functions: Vec<FunctionInfo, &'ast_allocator Bump> = Vec::new_in(ty_allocator);
     let mut json_tree_type_cache = JsonTreeTypeCache::new(ty_allocator);
     for function in ast.functions.iter() {
+        let final_name = function
+            .properties
+            .elements
+            .iter()
+            .find(|property| property.name.value.as_ref() == "rename")
+            .map(|property| {
+                property.values.get(0).map(|value| match value {
+                    ValueLiteral::String(literal) => {
+                        Some(literal.clone().map(|name| name.to_string()))
+                    }
+                    _ => None,
+                })
+            })
+            .flatten()
+            .flatten()
+            .unwrap_or(function.name.clone().map(|name| camel_to_snake(name)));
+
         let same_name = functions
             .iter()
             .map(|function| &function.name)
-            .find(|name| name.value.as_ref() == function.name.value.as_ref());
+            .find(|name| name.value == final_name.value.as_str());
 
         if let Some(name) = same_name {
             let error = TypeError {
                 kind: TypeErrorKind::NameAlreadyExists {
-                    exists: name.clone(),
+                    exists: name.clone().map(|name| name.into()),
                 },
                 span: function.name.span(),
             };
@@ -362,7 +426,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
 
         functions.push(FunctionInfo {
             authed,
-            name: function.name.clone(),
+            name: final_name,
             arguments,
             body_argument_info,
             return_info,
@@ -371,7 +435,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     }
 
     interfaces.push(InterfaceInfo {
-        name: ast.name.clone(),
+        name: final_name,
         functions,
         json_tree_type_cache,
     });
@@ -661,6 +725,138 @@ fn check_json_type_tree<'input, 'ast_allocator>(
             json_tree_type_cache,
             type_allocator,
         ),
+    }
+}
+
+pub fn check_serde_json_type<'input, 'ast_allocator>(
+    value: &Value,
+    ty: &Type<'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+) -> bool {
+    match ty {
+        Type::Named(name_id) => check_serde_json_named_type_tree(
+            value,
+            named_type_map.get_type(*name_id).unwrap(),
+            named_type_map,
+        ),
+        Type::Or(items) => items
+            .iter()
+            .any(|ty| check_serde_json_type(value, ty, named_type_map)),
+        Type::Array(base_type) => match value {
+            Value::Array(elements) => {
+                for element in elements.iter() {
+                    if !check_serde_json_type(element, &base_type, named_type_map) {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
+        },
+        Type::Optional(base_type) => match value {
+            Value::Null => true,
+            _ => check_serde_json_type(value, &base_type, named_type_map),
+        },
+        Type::Any => true,
+        Type::Unknown => true,
+        _ => {
+            let literal = match value {
+                Value::Bool(bool) => bool.to_string(),
+                Value::Number(number) => number.to_string(),
+                Value::String(string) => string.clone(),
+                _ => return false,
+            };
+
+            if !ty.validate_value_with_attribute(literal.as_str()) {
+                return false;
+            }
+
+            true
+        }
+    }
+}
+
+fn check_serde_json_named_type_tree<'input, 'ast_allocator>(
+    value: &Value,
+    type_tree: &NamedTypeTree<'input, 'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+) -> bool {
+    match type_tree {
+        NamedTypeTree::Struct { tree } => check_serde_json_type_tree(value, tree, named_type_map),
+        NamedTypeTree::Enum {
+            elements,
+            documents: _,
+        } => match value {
+            Value::String(string) => elements
+                .iter()
+                .map(|element| &element.0.value)
+                .any(|element| element.as_ref() == string.as_str()),
+            _ => false,
+        },
+    }
+}
+
+fn check_serde_json_type_tree<'input, 'ast_allocator>(
+    value: &Value,
+    type_tree: &TypeTree<'input, 'ast_allocator>,
+    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+) -> bool {
+    match type_tree {
+        TypeTree::Node {
+            node,
+            any_node,
+            node_key_span: _,
+            any_node_key_span: _,
+            documents: _,
+            span: _,
+        } => match value {
+            Value::Object(json_elements) => {
+                for (element_name, element_type_tree) in node.iter() {
+                    match json_elements.get(element_name.as_ref()) {
+                        Some(value) => {
+                            if !check_serde_json_type_tree(
+                                &value,
+                                element_type_tree,
+                                named_type_map,
+                            ) {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+
+                match any_node {
+                    Some(any_node_tree) => {
+                        for (value_name, value) in json_elements.iter() {
+                            if node.contains_key(value_name.as_str()) {
+                                continue;
+                            }
+
+                            if !check_serde_json_type_tree(value, &any_node_tree, named_type_map) {
+                                return false;
+                            }
+                        }
+                    }
+                    None => {
+                        if json_elements
+                            .keys()
+                            .any(|name| !node.contains_key(name.as_str()))
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                true
+            }
+            _ => false,
+        },
+        TypeTree::Leaf {
+            ty,
+            documents: _,
+            span: _,
+        } => check_serde_json_type(value, ty, named_type_map),
     }
 }
 

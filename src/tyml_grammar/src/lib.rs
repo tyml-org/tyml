@@ -56,7 +56,7 @@ mod tests {
         properties         ::= { property [ lf ] }
         property           ::= "#" "[" literal "=" { value_literal } "]"
 
-        function           ::= properties [ "authed" ] "function" literal function_arguments [ return_type ] [ throws ]
+        function           ::= properties [ "authed" ] "function" normal_literal function_arguments [ return_type ] [ throws ]
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
         function_arguments ::= "(" [ lf ] { properties ( literal | "@body" ) element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type

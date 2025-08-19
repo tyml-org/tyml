@@ -324,7 +324,7 @@ pub struct Function<'input, 'allocator> {
     pub properties: Properties<'input, 'allocator>,
     pub authed: Option<Range<usize>>,
     pub keyword_span: Range<usize>,
-    pub name: EscapedLiteral<'input>,
+    pub name: Literal<'input>,
     pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,
     pub return_type: Option<ReturnType<'input, 'allocator>>,
     pub throws: Option<Throws<'input, 'allocator>>,

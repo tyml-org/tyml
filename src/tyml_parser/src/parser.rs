@@ -1390,17 +1390,20 @@ fn parse_function<'input, 'allocator>(
     }
     let keyword_span = lexer.next().unwrap().span;
 
-    let Some(name) = parse_literal(lexer) else {
-        let error = recover_until(
-            ParseErrorKind::InvalidFunctionFormat,
-            lexer,
-            &[TokenKind::LineFeed],
-            Expected::FunctionName,
-            Scope::Function,
-            allocator,
-        );
-        errors.push(error);
-        return None;
+    let name = match lexer.current().get_kind() {
+        TokenKind::Literal => lexer.next().unwrap().into_literal(),
+        _ => {
+            let error = recover_until(
+                ParseErrorKind::InvalidFunctionFormat,
+                lexer,
+                &[TokenKind::LineFeed],
+                Expected::FunctionName,
+                Scope::Function,
+                allocator,
+            );
+            errors.push(error);
+            return None;
+        }
     };
 
     if lexer.current().get_kind() != TokenKind::ParenthesisLeft {
