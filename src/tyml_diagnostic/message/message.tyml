@@ -69,6 +69,12 @@ ml_parse_error: {
     "0011": Diagnostic
 }
 
+mock_error: {
+    name: string
+    "0001": Diagnostic
+    "0002": Diagnostic
+}
+
 type Diagnostic {
     message: string
     label_0: string

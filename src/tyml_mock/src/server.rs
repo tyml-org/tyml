@@ -8,7 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use tyml::{Tyml, tyml_type::resolver::check_serde_json_type};
+use tyml::{tyml_type::resolver::{camel_to_snake, check_serde_json_type}, Tyml};
 
 use crate::json::ToSerdeJson;
 
@@ -21,34 +21,60 @@ impl TymlMockServer {
         Self { tyml }
     }
 
-    pub fn setup(&self, mut router: Router) -> Option<Router> {
+    pub async fn serve(&self, location: ServerSourceLocation) -> Result<(), ()> {
+        let mut router = Router::new();
+
+        match location {
+            ServerSourceLocation::AllInterfaces => {
+                router = self.setup(router)?;
+            }
+            ServerSourceLocation::Interface(interface_name) => {
+                router = self.setup_interface(interface_name.as_str(), router)?;
+            }
+        }
+
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+        axum::serve(listener, router).await.unwrap();
+
+        Ok(())
+    }
+
+    fn setup(&self, mut router: Router) -> Result<Router, ()> {
         for interface in self.tyml.interfaces().iter() {
             router = self.setup_interface(interface.name.value.as_str(), router)?;
         }
 
-        Some(router)
+        Ok(router)
     }
 
-    pub fn setup_interface(&self, interface_name: &str, mut router: Router) -> Option<Router> {
+    fn setup_interface(&self, interface_name: &str, mut router: Router) -> Result<Router, ()> {
         if self.tyml.has_error() {
-            return None;
+            return Err(());
         }
+
+        let interface_name = camel_to_snake(interface_name);
 
         let interface = self
             .tyml
             .interfaces()
             .iter()
-            .find(|interface| interface.name.value.as_str() == interface_name)?;
+            .find(|interface| interface.name.value.as_str() == interface_name)
+            .ok_or(())?;
 
         for function in interface.functions.iter() {
-            function.return_info.as_ref()?.default_value?;
+            function
+                .return_info
+                .as_ref()
+                .ok_or(())?
+                .default_value
+                .ok_or(())?;
 
             let tyml = self.tyml.clone();
-            let interface_name = interface_name.to_string();
+            let interface_name = interface_name.clone();
             let function_name = function.name.value.clone();
 
             router = router.route(
-                function.name.value.as_str(),
+                format!("/{}/{}", &interface_name, &function_name).as_str(),
                 get(async |Query(query): Query<HashMap<String, String>>| {
                     let tyml = tyml;
                     let interface_name = interface_name;
@@ -121,6 +147,12 @@ impl TymlMockServer {
             );
         }
 
-        Some(router)
+        Ok(router)
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum ServerSourceLocation {
+    AllInterfaces,
+    Interface(String),
 }

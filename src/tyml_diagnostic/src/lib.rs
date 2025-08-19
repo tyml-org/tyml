@@ -73,6 +73,7 @@ pub enum MessageSection {
     TypeError,
     ValidateError,
     MLParseError,
+    MockError,
 }
 
 impl MessageSection {
@@ -82,6 +83,7 @@ impl MessageSection {
             MessageSection::TypeError => "type_error",
             MessageSection::ValidateError => "validate_error",
             MessageSection::MLParseError => "ml_parse_error",
+            MessageSection::MockError => "mock_error",
         }
     }
 }

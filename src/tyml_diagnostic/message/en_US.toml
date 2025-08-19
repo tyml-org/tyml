@@ -193,6 +193,15 @@ message = "An extra delimiter is specified"
 label_0 = "This delimiter is unnecessary"
 label_1 = "Please try removing it"
 
+[mock_error.0001]
+message = "The default return value is not specified"
+label_0 = "The return value of this function is not specified"
+note = "You need to specify the function's return value using '%color:cyan{return}'"
+[mock_error.0002]
+message = "No default value is specified for the parameter"
+label_0 = "No default value is specified for this parameter"
+
+
 [lsp.message]
 header_var_lookup_error = "Could not resolve environment variable '%0'"
 failed_to_download_tyml = "Could not download TYML file: %0"
