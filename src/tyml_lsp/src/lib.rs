@@ -100,6 +100,9 @@ impl LanguageServer for LSPBackend {
                 rename_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                code_lens_provider: Some(CodeLensOptions {
+                    resolve_provider: Some(false),
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -400,6 +403,17 @@ impl LanguageServer for LSPBackend {
                 new_text: code,
             }]
         }))
+    }
+
+    async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
+        let server = self.get_server(params.text_document.uri.clone());
+
+        match server {
+            Either::Left(_) => Ok(None),
+            Either::Right(server) => Ok(Some(
+                server.code_lens(params.text_document.uri.to_string().replace("file://", "")),
+            )),
+        }
     }
 }
 

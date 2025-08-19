@@ -2215,6 +2215,7 @@ dependencies = [
  "either",
  "extension-fn",
  "regex",
+ "serde_json",
  "tokio",
  "tower-lsp",
  "tyml",

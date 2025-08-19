@@ -13,11 +13,12 @@ use std::{
 use either::Either;
 use extension_fn::extension_fn;
 use regex::Regex;
+use serde_json::Value;
 use tower_lsp::{
     Client,
     lsp_types::{
-        CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, Documentation,
-        MarkupContent, MarkupKind, NumberOrString, Position, SemanticTokenType, Url,
+        CodeLens, Command, CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity,
+        Documentation, MarkupContent, MarkupKind, NumberOrString, Position, SemanticTokenType, Url,
     },
 };
 use tyml::{
@@ -1040,6 +1041,55 @@ impl TymlLanguageServer {
         formatter.format();
 
         Some(formatter.generate_code())
+    }
+
+    pub fn code_lens(&self, uri: String) -> Vec<CodeLens> {
+        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+            return Vec::new();
+        };
+
+        let mut code_lens = Vec::new();
+
+        for interface in tyml.tyml().interfaces().iter() {
+            let range = interface
+                .keyword_span
+                .as_utf8_byte_range()
+                .to_lsp_span(&tyml.tyml_source.code);
+            code_lens.push(CodeLens {
+                range,
+                command: Some(Command {
+                    title: "▶ Run server".to_string(),
+                    command: "tyml.mock.serve".to_string(),
+                    arguments: Some(vec![
+                        Value::String(uri.clone()),
+                        Value::String(interface.name.value.clone()),
+                    ]),
+                }),
+                data: None,
+            });
+
+            for function in interface.functions.iter() {
+                let range = function
+                    .keyword_span
+                    .as_utf8_byte_range()
+                    .to_lsp_span(&tyml.tyml_source.code);
+                code_lens.push(CodeLens {
+                    range,
+                    command: Some(Command {
+                        title: "▶ Run client".to_string(),
+                        command: "tyml.mock.send".to_string(),
+                        arguments: Some(vec![
+                            Value::String(uri.clone()),
+                            Value::String(interface.name.value.clone()),
+                            Value::String(function.name.value.clone()),
+                        ]),
+                    }),
+                    data: None,
+                });
+            }
+        }
+
+        code_lens
     }
 }
 

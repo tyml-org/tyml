@@ -425,6 +425,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         };
 
         functions.push(FunctionInfo {
+            keyword_span: function.keyword_span.clone(),
             authed,
             name: final_name,
             arguments,
@@ -435,6 +436,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     }
 
     interfaces.push(InterfaceInfo {
+        keyword_span: ast.keyword_span.clone(),
         name: final_name,
         functions,
         json_tree_type_cache,
