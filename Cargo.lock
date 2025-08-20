@@ -2162,6 +2162,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tyml_api_generator"
+version = "0.1.0"
+dependencies = [
+ "tyml",
+]
+
+[[package]]
 name = "tyml_diagnostic"
 version = "0.1.0"
 dependencies = [
