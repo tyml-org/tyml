@@ -8,7 +8,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use tyml::{tyml_type::resolver::{camel_to_snake, check_serde_json_type}, Tyml};
+use serde_json::Value;
+use tyml::{
+    Tyml,
+    tyml_type::resolver::{camel_to_snake, check_serde_json_type},
+};
 
 use crate::json::ToSerdeJson;
 
@@ -75,75 +79,94 @@ impl TymlMockServer {
 
             router = router.route(
                 format!("/{}/{}", &interface_name, &function_name).as_str(),
-                get(async |Query(query): Query<HashMap<String, String>>| {
-                    let tyml = tyml;
-                    let interface_name = interface_name;
-                    let function_name = function_name;
+                get(
+                    async |Query(query): Query<HashMap<String, String>>,
+                           Json(body): Json<Value>| {
+                        let tyml = tyml;
+                        let interface_name = interface_name;
+                        let function_name = function_name;
 
-                    let interface = tyml
-                        .interfaces()
-                        .iter()
-                        .find(|interface| interface.name.value.as_str() == interface_name.as_str())
-                        .unwrap();
+                        let interface = tyml
+                            .interfaces()
+                            .iter()
+                            .find(|interface| {
+                                interface.name.value.as_str() == interface_name.as_str()
+                            })
+                            .unwrap();
 
-                    let function = interface
-                        .functions
-                        .iter()
-                        .find(|function| function.name.value.as_str() == function_name.as_str())
-                        .unwrap();
+                        let function = interface
+                            .functions
+                            .iter()
+                            .find(|function| function.name.value.as_str() == function_name.as_str())
+                            .unwrap();
 
-                    for argument in function.arguments.iter() {
-                        let Some(query_argument) = query.get(argument.name.value.as_ref()) else {
-                            return Response::builder()
-                                .status(StatusCode::BAD_REQUEST)
-                                .body(Body::empty())
-                                .unwrap();
-                        };
+                        if let Some(body_argument) = &function.body_argument_info {
+                            if !check_serde_json_type(
+                                &body,
+                                &body_argument.ty,
+                                tyml.named_type_map(),
+                            ) {
+                                return Response::builder()
+                                    .status(StatusCode::BAD_REQUEST)
+                                    .body(Body::empty())
+                                    .unwrap();
+                            }
+                        }
 
-                        let Ok(json) = serde_json::from_str(query_argument.as_str()) else {
-                            return Response::builder()
-                                .status(StatusCode::BAD_REQUEST)
-                                .body(Body::empty())
-                                .unwrap();
-                        };
+                        for argument in function.arguments.iter() {
+                            let Some(query_argument) = query.get(argument.name.value.as_ref())
+                            else {
+                                return Response::builder()
+                                    .status(StatusCode::BAD_REQUEST)
+                                    .body(Body::empty())
+                                    .unwrap();
+                            };
 
-                        if !check_serde_json_type(&json, &argument.ty, tyml.named_type_map()) {
+                            let Ok(json) = serde_json::from_str(query_argument.as_str()) else {
+                                return Response::builder()
+                                    .status(StatusCode::BAD_REQUEST)
+                                    .body(Body::empty())
+                                    .unwrap();
+                            };
+
+                            if !check_serde_json_type(&json, &argument.ty, tyml.named_type_map()) {
+                                return Response::builder()
+                                    .status(StatusCode::BAD_REQUEST)
+                                    .body(Body::empty())
+                                    .unwrap();
+                            }
+                        }
+
+                        let has_extra_argument = query.keys().any(|key| {
+                            !function
+                                .arguments
+                                .iter()
+                                .map(|argument| argument.name.value.as_ref())
+                                .any(|name| name == key.as_str())
+                        });
+
+                        if has_extra_argument {
                             return Response::builder()
                                 .status(StatusCode::BAD_REQUEST)
                                 .body(Body::empty())
                                 .unwrap();
                         }
-                    }
 
-                    let has_extra_argument = query.keys().any(|key| {
-                        !function
-                            .arguments
-                            .iter()
-                            .map(|argument| argument.name.value.as_ref())
-                            .any(|name| name == key.as_str())
-                    });
-
-                    if has_extra_argument {
-                        return Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body(Body::empty())
-                            .unwrap();
-                    }
-
-                    (
-                        StatusCode::OK,
-                        Json(
-                            function
-                                .return_info
-                                .as_ref()
-                                .unwrap()
-                                .default_value
-                                .unwrap()
-                                .to_serde_json(),
-                        ),
-                    )
-                        .into_response()
-                }),
+                        (
+                            StatusCode::OK,
+                            Json(
+                                function
+                                    .return_info
+                                    .as_ref()
+                                    .unwrap()
+                                    .default_value
+                                    .unwrap()
+                                    .to_serde_json(),
+                            ),
+                        )
+                            .into_response()
+                    },
+                ),
             );
         }
 

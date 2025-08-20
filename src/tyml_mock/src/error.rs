@@ -2,9 +2,13 @@ use std::ops::Range;
 
 use ariadne::Color;
 use tyml::{
+    Tyml,
     tyml_diagnostic::{
-        Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind, TymlDiagnosticMessage
-    }, tyml_source::AsUtf8ByteRange, tyml_type::{resolver::camel_to_snake, types::InterfaceInfo}, Tyml
+        Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
+        TymlDiagnosticMessage,
+    },
+    tyml_source::AsUtf8ByteRange,
+    tyml_type::{resolver::camel_to_snake, types::InterfaceInfo},
 };
 
 use crate::server::ServerSourceLocation;
@@ -87,6 +91,15 @@ pub fn collect_send_error(
         if argument.default_value.is_none() {
             let error = TymlMockError::NoArgumentDefaultValue {
                 span: argument.name.span(),
+            };
+            errors.push(error);
+        }
+    }
+
+    if let Some(body_argument) = &function.body_argument_info {
+        if body_argument.default_value.is_none() {
+            let error = TymlMockError::NoArgumentDefaultValue {
+                span: body_argument.name.clone(),
             };
             errors.push(error);
         }

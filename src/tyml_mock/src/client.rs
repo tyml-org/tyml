@@ -49,16 +49,20 @@ impl TymlMockClient {
             .collect::<Vec<_>>();
 
         let client = Client::new();
-        let response = client
+
+        let mut request = client
             .get(format!(
                 "http://localhost:3000/{}/{}",
                 interface_name, function_name
             ))
             .query(&arguments)
-            .header("Accept", "application/json")
-            .send()
-            .await
-            .map_err(|error| error.to_string())?;
+            .header("Accept", "application/json");
+
+        if let Some(body) = &function.body_argument_info {
+            request = request.json(&body.default_value.unwrap().to_serde_json());
+        }
+
+        let response = request.send().await.map_err(|error| error.to_string())?;
 
         if let Ok(text) = response.text().await {
             println!("Response : {}", text);

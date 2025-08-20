@@ -1,7 +1,7 @@
 pub mod client;
+pub mod error;
 pub(crate) mod json;
 pub mod server;
-pub mod error;
 
 use tyml::Tyml;
 
@@ -31,8 +31,13 @@ mod test {
     use crate::{TymlMock, server::ServerSourceLocation};
 
     static SOURCE: &str = r#"
+type Hello {
+    id: int
+    name: string
+}
+
 interface API {
-    function test() -> string {
+    function hello(@body: Hello = { id = 0, name = "test" }) -> string {
         return "Hello, world!"
     }
 }
@@ -56,7 +61,7 @@ interface API {
         thread::sleep(Duration::from_millis(50));
 
         runtime.block_on(async {
-            mock.client.send("api", "test").await.unwrap();
+            mock.client.send("api", "hello").await.unwrap();
         });
     }
 }
