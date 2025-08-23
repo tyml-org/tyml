@@ -59,7 +59,7 @@ pub(crate) fn generate_type_for_rust(
                                 let mut new_type_def = String::new();
 
                                 *type_def += format!(
-                                    "{}\n{}\n{}\npub struct {} {{",
+                                    "{}{}\n{}\npub struct {} {{\n",
                                     documents, tag, derive, name
                                 )
                                 .as_str();
@@ -95,9 +95,11 @@ pub(crate) fn generate_type_for_rust(
                             let tag = "#[allow(non_snake_case)]";
                             let derive = "#[derive(Debug, Clone, Copy, Deserialize, Serialize)]";
 
-                            *type_def +=
-                                format!("{}\n{}\n{}\npub enum {} {{", documents, tag, derive, name)
-                                    .as_str();
+                            *type_def += format!(
+                                "{}{}\n{}\npub enum {} {{\n",
+                                documents, tag, derive, name
+                            )
+                            .as_str();
 
                             for (element, documents) in elements.iter() {
                                 let documents = documents
@@ -135,21 +137,52 @@ pub(crate) fn generate_type_for_rust(
                 .map(|ty| generate_type_for_rust(ty, type_def, name_context, named_type_map))
                 .collect::<Vec<_>>();
 
-            let or_type_name = type_names.clone().join("Or");
+            // into "U"pper
+            let pretty_type_names = type_names
+                .iter()
+                .map(|name| {
+                    let mut it = name.chars();
+                    it.next()
+                        .unwrap()
+                        .to_uppercase()
+                        .chain(it)
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>();
+
+            let or_type_name = pretty_type_names.clone().join("Or");
 
             let or_type_name = name_context.create_name(or_type_name);
 
             let tag = "#[allow(non_snake_case)]";
             let derive = "#[derive(Debug, Serialize, Deserialize)]\n#[serde(untagged)]";
 
-            *type_def += format!("{}\n{}\npub enum {} {{", tag, derive, or_type_name).as_str();
+            *type_def += format!("{}\n{}\npub enum {} {{\n", tag, derive, or_type_name).as_str();
+
+            for (prerry_type_name, type_name) in
+                pretty_type_names.into_iter().zip(type_names.into_iter())
+            {
+                *type_def += format!("    {}({}),\n", prerry_type_name, type_name).as_str();
+            }
+
+            *type_def += "}\n\n";
 
             return or_type_name;
         }
-        Type::Array(ty) => todo!(),
-        Type::Optional(_) => todo!(),
-        Type::Any => todo!(),
-        Type::Unknown => todo!(),
+        Type::Array(ty) => {
+            let base_type_name =
+                generate_type_for_rust(&ty, type_def, name_context, named_type_map);
+
+            format!("Vec<{}>", base_type_name)
+        }
+        Type::Optional(ty) => {
+            let base_type_name =
+                generate_type_for_rust(&ty, type_def, name_context, named_type_map);
+
+            format!("Option<{}>", base_type_name)
+        }
+        Type::Any => "String".to_string(),
+        Type::Unknown => panic!("do not generate with error"),
     }
 }
 
@@ -162,16 +195,52 @@ pub(crate) fn generate_type_tree_for_rust(
     match ty {
         TypeTree::Node {
             node,
-            any_node,
-            node_key_span,
-            any_node_key_span,
+            any_node: _,
+            node_key_span: _,
+            any_node_key_span: _,
             documents,
-            span,
-        } => todo!(),
+            span: _,
+        } => {
+            let type_name = name_context.create_name("InnerTree".to_string());
+
+            let documents = documents
+                .iter()
+                .map(|line| format!("/// {}", line))
+                .collect::<Vec<_>>()
+                .join("");
+
+            let tag = "#[allow(non_snake_case)]";
+            let derive = "#[derive(Debug, Clone, Deserialize, Serialize)]";
+
+            let mut new_type_def = String::new();
+
+            *type_def += format!(
+                "{}{}\n{}\npub struct {} {{\n",
+                documents, tag, derive, type_name
+            )
+            .as_str();
+
+            for (element_name, element_type) in node.iter() {
+                let element_type_name = generate_type_tree_for_rust(
+                    element_type,
+                    &mut new_type_def,
+                    name_context,
+                    named_type_map,
+                );
+
+                *type_def += format!("   {}: {},\n", element_name, element_type_name).as_str();
+            }
+
+            *type_def += "}\n\n";
+
+            *type_def += new_type_def.as_str();
+
+            type_name
+        }
         TypeTree::Leaf {
             ty,
-            documents,
-            span,
-        } => todo!(),
+            documents: _,
+            span: _,
+        } => generate_type_for_rust(ty, type_def, name_context, named_type_map),
     }
 }
