@@ -1,10 +1,10 @@
 use std::{fs::File, io::Write};
 
-use tyml::Tyml;
-
 use crate::GeneratorSettings;
 
-pub fn generate_types(setting: &GeneratorSettings, tyml: &Tyml) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn generate_functions(
+    setting: &GeneratorSettings,
+) -> Result<(), Box<dyn std::error::Error>> {
     let source = String::new();
 
     let mut path = setting.package_path.clone();
