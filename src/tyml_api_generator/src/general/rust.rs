@@ -95,11 +95,9 @@ pub(crate) fn generate_type_for_rust(
                             let tag = "#[allow(non_snake_case)]";
                             let derive = "#[derive(Debug, Clone, Copy, Deserialize, Serialize)]";
 
-                            *type_def += format!(
-                                "{}{}\n{}\npub enum {} {{\n",
-                                documents, tag, derive, name
-                            )
-                            .as_str();
+                            *type_def +=
+                                format!("{}{}\n{}\npub enum {} {{\n", documents, tag, derive, name)
+                                    .as_str();
 
                             for (element, documents) in elements.iter() {
                                 let documents = documents
