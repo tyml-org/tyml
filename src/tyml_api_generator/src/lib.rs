@@ -14,8 +14,9 @@ mod test {
     use tyml::{Tyml, tyml_type::types::TypeTree};
 
     use crate::{
-        general::rust::generate_type_tree_for_rust, name::NameContext,
-        server::rust_axum::function_gen::generate_trait,
+        general::rust::generate_type_tree_for_rust,
+        name::NameContext,
+        server::rust_axum::{function_gen::generate_trait, lib_gen::generate_server},
     };
 
     #[test]
@@ -86,5 +87,18 @@ interface API {
         let tyml = Tyml::parse(source.to_string());
 
         println!("{}", generate_trait(&tyml));
+    }
+
+    #[test]
+    fn rust_server_gen() {
+        let source = r#"
+interface API {
+    function get_user(@body: int) -> User throws string
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        println!("{}", generate_server(&tyml));
     }
 }

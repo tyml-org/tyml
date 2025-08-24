@@ -2,7 +2,7 @@ use std::{fs::File, io::Write};
 
 use crate::GeneratorSettings;
 
-pub fn generate_cargp_toml(setting: &GeneratorSettings) -> Result<(), Box<dyn std::error::Error>> {
+pub fn generate_cargo_toml(setting: &GeneratorSettings) -> Result<(), Box<dyn std::error::Error>> {
     let source = format!(
         r#"
 [package]

@@ -8,7 +8,7 @@ pub(crate) fn generate_functions(
     setting: &GeneratorSettings,
     tyml: &Tyml,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let source = String::new();
+    let source = generate_trait(tyml);
 
     let mut path = setting.package_path.clone();
     path.push("src");
@@ -28,10 +28,10 @@ pub(crate) fn generate_trait(tyml: &Tyml) -> String {
 
     for interface in tyml.interfaces().iter() {
         source += "#![allow(async_fn_in_trait)]\n";
-        source += format!("pub trait {}: Send + Clone {{\n", interface.original_name).as_str();
+        source += format!("pub trait {}: Send {{\n", interface.original_name).as_str();
 
         for function in interface.functions.iter() {
-            source += format!("    async fn {}(", function.name.value.as_str()).as_str();
+            source += format!("    async fn {}(&self, ", function.name.value.as_str()).as_str();
 
             if let Some(body) = &function.body_argument_info {
                 source += format!(
