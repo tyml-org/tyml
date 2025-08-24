@@ -13,7 +13,10 @@ pub struct GeneratorSettings {
 mod test {
     use tyml::{Tyml, tyml_type::types::TypeTree};
 
-    use crate::{general::rust::generate_type_tree_for_rust, name::NameContext};
+    use crate::{
+        general::rust::generate_type_tree_for_rust, name::NameContext,
+        server::rust_axum::function_gen::generate_trait,
+    };
 
     #[test]
     fn type_gen() {
@@ -60,5 +63,28 @@ user: User
         }
 
         println!("{}", type_def);
+    }
+
+    #[test]
+    fn trait_gen() {
+        let source = r#"
+type User {
+    id: int
+    name: string | Name
+}
+
+type Name {
+    name: string
+    display_name: string
+}
+
+interface API {
+    function get_user(id: int) -> User throws string
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        println!("{}", generate_trait(&tyml));
     }
 }

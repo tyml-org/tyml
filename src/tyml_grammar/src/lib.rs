@@ -60,8 +60,7 @@ mod tests {
                                [ "{" [ lf ] "return" json_value [ lf ] "}" ]
         function_arguments ::= "(" [ lf ] { properties ( literal | "@body" ) element_type [ "=" json_value ] "," [ lf ] } ")"
         return_type        ::= "->" or_type
-        throws             ::= ( "throws" | r"(\n|\r|\r\n)+throws" ) [ lf ] error_type { "," [ lf ] error_type }
-        error_type         ::= ( literal | "@default" ) ":" or_type
+        throws             ::= "throws" or_type
 
         json_value         ::= value_literal
                                | "[" [ lf ] { json_value "," [ lf ] } "]"

@@ -454,6 +454,7 @@ impl ToTypeName for StringAttribute {
 pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
     pub keyword_span: Range<usize>,
     pub name: Spanned<String>,
+    pub original_name: &'input str,
     pub functions: Vec<FunctionInfo<'input, 'ty, 'ast_allocator>, &'ast_allocator Bump>,
     pub json_tree_type_cache: JsonTreeTypeCache<'input, 'ast_allocator>,
 }
@@ -466,19 +467,7 @@ pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
     pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator>>,
     pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
-    pub throws: Option<FunctionThrowsInfo<'input, 'ty>>,
-}
-
-#[derive(Debug)]
-pub struct FunctionThrowsInfo<'input, 'ty> {
-    pub default: Option<Type<'ty>>,
-    pub named: Vec<NamedThrowsInfo<'input, 'ty>, &'ty Bump>,
-}
-
-#[derive(Debug)]
-pub struct NamedThrowsInfo<'input, 'ty> {
-    pub name: EscapedLiteral<'input>,
-    pub ty: Type<'ty>,
+    pub throws_type: Option<Type<'ty>>,
 }
 
 #[derive(Debug)]

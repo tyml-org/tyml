@@ -1205,11 +1205,9 @@ mod on_type_tag {
                     }
 
                     if let Some(throws) = &function.throws {
-                        for error_type in throws.error_types.iter() {
-                            if error_type.ty.span.to_inclusive().contains(&position) {
-                                swap(names, completions);
-                                return true;
-                            }
+                        if throws.ty.span.to_inclusive().contains(&position) {
+                            swap(names, completions);
+                            return true;
                         }
                     }
 
@@ -1334,8 +1332,7 @@ mod tyml_semantic_tokens {
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
         AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
-        LiteralOrDefault, NameOrAtBody, OrType, Properties, TypeAttribute, TypeDefine,
-        ValueLiteral, either::Either,
+        NameOrAtBody, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1443,19 +1440,7 @@ mod tyml_semantic_tokens {
                 let span = throws.keyword.clone();
                 tokens.insert(span.start, (SemanticTokenType::KEYWORD, span));
 
-                for error_type in throws.error_types.iter() {
-                    let span = error_type.name.span();
-                    match &error_type.name {
-                        LiteralOrDefault::Literal(_) => {
-                            tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
-                        }
-                        LiteralOrDefault::Default(_) => {
-                            tokens.insert(span.start, (SemanticTokenType::MACRO, span));
-                        }
-                    }
-
-                    collect_tokens_for_or_type(&error_type.ty, tokens);
-                }
+                collect_tokens_for_or_type(&throws.ty, tokens);
             }
 
             if let Some(return_block) = &function.return_block {

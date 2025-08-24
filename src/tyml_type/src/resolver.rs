@@ -8,9 +8,9 @@ use regex::Regex;
 use serde_json::Value;
 use tyml_parser::ast::{
     AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
-    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, LiteralOrDefault, NameOrAtBody,
-    NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute,
-    TypeDefine, ValueLiteral, AST,
+    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, NameOrAtBody, NodeLiteral,
+    NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine,
+    ValueLiteral, AST,
 };
 
 use crate::{
@@ -18,9 +18,9 @@ use crate::{
     name::{NameEnvironment, NameID},
     types::{
         AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo,
-        FunctionBodyArgumentInfo, FunctionInfo, FunctionReturnInfo, FunctionThrowsInfo,
-        IntAttribute, InterfaceInfo, NamedThrowsInfo, NamedTypeMap, NamedTypeTree,
-        NumericalValueRange, StringAttribute, Type, TypeTree, UnsignedIntAttribute,
+        FunctionBodyArgumentInfo, FunctionInfo, FunctionReturnInfo, IntAttribute, InterfaceInfo,
+        NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type, TypeTree,
+        UnsignedIntAttribute,
     },
 };
 
@@ -393,36 +393,16 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             None => None,
         };
 
-        let throws = match &function.throws {
-            Some(throws) => {
-                let mut default = None;
-                let mut named = Vec::new_in(ty_allocator);
-
-                for error_type in throws.error_types.iter() {
-                    let ty = resolve_or_type(
-                        &error_type.ty,
-                        name_env,
-                        named_type_map,
-                        errors,
-                        env,
-                        ty_allocator,
-                    );
-
-                    match &error_type.name {
-                        LiteralOrDefault::Literal(name) => {
-                            named.push(NamedThrowsInfo {
-                                name: name.clone(),
-                                ty,
-                            });
-                        }
-                        LiteralOrDefault::Default(_) => default = Some(ty),
-                    }
-                }
-
-                Some(FunctionThrowsInfo { default, named })
-            }
-            None => None,
-        };
+        let throws_type = function.throws.as_ref().map(|throws| {
+            resolve_or_type(
+                &throws.ty,
+                name_env,
+                named_type_map,
+                errors,
+                env,
+                ty_allocator,
+            )
+        });
 
         functions.push(FunctionInfo {
             keyword_span: function.keyword_span.clone(),
@@ -431,13 +411,14 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             arguments,
             body_argument_info,
             return_info,
-            throws,
+            throws_type,
         });
     }
 
     interfaces.push(InterfaceInfo {
         keyword_span: ast.keyword_span.clone(),
         name: final_name,
+        original_name: ast.name.value,
         functions,
         json_tree_type_cache,
     });

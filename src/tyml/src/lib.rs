@@ -504,7 +504,7 @@ type Error { code: int, message: string }
 interface API {
     /// get user
     #[kind = "get"]
-    authed function get_user(id: int = 100) -> User throws @default: Error {
+    authed function get_user(id: int = 100) -> User throws Error {
         return { id = 0, name = "test" }
     }
 

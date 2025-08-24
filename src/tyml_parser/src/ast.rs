@@ -61,8 +61,6 @@ impl_ast!(NameOrAtBody<'_>, enum: Name, AtBody);
 impl_ast!(Properties<'_, '_>, span = self.span);
 impl_ast!(Property<'_, '_>, span = self.span);
 impl_ast!(Throws<'_, '_>, span = self.span);
-impl_ast!(ErrorType<'_, '_>, span = self.span);
-impl_ast!(LiteralOrDefault<'_>, enum: Literal, Default);
 impl_ast!(ReturnBlock<'_, '_>, span = self.span);
 impl_ast!(ReturnExpression<'_, '_>, span = self.span);
 impl_ast!(ReturnType<'_, '_>, span = self.span);
@@ -369,21 +367,8 @@ pub struct ReturnExpression<'input, 'allocator> {
 #[derive(Debug)]
 pub struct Throws<'input, 'allocator> {
     pub keyword: Range<usize>,
-    pub error_types: Vec<ErrorType<'input, 'allocator>, &'allocator Bump>,
-    pub span: Range<usize>,
-}
-
-#[derive(Debug)]
-pub struct ErrorType<'input, 'allocator> {
-    pub name: LiteralOrDefault<'input>,
     pub ty: OrType<'input, 'allocator>,
     pub span: Range<usize>,
-}
-
-#[derive(Debug)]
-pub enum LiteralOrDefault<'input> {
-    Literal(EscapedLiteral<'input>),
-    Default(Literal<'input>),
 }
 
 #[derive(Debug)]

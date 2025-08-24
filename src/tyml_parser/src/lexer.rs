@@ -47,8 +47,6 @@ pub enum TokenKind {
     Return,
     /// throws
     Throws,
-    /// @default
-    AtDefault,
     /// @body
     AtBody,
     /// authed
@@ -123,7 +121,6 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Function, "function"),
     Tokenizer::Keyword(TokenKind::Return, "return"),
     Tokenizer::Keyword(TokenKind::Throws, "throws"),
-    Tokenizer::Keyword(TokenKind::AtDefault, "@default"),
     Tokenizer::Keyword(TokenKind::AtBody, "@body"),
     Tokenizer::Keyword(TokenKind::Authed, "authed"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),

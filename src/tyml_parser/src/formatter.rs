@@ -180,16 +180,8 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                 TokenKind::Throws => FormatterToken {
                     text: token.text.into(),
                     kind: FormatterTokenKind::Normal,
-                    left_space: SpaceFormat::SpaceOrLineFeed {
-                        need_whitespace: true,
-                    },
-                    right_space: SpaceFormat::Space,
-                },
-                TokenKind::AtDefault => FormatterToken {
-                    text: token.text.into(),
-                    kind: FormatterTokenKind::Normal,
                     left_space: SpaceFormat::Space,
-                    right_space: SpaceFormat::None,
+                    right_space: SpaceFormat::Space,
                 },
                 _ => FormatterToken {
                     text: token.text.into(),
