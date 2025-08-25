@@ -28,29 +28,38 @@ fn generate_trait(tyml: &Tyml) -> String {
     let mut type_def = String::new();
     let mut name_context = NameContext::new();
 
+    source += "use serde::{Serialize, Deserialize};\n";
+    source += "use async_trait::async_trait;\n\n";
+
     for interface in tyml.interfaces().iter() {
-        source += "#![allow(async_fn_in_trait)]\n";
-        source += format!("pub trait {}: Send {{\n", interface.original_name).as_str();
+        source += "#[async_trait]\n";
+        source += format!(
+            "pub trait {}: Send + Sync + 'static {{\n",
+            interface.original_name
+        )
+        .as_str();
 
         for function in interface.functions.iter() {
-            source += format!("    async fn {}(&self, ", function.name.value.as_str()).as_str();
+            source += format!("    async fn {}(", function.name.value.as_str()).as_str();
+
+            let mut arguments = Vec::new();
+            arguments.push("&self".to_string());
 
             if let Some(body) = &function.body_argument_info {
-                source += format!(
-                    "body: {}, ",
+                arguments.push(format!(
+                    "body: {}",
                     generate_type_for_rust(
                         &body.ty,
                         &mut type_def,
                         &mut name_context,
                         tyml.named_type_map()
                     )
-                )
-                .as_str();
+                ));
             }
 
             for argument in function.arguments.iter() {
-                source += format!(
-                    "{}: {}, ",
+                arguments.push(format!(
+                    "{}: {}",
                     &argument.name.value,
                     generate_type_for_rust(
                         &argument.ty,
@@ -58,9 +67,10 @@ fn generate_trait(tyml: &Tyml) -> String {
                         &mut name_context,
                         tyml.named_type_map()
                     )
-                )
-                .as_str();
+                ));
             }
+
+            source += arguments.join(", ").as_str();
 
             source += ")";
 

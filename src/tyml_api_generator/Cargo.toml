@@ -3,5 +3,11 @@ name = "tyml_api_generator"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "tyml-api-gen"
+path = "src/bin/tyml_api_gen.rs"
+
 [dependencies]
+clap = { version = "4.5.45", features = ["derive"] }
+shellexpand = "3.1.1"
 tyml = { path = "../tyml/", version = "0.1.0" }

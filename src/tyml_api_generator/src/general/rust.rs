@@ -73,7 +73,7 @@ pub(crate) fn generate_type_for_rust(
                                     );
 
                                     *type_def +=
-                                        format!("   {}: {},\n", element_name, element_type_name)
+                                        format!("   pub {}: {},\n", element_name, element_type_name)
                                             .as_str();
                                 }
 
@@ -153,7 +153,7 @@ pub(crate) fn generate_type_for_rust(
             let or_type_name = name_context.create_name(or_type_name);
 
             let tag = "#[allow(non_snake_case)]";
-            let derive = "#[derive(Debug, Serialize, Deserialize)]\n#[serde(untagged)]";
+            let derive = "#[derive(Debug, Clone, Serialize, Deserialize)]\n#[serde(untagged)]";
 
             *type_def += format!("{}\n{}\npub enum {} {{\n", tag, derive, or_type_name).as_str();
 
@@ -226,7 +226,7 @@ fn generate_type_tree_for_rust(
                     named_type_map,
                 );
 
-                *type_def += format!("   {}: {},\n", element_name, element_type_name).as_str();
+                *type_def += format!("   pub {}: {},\n", element_name, element_type_name).as_str();
             }
 
             *type_def += "}\n\n";

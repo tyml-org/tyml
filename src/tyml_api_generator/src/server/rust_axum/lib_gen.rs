@@ -61,7 +61,7 @@ pub mod types;
     for interface in tyml.interfaces().iter() {
         for function in interface.functions.iter() {
             source += format!(
-                r#"    router = route("/{}/{}", get(async move |Query(query): Query<HashMap<String, String>>, "#,
+                r#"    router = router.route("/{}/{}", get(async move |Query(query): Query<HashMap<String, String>>, "#,
                 interface.name.value, function.name.value
             )
             .as_str();
@@ -93,7 +93,7 @@ pub mod types;
             }
 
             source += format!(
-                "        let result = <api as crate::types::{}>.{}(",
+                "        let result = <T as crate::types::{}>::{}(&api, ",
                 interface.original_name, &function.name.value
             )
             .as_str();
@@ -113,7 +113,7 @@ pub mod types;
 
             match &function.return_info {
                 Some(_) => {
-                    source += "            Ok(value) => (StatusCode::OK, Json(value)),\n";
+                    source += "            Ok(value) => (StatusCode::OK, Json(value)).into_response(),\n";
                 }
                 None => {
                     source += "            Ok(_) => Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap(),\n";
@@ -122,7 +122,7 @@ pub mod types;
 
             match &function.throws_type {
                 Some(_) => {
-                    source += "            Err(error) => (StatusCode::BAD_REQUEST, Json(error)),\n";
+                    source += "            Err(error) => (StatusCode::BAD_REQUEST, Json(error)).into_response(),\n";
                 }
                 None => {
                     source += "            Err(_) => Response::builder().status(StatusCode::BAD_REQUEST).body(Body::empty()).unwrap(),\n";
@@ -136,6 +136,8 @@ pub mod types;
 
     source += "\n    let listener = tokio::net::TcpListener::bind(address).await?;\n";
     source += "    axum::serve(listener, router).await?;\n";
+
+    source += "    Ok(())\n";
 
     source += "}";
 
