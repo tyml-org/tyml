@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::fs::{self};
 
 use crate::GeneratorSettings;
 
@@ -11,11 +11,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.8.4"
-serde = "1.0.219"
-serde_json = "1.0.142"
-extension-fn = "1.2.0"
-tokio = "1.47.1"
+axum = "0.8"
+serde = "1.0"
+serde_json = "1.0"
+extension-fn = "1.2"
+tokio = "1"
 "#,
         &setting.package_name
     );
@@ -23,9 +23,11 @@ tokio = "1.47.1"
     let mut path = setting.package_path.clone();
     path.push("Cargo.toml");
 
-    let mut file = File::create(path)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
 
-    file.write(source.as_bytes())?;
+    fs::write(path, source)?;
 
     Ok(())
 }

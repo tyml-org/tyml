@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::fs::{self};
 
 use tyml::Tyml;
 
@@ -14,14 +14,16 @@ pub(crate) fn generate_functions(
     path.push("src");
     path.push("types.rs");
 
-    let mut file = File::create(path)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
 
-    file.write(source.as_bytes())?;
+    fs::write(path, source)?;
 
     Ok(())
 }
 
-pub(crate) fn generate_trait(tyml: &Tyml) -> String {
+fn generate_trait(tyml: &Tyml) -> String {
     let mut source = String::new();
     let mut type_def = String::new();
     let mut name_context = NameContext::new();
@@ -119,4 +121,34 @@ pub(crate) fn generate_trait(tyml: &Tyml) -> String {
     }
 
     format!("{}\n\n{}", type_def, source)
+}
+
+#[cfg(test)]
+mod test {
+    use tyml::Tyml;
+
+    use crate::server::rust_axum::function_gen::generate_trait;
+
+    #[test]
+    fn trait_gen() {
+        let source = r#"
+type User {
+    id: int
+    name: string | Name
+}
+
+type Name {
+    name: string
+    display_name: string
+}
+
+interface API {
+    function get_user(id: int) -> User throws string
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        println!("{}", generate_trait(&tyml));
+    }
 }
