@@ -126,5 +126,7 @@ fn main() -> Result<(), String> {
         } => todo!(),
     }
 
+    println!("Success!");
+
     Ok(())
 }

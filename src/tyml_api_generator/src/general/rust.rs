@@ -1,7 +1,4 @@
-use tyml::tyml_type::types::{
-    FloatAttribute, IntAttribute, NamedTypeMap, NamedTypeTree, StringAttribute, Type, TypeTree,
-    UnsignedIntAttribute,
-};
+use tyml::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
 
 use crate::name::NameContext;
 
@@ -12,23 +9,11 @@ pub(crate) fn generate_type_for_rust(
     named_type_map: &NamedTypeMap,
 ) -> String {
     match ty {
-        Type::Int(attribute) => match attribute == &IntAttribute::default() {
-            true => "i64".to_string(),
-            false => todo!(),
-        },
-        Type::UnsignedInt(attribute) => match attribute == &UnsignedIntAttribute::default() {
-            true => "u64".to_string(),
-            false => todo!(),
-        },
-        Type::Float(attribute) => match attribute == &FloatAttribute::default() {
-            true => "f64".to_string(),
-            false => todo!(),
-        },
+        Type::Int(_) => "i64".to_string(),
+        Type::UnsignedInt(_) => "u64".to_string(),
+        Type::Float(_) => "f64".to_string(),
         Type::Bool => "bool".to_string(),
-        Type::String(attribute) => match attribute == &StringAttribute::default() {
-            true => "String".to_string(),
-            false => todo!(),
-        },
+        Type::String(_) => "String".to_string(),
         Type::MaybeInt => "i64".to_string(),
         Type::MaybeUnsignedInt => "u64".to_string(),
         Type::Named(name_id) => {
@@ -72,9 +57,11 @@ pub(crate) fn generate_type_for_rust(
                                         named_type_map,
                                     );
 
-                                    *type_def +=
-                                        format!("   pub {}: {},\n", element_name, element_type_name)
-                                            .as_str();
+                                    *type_def += format!(
+                                        "   pub {}: {},\n",
+                                        element_name, element_type_name
+                                    )
+                                    .as_str();
                                 }
 
                                 *type_def += "}\n\n";
