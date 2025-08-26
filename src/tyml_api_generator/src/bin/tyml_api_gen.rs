@@ -6,7 +6,10 @@ use tyml::{
     tyml_diagnostic::{DiagnosticBuilder, message::Lang},
     tyml_source::SourceCode,
 };
-use tyml_api_generator::{GeneratorSettings, server::rust_axum::generate_rust_axum_server};
+use tyml_api_generator::{
+    GeneratorSettings, client::typescript_vanilla::generate_functions_for_typescript,
+    server::rust_axum::generate_rust_axum_server,
+};
 
 /// Generate api for REST-API server and client with tyml
 #[derive(Parser)]
@@ -38,7 +41,9 @@ enum ServerKind {
 }
 
 #[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
-enum ClientKind {}
+enum ClientKind {
+    Typescript,
+}
 
 fn main() -> Result<(), String> {
     let args = Args::parse();
@@ -113,18 +118,18 @@ fn main() -> Result<(), String> {
             dir: _,
             name: _,
         } => match kind {
-            ServerKind::RustAxum => {
-                generate_rust_axum_server(&setting, &tyml)
-                    .map_err(|error| format!("Failed to generate : {}", error))?;
-            }
+            ServerKind::RustAxum => generate_rust_axum_server(&setting, &tyml),
         },
         SubCommand::Client {
-            kind: _,
+            kind,
             tyml: _,
             dir: _,
             name: _,
-        } => todo!(),
+        } => match kind {
+            ClientKind::Typescript => generate_functions_for_typescript(&setting, &tyml),
+        },
     }
+    .map_err(|error| format!("Failed to generate : {}", error))?;
 
     println!("Success!");
 

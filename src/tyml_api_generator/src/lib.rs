@@ -3,6 +3,7 @@ use std::path::PathBuf;
 pub mod general;
 pub mod name;
 pub mod server;
+pub mod client;
 
 pub struct GeneratorSettings {
     pub package_name: String,

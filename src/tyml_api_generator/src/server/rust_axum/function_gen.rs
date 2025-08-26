@@ -4,7 +4,7 @@ use tyml::Tyml;
 
 use crate::{GeneratorSettings, general::rust::generate_type_for_rust, name::NameContext};
 
-pub(crate) fn generate_functions(
+pub(crate) fn generate_functions_for_rust_axum(
     setting: &GeneratorSettings,
     tyml: &Tyml,
 ) -> Result<(), Box<dyn std::error::Error>> {
