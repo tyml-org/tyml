@@ -1,5 +1,5 @@
 use std::fs;
-use tyml::Tyml;
+use tyml::{Tyml, tyml_type::types::FunctionKind};
 
 use crate::GeneratorSettings;
 
@@ -47,6 +47,7 @@ use axum::{
 
 pub mod types;
 
+#[allow(unused)]
 ";
 
     source += format!(
@@ -58,11 +59,24 @@ pub mod types;
     source += "    let api = Arc::new(api);\n";
     source += "    let mut router = Router::new();\n\n";
 
+    let mut api_counter = 0;
+
     for interface in tyml.interfaces().iter() {
         for function in interface.functions.iter() {
+            let method_name = match function.kind {
+                FunctionKind::GET => "get",
+                FunctionKind::PUT => "put",
+                FunctionKind::POST => "post",
+                FunctionKind::PATCH => "patch",
+                FunctionKind::DELETE => "delete",
+            };
+
+            api_counter += 1;
+            source += format!("    let api{} = api.clone();\n", api_counter).as_str();
+
             source += format!(
-                r#"    router = router.route("/{}/{}", get(async move |Query(query): Query<HashMap<String, String>>, "#,
-                interface.name.value, function.name.value
+                r#"    router = router.route("/{}/{}", {}(async move |Query(query): Query<HashMap<String, String>>, "#,
+                interface.name.value, function.name.value, method_name
             )
             .as_str();
 
@@ -71,7 +85,7 @@ pub mod types;
             }
 
             source += "| {\n";
-            source += "        let api = api.clone();\n";
+            source += format!("        let api = api{};\n", api_counter).as_str();
 
             for argument in function.arguments.iter() {
                 let argument_name = argument.name.value.as_ref();
@@ -109,26 +123,31 @@ pub mod types;
 
             source += ").await;\n";
 
-            source += "        match result {\n";
-
-            match &function.return_info {
-                Some(_) => {
-                    source += "            Ok(value) => (StatusCode::OK, Json(value)).into_response(),\n";
-                }
-                None => {
-                    source += "            Ok(_) => Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap(),\n";
-                }
-            }
-
             match &function.throws_type {
                 Some(_) => {
+                    source += "        match result {\n";
+
+                    match &function.return_info {
+                        Some(_) => {
+                            source += "            Ok(value) => (StatusCode::OK, Json(value)).into_response(),\n";
+                        }
+                        None => {
+                            source += "            Ok(_) => Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap(),\n";
+                        }
+                    }
+
                     source += "            Err(error) => (StatusCode::BAD_REQUEST, Json(error)).into_response(),\n";
+                    source += "        }\n";
                 }
-                None => {
-                    source += "            Err(_) => Response::builder().status(StatusCode::BAD_REQUEST).body(Body::empty()).unwrap(),\n";
-                }
+                None => match &function.return_info {
+                    Some(_) => {
+                        source += "        (StatusCode::OK, Json(result)).into_response()\n";
+                    }
+                    None => {
+                        source += "        Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap()\n";
+                    }
+                },
             }
-            source += "        }\n";
 
             source += "    }));\n";
         }

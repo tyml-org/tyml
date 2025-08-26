@@ -37,9 +37,7 @@ type Hello {
 }
 
 interface API {
-    function hello(@body: Hello = { id = 0, name = "test" }) -> string {
-        return "Hello, world!"
-    }
+    function hello()
 }
 "#;
 

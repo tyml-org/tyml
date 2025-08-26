@@ -18,9 +18,9 @@ use crate::{
     name::{NameEnvironment, NameID},
     types::{
         AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo,
-        FunctionBodyArgumentInfo, FunctionInfo, FunctionReturnInfo, IntAttribute, InterfaceInfo,
-        NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type, TypeTree,
-        UnsignedIntAttribute,
+        FunctionBodyArgumentInfo, FunctionInfo, FunctionKind, FunctionReturnInfo, IntAttribute,
+        InterfaceInfo, NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type,
+        TypeTree, UnsignedIntAttribute,
     },
 };
 
@@ -293,6 +293,30 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             .flatten()
             .unwrap_or(function.name.clone().map(|name| camel_to_snake(name)));
 
+        let kind = function
+            .properties
+            .elements
+            .iter()
+            .find(|property| property.name.value.as_ref() == "kind")
+            .map(|property| {
+                property.values.get(0).map(|value| match value {
+                    ValueLiteral::String(value) => {
+                        Some(match value.value.to_lowercase().as_str() {
+                            "get" => FunctionKind::GET,
+                            "put" => FunctionKind::PUT,
+                            "post" => FunctionKind::POST,
+                            "patch" => FunctionKind::PATCH,
+                            "delete" => FunctionKind::DELETE,
+                            _ => FunctionKind::default(),
+                        })
+                    }
+                    _ => None,
+                })
+            })
+            .flatten()
+            .flatten()
+            .unwrap_or_default();
+
         let same_name = functions
             .iter()
             .map(|function| &function.name)
@@ -408,6 +432,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             keyword_span: function.keyword_span.clone(),
             authed,
             name: final_name,
+            kind,
             arguments,
             body_argument_info,
             return_info,

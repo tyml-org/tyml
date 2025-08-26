@@ -1,5 +1,8 @@
 use reqwest::Client;
-use tyml::{Tyml, tyml_type::resolver::camel_to_snake};
+use tyml::{
+    Tyml,
+    tyml_type::{resolver::camel_to_snake, types::FunctionKind},
+};
 
 use crate::json::ToSerdeJson;
 
@@ -50,13 +53,17 @@ impl TymlMockClient {
 
         let client = Client::new();
 
-        let mut request = client
-            .get(format!(
-                "http://localhost:3000/{}/{}",
-                interface_name, function_name
-            ))
-            .query(&arguments)
-            .header("Accept", "application/json");
+        let url = format!("http://localhost:3000/{}/{}", interface_name, function_name);
+
+        let mut request = match function.kind {
+            FunctionKind::GET => client.get(url),
+            FunctionKind::PUT => client.put(url),
+            FunctionKind::POST => client.post(url),
+            FunctionKind::PATCH => client.patch(url),
+            FunctionKind::DELETE => client.patch(url),
+        };
+        request = request.query(&arguments);
+        request = request.header("Accept", "application/json");
 
         if let Some(body) = &function.body_argument_info {
             request = request.json(&body.default_value.unwrap().to_serde_json());

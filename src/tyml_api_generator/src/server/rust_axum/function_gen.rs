@@ -96,7 +96,7 @@ fn generate_trait(tyml: &Tyml) -> String {
                     }
                     None => {
                         source += format!(
-                            " -> Result<{}, ()>",
+                            " -> {}",
                             generate_type_for_rust(
                                 &return_type.ty,
                                 &mut type_def,

@@ -464,10 +464,21 @@ pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
     pub keyword_span: Range<usize>,
     pub authed: Option<Range<usize>>,
     pub name: Spanned<String>,
+    pub kind: FunctionKind,
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
     pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator>>,
     pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
     pub throws_type: Option<Type<'ty>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FunctionKind {
+    GET,
+    PUT,
+    #[default]
+    POST,
+    PATCH,
+    DELETE,
 }
 
 #[derive(Debug)]

@@ -47,13 +47,7 @@ pub fn collect_serve_error(
 
 fn collect_interface_serve_error(interface: &InterfaceInfo, errors: &mut Vec<TymlMockError>) {
     for function in interface.functions.iter() {
-        if function
-            .return_info
-            .as_ref()
-            .map(|info| info.default_value)
-            .flatten()
-            .is_none()
-        {
+        if let Some(None) = function.return_info.as_ref().map(|info| info.default_value) {
             let error = TymlMockError::NoReturnDefaultValue {
                 span: function.name.span(),
             };
