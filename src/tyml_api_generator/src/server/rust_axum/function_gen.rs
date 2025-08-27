@@ -32,6 +32,13 @@ fn generate_trait(tyml: &Tyml) -> String {
     source += "use async_trait::async_trait;\n\n";
 
     for interface in tyml.interfaces().iter() {
+        source += interface
+            .documents
+            .iter()
+            .map(|line| format!("///{}", line))
+            .collect::<Vec<_>>()
+            .join("")
+            .as_str();
         source += "#[async_trait]\n";
         source += format!(
             "pub trait {}: Send + Sync + 'static {{\n",
@@ -40,6 +47,13 @@ fn generate_trait(tyml: &Tyml) -> String {
         .as_str();
 
         for function in interface.functions.iter() {
+            source += function
+                .documents
+                .iter()
+                .map(|line| format!("    ///{}", line))
+                .collect::<Vec<_>>()
+                .join("")
+                .as_str();
             source += format!("    async fn {}(", function.name.value.as_str()).as_str();
 
             let mut arguments = Vec::new();
@@ -197,7 +211,10 @@ mod test {
     #[test]
     fn trait_gen() {
         let source = r#"
+/// the User!
+/// Yes!!
 type User {
+    /// the id!
     id: int
     name: string | Name
 }
@@ -214,7 +231,9 @@ type Claim {
     exp: int
 }
 
+/// API!
 interface API {
+    /// get_user!
     authed function get_user(@claim: Claim) -> User throws string
 }
         "#;

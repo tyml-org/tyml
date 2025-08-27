@@ -34,7 +34,7 @@ pub(crate) fn generate_type_for_rust(
                             {
                                 let documents = documents
                                     .iter()
-                                    .map(|line| format!("/// {}", line))
+                                    .map(|line| format!("///{}", line))
                                     .collect::<Vec<_>>()
                                     .join("");
 
@@ -50,6 +50,29 @@ pub(crate) fn generate_type_for_rust(
                                 .as_str();
 
                                 for (element_name, element_type) in node.iter() {
+                                    let documents = match element_type {
+                                        TypeTree::Node {
+                                            node: _,
+                                            any_node: _,
+                                            node_key_span: _,
+                                            any_node_key_span: _,
+                                            documents,
+                                            span: _,
+                                        } => documents,
+                                        TypeTree::Leaf {
+                                            ty: _,
+                                            documents,
+                                            span: _,
+                                        } => documents,
+                                    };
+
+                                    *type_def += documents
+                                        .iter()
+                                        .map(|line| format!("    ///{}", line))
+                                        .collect::<Vec<_>>()
+                                        .join("")
+                                        .as_str();
+
                                     let element_type_name = generate_type_tree_for_rust(
                                         element_type,
                                         &mut new_type_def,
@@ -58,7 +81,7 @@ pub(crate) fn generate_type_for_rust(
                                     );
 
                                     *type_def += format!(
-                                        "   pub {}: {},\n",
+                                        "    pub {}: {},\n",
                                         element_name, element_type_name
                                     )
                                     .as_str();
@@ -75,7 +98,7 @@ pub(crate) fn generate_type_for_rust(
                         } => {
                             let documents = documents
                                 .iter()
-                                .map(|line| format!("/// {}", line))
+                                .map(|line| format!("///{}", line))
                                 .collect::<Vec<_>>()
                                 .join("");
 
@@ -89,7 +112,7 @@ pub(crate) fn generate_type_for_rust(
                             for (element, documents) in elements.iter() {
                                 let documents = documents
                                     .iter()
-                                    .map(|line| format!("/// {}", line))
+                                    .map(|line| format!("///{}", line))
                                     .collect::<Vec<_>>()
                                     .join("");
 
@@ -190,7 +213,7 @@ fn generate_type_tree_for_rust(
 
             let documents = documents
                 .iter()
-                .map(|line| format!("/// {}", line))
+                .map(|line| format!("///{}", line))
                 .collect::<Vec<_>>()
                 .join("");
 
@@ -206,6 +229,29 @@ fn generate_type_tree_for_rust(
             .as_str();
 
             for (element_name, element_type) in node.iter() {
+                let documents = match element_type {
+                    TypeTree::Node {
+                        node: _,
+                        any_node: _,
+                        node_key_span: _,
+                        any_node_key_span: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                    TypeTree::Leaf {
+                        ty: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                };
+
+                *type_def += documents
+                    .iter()
+                    .map(|line| format!("    ///{}", line))
+                    .collect::<Vec<_>>()
+                    .join("")
+                    .as_str();
+
                 let element_type_name = generate_type_tree_for_rust(
                     element_type,
                     &mut new_type_def,
@@ -213,7 +259,7 @@ fn generate_type_tree_for_rust(
                     named_type_map,
                 );
 
-                *type_def += format!("   pub {}: {},\n", element_name, element_type_name).as_str();
+                *type_def += format!("    pub {}: {},\n", element_name, element_type_name).as_str();
             }
 
             *type_def += "}\n\n";

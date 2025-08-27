@@ -506,10 +506,11 @@ type Claim {
     exp: int
 }
 
+/// The API!
 interface API {
     #[kind = "get"]
     function register(id: int = 100, name: string = "test") -> string {
-        
+        return "* Secret Token *"
     }
 
     authed function get_user(@claim: Claim) -> User {

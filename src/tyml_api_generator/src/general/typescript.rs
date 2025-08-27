@@ -19,6 +19,31 @@ pub(crate) fn generate_type_for_typescript(
 
                 let mut new_type_def = String::new();
 
+                let documents = match tree {
+                    TypeTree::Node {
+                        node: _,
+                        any_node: _,
+                        node_key_span: _,
+                        any_node_key_span: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                    TypeTree::Leaf {
+                        ty: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                };
+
+                *type_def += "/**\n";
+                *type_def += documents
+                    .iter()
+                    .map(|line| format!(" *{}", line))
+                    .collect::<Vec<_>>()
+                    .join("")
+                    .as_str();
+                *type_def += " */\n";
+
                 *type_def += format!("export interface {} ", type_name).as_str();
                 *type_def +=
                     generate_type_tree_for_typescript(tree, &mut new_type_def, 1, named_type_map)
@@ -31,9 +56,18 @@ pub(crate) fn generate_type_for_typescript(
             }
             NamedTypeTree::Enum {
                 elements,
-                documents: _,
+                documents,
             } => {
                 let type_name = named_type_map.get_name(*name_id).unwrap();
+
+                *type_def += "/**\n";
+                *type_def += documents
+                    .iter()
+                    .map(|line| format!(" *{}", line))
+                    .collect::<Vec<_>>()
+                    .join("")
+                    .as_str();
+                *type_def += " */\n";
 
                 *type_def += format!(
                     "export type {} = {};\n\n",
@@ -90,8 +124,34 @@ fn generate_type_tree_for_typescript(
             source += "{\n";
 
             for (element_name, element_type) in node.iter() {
-                source += "    ".repeat(indent).as_str();
+                let documents = match element_type {
+                    TypeTree::Node {
+                        node: _,
+                        any_node: _,
+                        node_key_span: _,
+                        any_node_key_span: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                    TypeTree::Leaf {
+                        ty: _,
+                        documents,
+                        span: _,
+                    } => documents,
+                };
 
+                source += "    ".repeat(indent).as_str();
+                source += "/**\n";
+                source += documents
+                    .iter()
+                    .map(|line| format!("{} *{}", "    ".repeat(indent).as_str(), line))
+                    .collect::<Vec<_>>()
+                    .join("")
+                    .as_str();
+                source += "    ".repeat(indent).as_str();
+                source += " */\n";
+
+                source += "    ".repeat(indent).as_str();
                 source += format!(
                     "{}: {};\n",
                     element_name,
@@ -125,13 +185,18 @@ mod test {
     use crate::general::typescript::generate_type_tree_for_typescript;
 
     #[test]
-    fn type_gen() {
+    fn ts_gen() {
         let source = r#"
 /// User docs
 /// yay
 type User {
     /// this is id!
-    id: int
+    id: {
+        /// inner id!
+        /// yay!
+        id: int
+        name: string
+    }
     name: string | Name
 }
 

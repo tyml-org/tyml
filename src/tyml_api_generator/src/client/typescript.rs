@@ -39,11 +39,31 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
     let mut type_def = String::new();
 
     for interface in tyml.interfaces().iter() {
+        source += "/**\n";
+        source += interface
+            .documents
+            .iter()
+            .map(|line| format!(" *{}", line))
+            .collect::<Vec<_>>()
+            .join("")
+            .as_str();
+        source += " */\n";
+
         source += format!("export class {} {{\n", interface.original_name).as_str();
         source += "    private url: string;\n";
         source += "    public constructor(url: string) { this.url = url; }\n\n";
 
         for function in interface.functions.iter() {
+            source += "    /**\n";
+            source += function
+                .documents
+                .iter()
+                .map(|line| format!("     *{}", line))
+                .collect::<Vec<_>>()
+                .join("")
+                .as_str();
+            source += "     */\n";
+
             source += format!("    public async {}(", function.name.value.as_str()).as_str();
 
             let mut arguments = Vec::new();
@@ -245,7 +265,11 @@ type Name {
     display_name: string
 }
 
+/// The API!
+/// yay!
 interface API {
+    /// The function!
+    /// yay!!
     function get_user(id: int) -> User throws string
 }
         "#;

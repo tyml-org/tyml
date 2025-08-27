@@ -452,6 +452,7 @@ impl ToTypeName for StringAttribute {
 
 #[derive(Debug)]
 pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
+    pub documents: Vec<&'input str, &'ast_allocator Bump>,
     pub keyword_span: Range<usize>,
     pub name: Spanned<String>,
     pub original_name: &'input str,
@@ -461,6 +462,7 @@ pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
 
 #[derive(Debug)]
 pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
+    pub documents: Vec<&'input str, &'ast_allocator Bump>,
     pub keyword_span: Range<usize>,
     pub authed: Option<Range<usize>>,
     pub name: Spanned<String>,
