@@ -4,6 +4,8 @@ name = "tyml_grammar"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "TYML: type checker for markup language"
+repogitory = "https://github.com/tyml-org/tyml/"
 
 [dependencies]
 bnf_rules = "0.1.7"

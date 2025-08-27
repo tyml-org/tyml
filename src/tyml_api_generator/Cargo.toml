@@ -3,6 +3,8 @@ name = "tyml_api_generator"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "TYML: type checker for markup language"
+repogitory = "https://github.com/tyml-org/tyml/"
 
 [[bin]]
 name = "tyml-api-gen"
