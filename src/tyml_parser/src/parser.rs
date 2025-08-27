@@ -49,6 +49,11 @@ pub fn parse_defines<'input, 'allocator>(
 
                 lexer.skip_line_feed();
 
+                if let TokenKind::Comma | TokenKind::LineFeed = lexer.current().get_kind() {
+                    lexer.next();
+                    lexer.skip_line_feed();
+                }
+
                 continue;
             }
         };
@@ -1071,8 +1076,6 @@ fn parse_struct_define<'input, 'allocator>(
         }
     };
 
-    lexer.skip_line_feed();
-
     if lexer.current().get_kind() != TokenKind::BraceLeft {
         let error = recover_until(
             ParseErrorKind::NotFoundStructBlock,
@@ -1580,6 +1583,11 @@ fn parse_return_block<'input, 'allocator>(
             allocator,
         );
         errors.push(error);
+
+        if lexer.current().get_kind() == TokenKind::BraceRight {
+            lexer.next();
+        }
+
         return None;
     }
     let keyword_span = lexer.next().unwrap().span;

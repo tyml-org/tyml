@@ -494,25 +494,34 @@ mod tests {
     #[test]
     fn lib_test() {
         let source = r#"
-/// User
-type User { id: int, name: string }
+type User {
+    id: string | int
+    name: string
+}
 
-/// Error
-type Error { code: int, message: string }
+type Claim {
+    iss: string
+    sub: string
+    iat: int
+    exp: int
+}
 
-/// JWT Claim
-type Claim { id: int }
-
-/// API
 interface API {
-    /// get user
     #[kind = "get"]
-    authed function get_user(@claim: Claim) -> User throws Error {
-        return { id = 0, name = "test" }
+    function register(id: int = 100, name: string = "test") -> string {
+        
     }
 
-    function register(@body: User) -> string
+    authed function get_user(@claim: Claim) -> User {
+        return { id = 100, name = "test" }
+    }
+
+    #[kind = "get"]
+    function hello() -> string {
+        return "Hello, world!"
+    }
 }
+
 "#;
 
         let ini_source = r#""#;
