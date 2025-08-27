@@ -411,9 +411,21 @@ impl LanguageServer for LSPBackend {
         match server {
             Either::Left(_) => Ok(None),
             Either::Right(server) => Ok(Some(
-                server.code_lens(params.text_document.uri.to_string().replace("file://", "")),
+                server.code_lens(url_to_native_path_string(&params.text_document.uri).unwrap()),
             )),
         }
+    }
+}
+
+fn url_to_native_path_string(uri: &Url) -> std::result::Result<String, &'static str> {
+    if uri.scheme() != "file" {
+        return Err("not a file URL");
+    }
+
+    match uri.to_file_path() {
+        Ok(path) => Ok(path.to_string_lossy().into_owned()),
+        // もし何らかの理由で失敗した場合のみ、従来の置換をフォールバックとして実施
+        Err(_) => Ok(uri.to_string().trim_start_matches("file://").to_string()),
     }
 }
 
