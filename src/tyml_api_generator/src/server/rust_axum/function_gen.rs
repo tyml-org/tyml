@@ -45,6 +45,18 @@ fn generate_trait(tyml: &Tyml) -> String {
             let mut arguments = Vec::new();
             arguments.push("&self".to_string());
 
+            if let Some(claim) = &function.claim_argument_info {
+                arguments.push(format!(
+                    "claim: {}",
+                    generate_type_for_rust(
+                        &claim.ty,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
+                ));
+            }
+
             if let Some(body) = &function.body_argument_info {
                 arguments.push(format!(
                     "body: {}",
@@ -130,6 +142,49 @@ fn generate_trait(tyml: &Tyml) -> String {
         source += "}\n\n";
     }
 
+    let has_auth = tyml
+        .interfaces()
+        .iter()
+        .map(|interface| interface.functions.iter())
+        .flatten()
+        .any(|function| function.authed.is_some());
+
+    if has_auth {
+        type_def += r#"
+
+pub(crate) fn __bearer(headers: &axum::http::HeaderMap) -> Option<&str> {
+    let auth = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let prefix = "Bearer ";
+    auth.strip_prefix(prefix).or_else(|| auth.strip_prefix(prefix.to_lowercase().as_str()))
+}
+
+"#;
+
+        type_def += r#"
+/// Implement this for your server struct.
+///
+/// ## Example
+/// ```
+/// impl JwtValidator for YourServerStruct {
+///     fn validate<T: serde::de::DeserializeOwned>(token: &str) -> Result<T, ()> {
+///         let claim = jsonwebtoken::decode(
+///             token,
+///             &DecodingKey::from_secret("* your secret key *".as_bytes()),
+///             &Validation::default(),
+///         )
+///         .map_err(|_| ())?
+///         .claims;
+///
+///         Ok(claim)
+///     }
+/// }
+/// ```
+pub trait JwtValidator {
+    fn validate<T: serde::de::DeserializeOwned>(token: &str) -> Result<T, ()>;
+}
+"#;
+    }
+
     format!("{}\n\n{}", type_def, source)
 }
 
@@ -152,8 +207,15 @@ type Name {
     display_name: string
 }
 
+type Claim {
+    iss: string
+    sub: int
+    iat: int
+    exp: int
+}
+
 interface API {
-    function get_user(id: int) -> User throws string
+    authed function get_user(@claim: Claim) -> User throws string
 }
         "#;
 

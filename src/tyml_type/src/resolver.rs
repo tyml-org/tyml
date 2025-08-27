@@ -7,8 +7,8 @@ use hashbrown::{DefaultHashBuilder, HashMap};
 use regex::Regex;
 use serde_json::Value;
 use tyml_parser::ast::{
-    AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents, ElementDefine,
-    EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, NameOrAtBody, NodeLiteral,
+    ArgumentName, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, Define, Defines, Documents,
+    ElementDefine, EscapedLiteral, FloatLiteral, FromTo, Interface, JsonValue, NodeLiteral,
     NumericAttribute, NumericAttributeKind, OrType, Spanned, TypeAttribute, TypeDefine,
     ValueLiteral, AST,
 };
@@ -17,7 +17,7 @@ use crate::{
     error::{TypeError, TypeErrorKind},
     name::{NameEnvironment, NameID},
     types::{
-        AttributeSet, AttributeTree, FloatAttribute, FunctionArgumentInfo,
+        AttributeSet, AttributeTree, AuthClaimArgumentInfo, FloatAttribute, FunctionArgumentInfo,
         FunctionBodyArgumentInfo, FunctionInfo, FunctionKind, FunctionReturnInfo, IntAttribute,
         InterfaceInfo, NamedTypeMap, NamedTypeTree, NumericalValueRange, StringAttribute, Type,
         TypeTree, UnsignedIntAttribute,
@@ -335,6 +335,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         let authed = function.authed.clone();
 
         let mut body_argument_info: Option<FunctionBodyArgumentInfo<'_, '_, '_>> = None;
+        let mut claim_argument_info: Option<AuthClaimArgumentInfo<'_, '_, '_>> = None;
         let mut arguments = Vec::new_in(ty_allocator);
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
@@ -358,14 +359,14 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             }
 
             match &argument.name {
-                NameOrAtBody::Name(name) => {
+                ArgumentName::Name(name) => {
                     arguments.push(FunctionArgumentInfo {
                         name: name.clone(),
                         ty,
                         default_value: argument.default_value.as_ref(),
                     });
                 }
-                NameOrAtBody::AtBody(name) => {
+                ArgumentName::AtBody(name) => {
                     if let Some(exists) = &body_argument_info {
                         let error = TypeError {
                             kind: TypeErrorKind::BodyArgumentAlreadyExists {
@@ -380,8 +381,35 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                         name: name.span(),
                         ty,
                         default_value: argument.default_value.as_ref(),
-                    })
+                    });
                 }
+                ArgumentName::AtClaim(name) => {
+                    if let Some(exists) = &claim_argument_info {
+                        let error = TypeError {
+                            kind: TypeErrorKind::ClaimArgumentAlreadyExists {
+                                exists: exists.name.clone(),
+                            },
+                            span: name.span(),
+                        };
+                        errors.push(error);
+                    }
+
+                    claim_argument_info = Some(AuthClaimArgumentInfo {
+                        name: name.span(),
+                        ty,
+                        default_value: argument.default_value.as_ref(),
+                    });
+                }
+            }
+        }
+
+        if let Some(authed) = &function.authed {
+            if claim_argument_info.is_none() {
+                let error = TypeError {
+                    kind: TypeErrorKind::ClaimNotFound,
+                    span: authed.clone(),
+                };
+                errors.push(error);
             }
         }
 
@@ -435,6 +463,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             kind,
             arguments,
             body_argument_info,
+            claim_argument_info,
             return_info,
             throws_type,
         });

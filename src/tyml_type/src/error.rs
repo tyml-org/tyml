@@ -38,4 +38,8 @@ pub enum TypeErrorKind<'input, 'ty> {
     BodyArgumentAlreadyExists {
         exists: Range<usize>,
     },
+    ClaimArgumentAlreadyExists {
+        exists: Range<usize>,
+    },
+    ClaimNotFound,
 }

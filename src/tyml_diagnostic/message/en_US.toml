@@ -115,6 +115,13 @@ label_1 = "It is already defined here"
 message = "The @body parameter declaration conflicts"
 label_0 = "The @body parameter already exists"
 label_1 = "It is already declared here"
+[type_error.0009]
+message = "The @claim parameter declaration conflicts"
+label_0 = "The @calim parameter already exists"
+label_1 = "It is already declared here"
+[type_error.0010]
+message = "The @claim parameter is not specified"
+label_0 = "If '%color:yellow{authed}' is specified, the '%color:cyan{@claim}' parameter is required"
 
 
 [validate_error]

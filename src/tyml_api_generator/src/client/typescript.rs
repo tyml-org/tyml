@@ -48,6 +48,10 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
 
             let mut arguments = Vec::new();
 
+            if let Some(_) = &function.claim_argument_info {
+                arguments.push("__token: string".to_string());
+            }
+
             if let Some(body) = &function.body_argument_info {
                 arguments.push(format!(
                     "__body: {}",
@@ -120,16 +124,25 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                 &interface.name.value, &function.name.value
             )
             .as_str();
-            source += "        __url += '?';\n";
 
+            if !function.arguments.is_empty() {
+                source += "        __url += '?';\n";
+            }
+
+            let mut queries = Vec::new();
             for argument in function.arguments.iter() {
-                source += format!("        __url += '{}=';\n", &argument.name.value).as_str();
-                source += format!(
+                let mut query = String::new();
+                query += format!("        __url += '{}=';\n", &argument.name.value).as_str();
+                query += format!(
                     "        __url += encodeURIComponent(JSON.stringify({}));\n",
                     &argument.name.value
                 )
                 .as_str();
+
+                queries.push(query);
             }
+
+            source += queries.join("        __url += '&';\n").as_str();
 
             let method = match function.kind {
                 FunctionKind::GET => "GET",
@@ -144,9 +157,16 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                 None => "",
             };
 
+            let mut header = String::new();
+            header += ", headers: { Accept: 'application/json'";
+            if let Some(_) = &function.claim_argument_info {
+                header += ", Authorization: `Bearer ${__token}`";
+            }
+            header += " }";
+
             source += format!(
-                "        const result = await fetch(__url, {{ method: '{}'{} }});\n",
-                method, body
+                "        const result = await fetch(__url, {{ method: '{}'{}{} }});\n",
+                method, body, header
             )
             .as_str();
 

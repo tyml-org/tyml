@@ -6,10 +6,10 @@ use either::Either;
 
 use crate::{
     ast::{
-        ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue, Define,
-        Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine, EnumElement,
-        EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface, IntoLiteral,
-        JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal, NameOrAtBody, NamedType,
+        ArgumentName, ArrayType, AttributeAnd, AttributeOr, BaseType, BinaryLiteral, DefaultValue,
+        Define, Defines, Documents, ElementDefine, ElementInlineType, ElementType, EnumDefine,
+        EnumElement, EscapedLiteral, FloatLiteral, FromTo, Function, FunctionArgument, Interface,
+        IntoLiteral, JsonArray, JsonObject, JsonObjectElement, JsonValue, Literal, NamedType,
         NodeLiteral, NumericAttribute, NumericAttributeKind, OrType, Properties, Property,
         RegexAttribute, ReturnBlock, ReturnExpression, ReturnType, Spanned, StructDefine, Throws,
         TypeAttribute, TypeDefine, ValueLiteral,
@@ -1638,9 +1638,10 @@ fn parse_function_argument<'input, 'allocator>(
 
     let name = match lexer.current().get_kind() {
         TokenKind::Literal | TokenKind::StringLiteral => {
-            NameOrAtBody::Name(parse_literal(lexer).unwrap())
+            ArgumentName::Name(parse_literal(lexer).unwrap())
         }
-        TokenKind::AtBody => NameOrAtBody::AtBody(lexer.next().unwrap().into_literal()),
+        TokenKind::AtBody => ArgumentName::AtBody(lexer.next().unwrap().into_literal()),
+        TokenKind::AtClaim => ArgumentName::AtClaim(lexer.next().unwrap().into_literal()),
         _ => {
             lexer.back_to_anchor(anchor);
             return None;

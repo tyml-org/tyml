@@ -134,6 +134,13 @@ label_1 = "ここで既に定義されています"
 message = "@body引数の宣言が衝突しています"
 label_0 = "@body引数は既に存在しています"
 label_1 = "ここで既に宣言されています"
+[type_error.0009]
+message = "@claim引数の宣言が衝突しています"
+label_0 = "@claim引数は既に存在しています"
+label_1 = "ここで既に宣言されています"
+[type_error.0010]
+message = "@claim引数が記述されていません"
+label_0 = "'%color:yellow{authed}'を指定する場合は'%color:cyan{@claim}'引数が必要です"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

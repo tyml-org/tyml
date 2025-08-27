@@ -25,12 +25,23 @@ pub(crate) fn generate_lib(
 fn generate_server(tyml: &Tyml) -> String {
     let mut source = String::new();
 
-    let traits = tyml
+    let mut traits = tyml
         .interfaces()
         .iter()
         .map(|interface| format!("crate::types::{}", interface.original_name))
         .collect::<Vec<_>>()
         .join(" + ");
+
+    let has_auth = tyml
+        .interfaces()
+        .iter()
+        .map(|interface| interface.functions.iter())
+        .flatten()
+        .any(|function| function.authed.is_some());
+
+    if has_auth {
+        traits += " + crate::types::JwtValidator";
+    }
 
     source += "
 use std::sync::Arc;
@@ -75,23 +86,37 @@ pub mod types;
             source += format!("    let api{} = api.clone();\n", api_counter).as_str();
 
             source += format!(
-                r#"    router = router.route("/{}/{}", {}(async move |Query(query): Query<HashMap<String, String>>, "#,
+                r#"    router = router.route("/{}/{}", {}(async move |Query(__query): Query<HashMap<String, String>>, "#,
                 interface.name.value, function.name.value, method_name
             )
             .as_str();
 
             if let Some(_) = &function.body_argument_info {
-                source += "Json(body): Json<_>";
+                source += "\n       Json(__body): Json<_>, ";
+            }
+
+            if let Some(_) = &function.claim_argument_info {
+                source += "\n       __header: axum::http::HeaderMap";
             }
 
             source += "| {\n";
             source += format!("        let api = api{};\n", api_counter).as_str();
 
+            if let Some(_) = &function.claim_argument_info {
+                source += "
+        let Some(__claim) = crate::types::__bearer(&__header)
+                                .map(|token| <T as crate::types::JwtValidator>::validate(token).ok())
+                                .flatten() else {
+            return Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap();
+        };
+";
+            }
+
             for argument in function.arguments.iter() {
                 let argument_name = argument.name.value.as_ref();
 
                 source += format!(
-                    r#"        let {} = query.get("{}").map(|str| serde_json::from_str(str).ok()).flatten();"#,
+                    r#"        let {} = __query.get("{}").map(|str| serde_json::from_str(str).ok()).flatten();"#,
                     argument_name, argument_name
                 )
                 .as_str();
@@ -112,8 +137,12 @@ pub mod types;
             )
             .as_str();
 
+            if let Some(_) = &function.claim_argument_info {
+                source += "__claim, ";
+            }
+
             if let Some(_) = &function.body_argument_info {
-                source += "body, ";
+                source += "__body, ";
             }
 
             for argument in function.arguments.iter() {
@@ -170,10 +199,17 @@ mod test {
     use crate::server::rust_axum::lib_gen::generate_server;
 
     #[test]
-    fn rust_server_gen() {
+    fn rust_axum_gen() {
         let source = r#"
+type Claim {
+    iss: string
+    sub: int
+    iat: int
+    exp: int
+}
+
 interface API {
-    function get_user(@body: int) -> User throws string
+    authed function get_user(@claim: Claim, @body: int) -> User throws string
 }
         "#;
 

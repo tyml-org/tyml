@@ -467,6 +467,7 @@ pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
     pub kind: FunctionKind,
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
     pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator>>,
+    pub claim_argument_info: Option<AuthClaimArgumentInfo<'input, 'ty, 'ast_allocator>>,
     pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
     pub throws_type: Option<Type<'ty>>,
 }
@@ -490,6 +491,13 @@ pub struct FunctionArgumentInfo<'input, 'ty, 'ast_allocator> {
 
 #[derive(Debug)]
 pub struct FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator> {
+    pub name: Range<usize>,
+    pub ty: Type<'ty>,
+    pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
+}
+
+#[derive(Debug)]
+pub struct AuthClaimArgumentInfo<'input, 'ty, 'ast_allocator> {
     pub name: Range<usize>,
     pub ty: Type<'ty>,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,

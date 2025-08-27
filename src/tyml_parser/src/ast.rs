@@ -57,7 +57,7 @@ impl_ast!(RegexAttribute<'_>, span = self.span);
 impl_ast!(Interface<'_, '_>, span = self.span);
 impl_ast!(Function<'_, '_>, span = self.span);
 impl_ast!(FunctionArgument<'_, '_>, span = self.span);
-impl_ast!(NameOrAtBody<'_>, enum: Name, AtBody);
+impl_ast!(ArgumentName<'_>, enum: Name, AtBody, AtClaim);
 impl_ast!(Properties<'_, '_>, span = self.span);
 impl_ast!(Property<'_, '_>, span = self.span);
 impl_ast!(Throws<'_, '_>, span = self.span);
@@ -333,16 +333,17 @@ pub struct Function<'input, 'allocator> {
 #[derive(Debug)]
 pub struct FunctionArgument<'input, 'allocator> {
     pub properties: Properties<'input, 'allocator>,
-    pub name: NameOrAtBody<'input>,
+    pub name: ArgumentName<'input>,
     pub ty: ElementType<'input, 'allocator>,
     pub default_value: Option<JsonValue<'input, 'allocator>>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
-pub enum NameOrAtBody<'input> {
+pub enum ArgumentName<'input> {
     Name(EscapedLiteral<'input>),
     AtBody(Literal<'input>),
+    AtClaim(Literal<'input>),
 }
 
 #[derive(Debug)]

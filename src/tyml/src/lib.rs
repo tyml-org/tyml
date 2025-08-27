@@ -500,15 +500,18 @@ type User { id: int, name: string }
 /// Error
 type Error { code: int, message: string }
 
+/// JWT Claim
+type Claim { id: int }
+
 /// API
 interface API {
     /// get user
     #[kind = "get"]
-    authed function get_user(id: int = 100) -> User throws Error {
+    authed function get_user(@claim: Claim) -> User throws Error {
         return { id = 0, name = "test" }
     }
 
-    function register(@body: User) -> bool
+    function register(@body: User) -> string
 }
 "#;
 

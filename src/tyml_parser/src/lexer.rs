@@ -51,6 +51,8 @@ pub enum TokenKind {
     AtBody,
     /// authed
     Authed,
+    /// @claim
+    AtClaim,
     /// (
     ParenthesisLeft,
     /// )
@@ -123,6 +125,7 @@ static TOKENIZERS: &[Tokenizer] = &[
     Tokenizer::Keyword(TokenKind::Throws, "throws"),
     Tokenizer::Keyword(TokenKind::AtBody, "@body"),
     Tokenizer::Keyword(TokenKind::Authed, "authed"),
+    Tokenizer::Keyword(TokenKind::AtClaim, "@claim"),
     Tokenizer::Keyword(TokenKind::BraceLeft, "{"),
     Tokenizer::Keyword(TokenKind::BraceRight, "}"),
     Tokenizer::Keyword(TokenKind::BracketLeft, "["),

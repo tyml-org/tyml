@@ -1331,8 +1331,9 @@ mod tyml_semantic_tokens {
 
     use tower_lsp::lsp_types::SemanticTokenType;
     use tyml::tyml_parser::ast::{
-        AST, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo, Interface, JsonValue,
-        NameOrAtBody, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral, either::Either,
+        AST, ArgumentName, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo,
+        Interface, JsonValue, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral,
+        either::Either,
     };
 
     pub fn collect_tokens_for_defines(
@@ -1415,11 +1416,15 @@ mod tyml_semantic_tokens {
 
             for argument in function.arguments.iter() {
                 match &argument.name {
-                    NameOrAtBody::Name(name) => {
+                    ArgumentName::Name(name) => {
                         let span = name.span();
                         tokens.insert(span.start, (SemanticTokenType::VARIABLE, span));
                     }
-                    NameOrAtBody::AtBody(name) => {
+                    ArgumentName::AtBody(name) => {
+                        let span = name.span();
+                        tokens.insert(span.start, (SemanticTokenType::MACRO, span));
+                    }
+                    ArgumentName::AtClaim(name) => {
                         let span = name.span();
                         tokens.insert(span.start, (SemanticTokenType::MACRO, span));
                     }
