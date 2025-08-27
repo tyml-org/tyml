@@ -3,6 +3,7 @@
 name = "tyml_grammar"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 bnf_rules = "0.1.7"

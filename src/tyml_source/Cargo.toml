@@ -3,6 +3,7 @@
 name = "tyml_source"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 extension-fn = "1.2.0"

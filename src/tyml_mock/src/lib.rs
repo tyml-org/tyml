@@ -3,7 +3,7 @@ pub mod error;
 pub(crate) mod json;
 pub mod server;
 
-use tyml::Tyml;
+use tyml_core::Tyml;
 
 use crate::{client::TymlMockClient, server::TymlMockServer};
 
@@ -26,7 +26,7 @@ mod test {
     use std::{thread, time::Duration};
 
     use tokio::runtime::Runtime;
-    use tyml::Tyml;
+    use tyml_core::Tyml;
 
     use crate::{TymlMock, server::ServerSourceLocation};
 

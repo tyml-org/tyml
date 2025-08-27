@@ -1,5 +1,5 @@
 use reqwest::Client;
-use tyml::{
+use tyml_core::{
     Tyml,
     tyml_type::{resolver::camel_to_snake, types::FunctionKind},
 };

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use ariadne::Color;
-use tyml::{
+use tyml_core::{
     Tyml,
     tyml_diagnostic::{
         Diagnostic, DiagnosticBuilder, DiagnosticLabel, MessageSection, SourceCodeKind,
@@ -101,7 +101,10 @@ pub fn collect_send_error(
 }
 
 impl DiagnosticBuilder for TymlMockError {
-    fn build(&self, _: &tyml::tyml_type::types::NamedTypeMap) -> tyml::tyml_diagnostic::Diagnostic {
+    fn build(
+        &self,
+        _: &tyml_core::tyml_type::types::NamedTypeMap,
+    ) -> tyml_core::tyml_diagnostic::Diagnostic {
         match self {
             TymlMockError::NoReturnDefaultValue { span } => Diagnostic {
                 message: TymlDiagnosticMessage {

@@ -3,9 +3,10 @@
 name = "tyml_parser"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
-tyml_formatter = { path = "../tyml_formatter/" }
+tyml_formatter = { path = "../tyml_formatter/", version = "0.1.0" }
 regex = "1.11.1"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"

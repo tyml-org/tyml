@@ -3,15 +3,16 @@
 name = "tyml_generator"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 regex = "1.11.1"
 extension-fn = "1.2.0"
 either = "1.13.0"
-tyml_formatter = { path = "../tyml_formatter/" }
-tyml_type = { path = "../tyml_type/" }
-tyml_validate = { path = "../tyml_validate/" }
-tyml_source = { path = "../tyml_source/" }
+tyml_formatter = { path = "../tyml_formatter/", version = "0.1.0" }
+tyml_type = { path = "../tyml_type/", version = "0.1.0" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.0" }
+tyml_source = { path = "../tyml_source/", version = "0.1.0" }
 allocator-api2 = "0.2.21"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 auto_enums = "0.8.7"

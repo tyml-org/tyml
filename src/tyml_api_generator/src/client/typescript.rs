@@ -1,6 +1,6 @@
 use std::fs;
 
-use tyml::{Tyml, tyml_type::types::FunctionKind};
+use tyml_core::{Tyml, tyml_type::types::FunctionKind};
 
 use crate::{GeneratorSettings, general::typescript::generate_type_for_typescript};
 
@@ -248,7 +248,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
 
 #[cfg(test)]
 mod test {
-    use tyml::Tyml;
+    use tyml_core::Tyml;
 
     use crate::client::typescript::generate_functions;
 

@@ -9,7 +9,7 @@ use axum::{
     routing::{delete, get, patch, post, put},
 };
 use serde_json::Value;
-use tyml::{
+use tyml_core::{
     Tyml,
     tyml_type::{
         resolver::{camel_to_snake, check_serde_json_type},

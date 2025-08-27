@@ -1,4 +1,4 @@
-use tyml::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
+use tyml_core::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
 
 use crate::name::NameContext;
 
@@ -278,7 +278,7 @@ fn generate_type_tree_for_rust(
 
 #[cfg(test)]
 mod test {
-    use tyml::{Tyml, tyml_type::types::TypeTree};
+    use tyml_core::{Tyml, tyml_type::types::TypeTree};
 
     use crate::{general::rust::generate_type_tree_for_rust, name::NameContext};
 

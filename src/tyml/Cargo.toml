@@ -1,22 +1,23 @@
 # !tyml @cargo/Cargo
 [package]
-name = "tyml"
+name = "tyml_core"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [[bin]]
 name = "tyml"
 path = "src/bin/tyml.rs"
 
 [dependencies]
-tyml_diagnostic = { path = "../tyml_diagnostic/" }
-tyml_formatter = { path = "../tyml_formatter/" }
-tyml_generator = { path = "../tyml_generator/" }
-tyml_grammar = { path = "../tyml_grammar/" }
-tyml_parser = { path = "../tyml_parser/" }
-tyml_source = { path = "../tyml_source/" }
-tyml_type = { path = "../tyml_type/" }
-tyml_validate = { path = "../tyml_validate/" }
+tyml_diagnostic = { path = "../tyml_diagnostic/", version = "0.1.0" }
+tyml_formatter = { path = "../tyml_formatter/", version = "0.1.0" }
+tyml_generator = { path = "../tyml_generator/", version = "0.1.0" }
+tyml_grammar = { path = "../tyml_grammar/", version = "0.1.0" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.0" }
+tyml_source = { path = "../tyml_source/", version = "0.1.0" }
+tyml_type = { path = "../tyml_type/", version = "0.1.0" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.0" }
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
 either = "1.13.0"

@@ -1,4 +1,4 @@
-use tyml::Tyml;
+use tyml_core::Tyml;
 
 use crate::{server::rust_axum::{crate_gen::generate_cargo_toml, function_gen::generate_functions_for_rust_axum, lib_gen::generate_lib}, GeneratorSettings};
 

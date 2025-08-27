@@ -2256,7 +2256,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
-name = "tyml"
+name = "tyml_api_generator"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "shellexpand",
+ "tyml_core",
+]
+
+[[package]]
+name = "tyml_core"
 version = "0.1.0"
 dependencies = [
  "allocator-api2",
@@ -2279,15 +2288,6 @@ dependencies = [
  "tyml_source",
  "tyml_type",
  "tyml_validate",
-]
-
-[[package]]
-name = "tyml_api_generator"
-version = "0.1.0"
-dependencies = [
- "clap",
- "shellexpand",
- "tyml",
 ]
 
 [[package]]
@@ -2347,7 +2347,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower-lsp",
- "tyml",
+ "tyml_core",
 ]
 
 [[package]]
@@ -2361,7 +2361,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tyml",
+ "tyml_core",
 ]
 
 [[package]]

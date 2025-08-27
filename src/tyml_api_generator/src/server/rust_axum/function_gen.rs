@@ -1,6 +1,6 @@
 use std::fs::{self};
 
-use tyml::Tyml;
+use tyml_core::Tyml;
 
 use crate::{GeneratorSettings, general::rust::generate_type_for_rust, name::NameContext};
 
@@ -204,7 +204,7 @@ pub trait JwtValidator {
 
 #[cfg(test)]
 mod test {
-    use tyml::Tyml;
+    use tyml_core::Tyml;
 
     use crate::server::rust_axum::function_gen::generate_trait;
 

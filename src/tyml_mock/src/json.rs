@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use extension_fn::extension_fn;
 use serde_json::{Number, Value};
-use tyml::tyml_parser::ast::{BinaryLiteral, FloatLiteral, JsonValue, ValueLiteral};
+use tyml_core::tyml_parser::ast::{BinaryLiteral, FloatLiteral, JsonValue, ValueLiteral};
 
 #[extension_fn(<'input, 'allocator> JsonValue<'input, 'allocator>)]
 pub(crate) fn to_serde_json(&self) -> Value {

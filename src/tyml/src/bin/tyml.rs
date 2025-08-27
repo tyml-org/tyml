@@ -1,7 +1,7 @@
 use std::{fs::File, io::Read, path::Path};
 
 use either::Either;
-use tyml::{header::TymlHeader, TymlContext};
+use tyml_core::{header::TymlHeader, TymlContext};
 use tyml_diagnostic::message::{get_text, Lang};
 use tyml_generator::registry::STYLE_REGISTRY;
 use tyml_source::SourceCode;

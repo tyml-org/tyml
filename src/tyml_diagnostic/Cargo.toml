@@ -3,13 +3,14 @@
 name = "tyml_diagnostic"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
-tyml_generator = { path = "../tyml_generator/" }
-tyml_parser = { path = "../tyml_parser/" }
-tyml_source = { path = "../tyml_source/" }
-tyml_type = { path = "../tyml_type/" }
-tyml_validate = { path = "../tyml_validate/" }
+tyml_generator = { path = "../tyml_generator/", version = "0.1.0" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.0" }
+tyml_source = { path = "../tyml_source/", version = "0.1.0" }
+tyml_type = { path = "../tyml_type/", version = "0.1.0" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.0" }
 resource = "0.6.0"
 toml = "0.8.8"
 ariadne = "0.5.1"

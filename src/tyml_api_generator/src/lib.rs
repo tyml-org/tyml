@@ -14,7 +14,7 @@ pub struct GeneratorSettings {
 mod test {
     use std::env::current_dir;
 
-    use tyml::Tyml;
+    use tyml_core::Tyml;
 
     use crate::{GeneratorSettings, server::rust_axum::generate_rust_axum_server};
 

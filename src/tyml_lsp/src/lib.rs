@@ -11,8 +11,8 @@ use tokio::runtime::Runtime;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-use tyml::tyml_diagnostic::message::Lang;
-use tyml::tyml_formatter::GeneralFormatter;
+use tyml_core::tyml_diagnostic::message::Lang;
+use tyml_core::tyml_formatter::GeneralFormatter;
 
 pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
 

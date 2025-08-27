@@ -1,5 +1,5 @@
 use std::fs;
-use tyml::{Tyml, tyml_type::types::FunctionKind};
+use tyml_core::{Tyml, tyml_type::types::FunctionKind};
 
 use crate::GeneratorSettings;
 
@@ -194,7 +194,7 @@ pub mod types;
 
 #[cfg(test)]
 mod test {
-    use tyml::Tyml;
+    use tyml_core::Tyml;
 
     use crate::server::rust_axum::lib_gen::generate_server;
 

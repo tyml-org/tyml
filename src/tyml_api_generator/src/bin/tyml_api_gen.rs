@@ -1,7 +1,7 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
 use clap::{Parser, Subcommand, ValueEnum};
-use tyml::{
+use tyml_core::{
     Tyml,
     tyml_diagnostic::{DiagnosticBuilder, message::Lang},
     tyml_source::SourceCode,

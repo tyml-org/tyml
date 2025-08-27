@@ -1,4 +1,4 @@
-use tyml::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
+use tyml_core::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
 
 pub(crate) fn generate_type_for_typescript(
     ty: &Type,
@@ -180,7 +180,7 @@ fn generate_type_tree_for_typescript(
 
 #[cfg(test)]
 mod test {
-    use tyml::{Tyml, tyml_type::types::TypeTree};
+    use tyml_core::{Tyml, tyml_type::types::TypeTree};
 
     use crate::general::typescript::generate_type_tree_for_typescript;
 

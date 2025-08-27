@@ -21,7 +21,7 @@ use tower_lsp::{
         Documentation, MarkupContent, MarkupKind, NumberOrString, Position, SemanticTokenType, Url,
     },
 };
-use tyml::{
+use tyml_core::{
     Parsed, TymlContext, Validated,
     header::TymlHeader,
     tyml_diagnostic::{DiagnosticBuilder, message::get_text},
@@ -1141,7 +1141,7 @@ mod on_type_tag {
     use std::mem::swap;
 
     use tower_lsp::lsp_types::CompletionItemKind;
-    use tyml::tyml_parser::ast::{AST, Define, Defines, ElementInlineType, TypeDefine};
+    use tyml_core::tyml_parser::ast::{AST, Define, Defines, ElementInlineType, TypeDefine};
 
     use super::ToInclusive;
 
@@ -1260,7 +1260,7 @@ mod on_type_tag {
 mod tyml_json {
     use std::ops::Range;
 
-    use tyml::tyml_parser::ast::{AST, Define, Defines, JsonValue, TypeDefine};
+    use tyml_core::tyml_parser::ast::{AST, Define, Defines, JsonValue, TypeDefine};
 
     use crate::language_server::{ToInclusive, create_hover_code_block};
 
@@ -1350,7 +1350,7 @@ mod tyml_semantic_tokens {
     use std::{collections::BTreeMap, ops::Range};
 
     use tower_lsp::lsp_types::SemanticTokenType;
-    use tyml::tyml_parser::ast::{
+    use tyml_core::tyml_parser::ast::{
         AST, ArgumentName, AttributeAnd, AttributeOr, Define, Defines, ElementType, FromTo,
         Interface, JsonValue, OrType, Properties, TypeAttribute, TypeDefine, ValueLiteral,
         either::Either,
@@ -1658,7 +1658,7 @@ mod tyml_semantic_tokens {
 }
 
 mod tyml_documents_from_ast {
-    use tyml::tyml_parser::ast::{AST, Define, Defines, TypeDefine};
+    use tyml_core::tyml_parser::ast::{AST, Define, Defines, TypeDefine};
 
     use super::ToInclusive;
 

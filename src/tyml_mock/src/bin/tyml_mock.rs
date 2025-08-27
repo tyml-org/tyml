@@ -1,7 +1,7 @@
 use std::env::args;
 
 use tokio::{fs::File, io::AsyncReadExt};
-use tyml::{
+use tyml_core::{
     Tyml,
     tyml_diagnostic::{DiagnosticBuilder, message::Lang},
     tyml_source::SourceCode,

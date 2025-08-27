@@ -23,7 +23,7 @@ allow_space_split = true
 allow_double_bracket_array = true
 
 [Section.key_value]
-kind = "Equal"
+separator = "Equal"
 
 [Section.key_value.key]
 strings = []

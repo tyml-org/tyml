@@ -3,9 +3,10 @@
 name = "tyml_type"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
-tyml_parser = { path = "../tyml_parser/" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.0" }
 hashbrown = "0.15.2"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
