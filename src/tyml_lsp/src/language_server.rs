@@ -732,7 +732,7 @@ impl TymlLanguageServer {
 
         if has_at {
             return Some(
-                ["value", "length", "u8size", "regex"]
+                ["value", "length", "u8size", "regex", "body", "claim"]
                     .into_iter()
                     .map(|name| CompletionItem {
                         label: name.to_string(),
@@ -823,7 +823,27 @@ impl TymlLanguageServer {
                     }
                 }
             }
-            None
+
+            // complete keywords e.g. 'function'
+            Some(
+                [
+                    "function",
+                    "interface",
+                    "type",
+                    "enum",
+                    "kind",
+                    "rename",
+                    "authed",
+                    "return",
+                ]
+                .into_iter()
+                .map(|name| CompletionItem {
+                    label: name.to_string(),
+                    kind: Some(CompletionItemKind::KEYWORD),
+                    ..Default::default()
+                })
+                .collect(),
+            )
         }
     }
 
