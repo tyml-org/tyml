@@ -1,1 +1,1 @@
-pub mod typescript_vanilla;
+pub mod typescript;

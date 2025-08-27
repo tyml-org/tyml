@@ -210,7 +210,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
 mod test {
     use tyml::Tyml;
 
-    use crate::client::typescript_vanilla::generate_functions;
+    use crate::client::typescript::generate_functions;
 
     #[test]
     fn ts_client_gen() {

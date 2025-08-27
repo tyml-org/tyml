@@ -7,7 +7,7 @@ use tyml::{
     tyml_source::SourceCode,
 };
 use tyml_api_generator::{
-    GeneratorSettings, client::typescript_vanilla::generate_functions_for_typescript,
+    GeneratorSettings, client::typescript::generate_functions_for_typescript,
     server::rust_axum::generate_rust_axum_server,
 };
 
