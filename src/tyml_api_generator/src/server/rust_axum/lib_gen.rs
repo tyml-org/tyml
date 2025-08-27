@@ -53,7 +53,6 @@ use axum::{
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 
 pub mod types;
@@ -86,7 +85,7 @@ pub mod types;
             source += format!("    let api{} = api.clone();\n", api_counter).as_str();
 
             source += format!(
-                r#"    router = router.route("/{}/{}", {}(async move |Query(__query): Query<HashMap<String, String>>, "#,
+                r#"    router = router.route("/{}/{}", axum::routing::{}(async move |Query(__query): Query<HashMap<String, String>>, "#,
                 interface.name.value, function.name.value, method_name
             )
             .as_str();
