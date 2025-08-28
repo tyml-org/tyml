@@ -513,7 +513,7 @@ interface API {
         return "* Secret Token *"
     }
 
-    authed function get_user(@claim: Claim) -> User {
+    function get_user(@claim: Claim) -> User {
         return { id = 100, name = "test" }
     }
 

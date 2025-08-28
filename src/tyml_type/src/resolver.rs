@@ -412,6 +412,15 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                 errors.push(error);
             }
         }
+        if let Some(claim) = &claim_argument_info {
+            if function.authed.is_none() {
+                let error = TypeError {
+                    kind: TypeErrorKind::AuthedNotFound,
+                    span: claim.name.clone(),
+                };
+                errors.push(error);
+            }
+        }
 
         let return_info = match &function.return_type {
             Some(return_type) => {

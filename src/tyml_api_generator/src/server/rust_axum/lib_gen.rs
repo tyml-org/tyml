@@ -43,7 +43,7 @@ fn generate_server(tyml: &Tyml) -> String {
         traits += " + crate::types::JwtValidator";
     }
 
-    source += "
+    source += "#![allow(unused)]
 use std::sync::Arc;
 use std::collections::HashMap;
 use serde_json;

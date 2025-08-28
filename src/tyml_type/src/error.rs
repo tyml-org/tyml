@@ -42,4 +42,5 @@ pub enum TypeErrorKind<'input, 'ty> {
         exists: Range<usize>,
     },
     ClaimNotFound,
+    AuthedNotFound,
 }

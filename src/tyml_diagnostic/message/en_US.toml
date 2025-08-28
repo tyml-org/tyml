@@ -84,7 +84,7 @@ message = "The format of the throws clause is incorrect"
 label_0 = "The format of a throws clause is '%color:cyan{throws name: Type}'"
 
 [type_error]
-name = "%color:red{[TE%0] Type Error}"
+name = "%color:red{[TE%0] Type Resolution Error}"
 [type_error.0001]
 message = "Unknown type specified"
 label_0 = "Type named '%color:red{%0}' cannot be found"
@@ -122,6 +122,9 @@ label_1 = "It is already declared here"
 [type_error.0010]
 message = "The @claim parameter is not specified"
 label_0 = "If '%color:yellow{authed}' is specified, the '%color:cyan{@claim}' parameter is required"
+[type_error.0011]
+message = "authed is not specified"
+label_0 = "If the @claim parameter is specified, '%color:cyan{authed}' is required before '%color:yellow{function}'"
 
 
 [validate_error]

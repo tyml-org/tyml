@@ -103,7 +103,7 @@ message = "throws節の記述形式が正しくありません"
 label_0 = "throws節の記述形式は'%color:cyan{throws name: Type}'です"
 
 [type_error]
-name = "%color:red{[TE%0] 型エラー}"
+name = "%color:red{[TE%0] 型解決エラー}"
 [type_error.0001]
 message = "不明な型が指定されています"
 label_0 = "この名称'%color:red{%0}'の型が見つかりません"
@@ -141,6 +141,9 @@ label_1 = "ここで既に宣言されています"
 [type_error.0010]
 message = "@claim引数が記述されていません"
 label_0 = "'%color:yellow{authed}'を指定する場合は'%color:cyan{@claim}'引数が必要です"
+[type_error.0011]
+message = "authedが指定されていません"
+label_0 = "@claim引数を指定する場合は'%color:yellow{function}'の前に'%color:cyan{authed}'が必要です"
 
 [validate_error]
 name = "%color:red{[VE%0] 検証エラー}"

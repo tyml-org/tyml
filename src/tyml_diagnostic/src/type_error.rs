@@ -198,6 +198,19 @@ impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
                     message_override: None,
                 }],
             },
+            TypeErrorKind::AuthedNotFound => Diagnostic {
+                message: TymlDiagnosticMessage {
+                    section: MessageSection::TypeError,
+                    code: 0011,
+                    arguments: vec![],
+                },
+                labels: vec![DiagnosticLabel {
+                    kind: SourceCodeKind::Tyml,
+                    span: self.span.as_utf8_byte_range(),
+                    color: Color::Red,
+                    message_override: None,
+                }],
+            },
         }
     }
 }
