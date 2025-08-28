@@ -8,11 +8,11 @@ description = "TYML: type checker for markup language"
 repository = "https://github.com/tyml-org/tyml/"
 
 [dependencies]
-tyml_generator = { path = "../tyml_generator/", version = "0.1.0" }
-tyml_parser = { path = "../tyml_parser/", version = "0.1.0" }
-tyml_source = { path = "../tyml_source/", version = "0.1.0" }
-tyml_type = { path = "../tyml_type/", version = "0.1.0" }
-tyml_validate = { path = "../tyml_validate/", version = "0.1.0" }
+tyml_generator = { path = "../tyml_generator/", version = "0.1.2" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.2" }
+tyml_source = { path = "../tyml_source/", version = "0.1.2" }
+tyml_type = { path = "../tyml_type/", version = "0.1.2" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.2" }
 resource = "0.6.0"
 toml = "0.8.8"
 ariadne = "0.5.1"
