@@ -79,6 +79,25 @@ label_0 = "Type attributes must be written between '%color:cyan{(}' and '%color:
 [parse_error.0023]
 message = "Bracket '%color:yellow{(}' is not closed"
 label_0 = "It must be closed with '%color:cyan{)}'"
+[parse_error.0024]
+message = "The property format is incorrect"
+label_0 = "The property format is '%color:cyan{#[name = value]}'"
+[parse_error.0025]
+message = "The interface declaration format is incorrect"
+label_0 = "Unknown format"
+[parse_error.0026]
+message = "The function declaration format is incorrect"
+label_0 = "Unknown format"
+[parse_error.0027]
+message = "A newline is missing"
+label_0 = "A newline is required between elements"
+[parse_error.0028]
+message = "The JSON array format is incorrect"
+label_0 = "Unknown format"
+[parse_error.0029]
+message = "The JSON object format is incorrect"
+label_0 = "Unknown format"
+note = "The JSON object format within TYML differs from the usual one"
 [parse_error.0030]
 message = "The format of the throws clause is incorrect"
 label_0 = "The format of a throws clause is '%color:cyan{throws name: Type}'"
