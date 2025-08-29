@@ -2308,7 +2308,7 @@ dependencies = [
 
 [[package]]
 name = "tyml_formatter"
-version = "0.1.4"
+version = "0.1.5"
 
 [[package]]
 name = "tyml_generator"
@@ -2332,7 +2332,7 @@ dependencies = [
 
 [[package]]
 name = "tyml_grammar"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "bnf_rules",
 ]
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "tyml_source"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "extension-fn",
 ]
