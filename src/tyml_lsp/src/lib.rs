@@ -188,8 +188,11 @@ impl LanguageServer for LSPBackend {
             Either::Left(server) => {
                 // acquire finish analyzing
                 while server.analyzing_flag.load(Ordering::Acquire) {
-                    std::hint::spin_loop();
+                    // It’s not energy-efficient, but for some reason it wouldn’t work unless I did it this way.
+                    // I tried Tokio’s `Notify`, but it didn’t work… why?
+                    tokio::task::yield_now().await;
                 }
+
                 server.tokens.lock().unwrap().clone()
             }
             Either::Right(server) => {
