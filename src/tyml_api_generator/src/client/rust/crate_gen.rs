@@ -1,4 +1,4 @@
-use std::fs::{self};
+use std::fs;
 
 use crate::GeneratorSettings;
 
@@ -13,10 +13,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.8"
+
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
-extension-fn = "1.2"
 tokio = "1"
 async-trait = "0.1"
 "#,
