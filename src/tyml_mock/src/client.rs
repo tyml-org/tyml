@@ -60,7 +60,7 @@ impl TymlMockClient {
             FunctionKind::PUT => client.put(url),
             FunctionKind::POST => client.post(url),
             FunctionKind::PATCH => client.patch(url),
-            FunctionKind::DELETE => client.patch(url),
+            FunctionKind::DELETE => client.delete(url),
         };
         request = request.query(&arguments);
         request = request.header("Accept", "application/json");

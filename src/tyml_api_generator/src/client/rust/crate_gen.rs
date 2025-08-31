@@ -13,7 +13,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-
+reqwest = {{ version = "0.12", features = ["json"] }}
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
 tokio = "1"
