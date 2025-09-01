@@ -183,6 +183,18 @@ pub fn into_formatter_token(self, ast: &Defines) -> Vec<FormatterToken<'input>> 
                     left_space: SpaceFormat::Space,
                     right_space: SpaceFormat::Space,
                 },
+                TokenKind::Authed => FormatterToken {
+                    text: token.text.into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::Space,
+                    right_space: SpaceFormat::Space,
+                },
+                TokenKind::Return => FormatterToken {
+                    text: token.text.into(),
+                    kind: FormatterTokenKind::Normal,
+                    left_space: SpaceFormat::Space,
+                    right_space: SpaceFormat::Space,
+                },
                 _ => FormatterToken {
                     text: token.text.into(),
                     kind: FormatterTokenKind::Normal,
