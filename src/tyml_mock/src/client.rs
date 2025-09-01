@@ -71,10 +71,17 @@ impl TymlMockClient {
 
         let response = request.send().await.map_err(|error| error.to_string())?;
 
-        if let Ok(text) = response.text().await {
-            println!("Response : {}", text);
-        } else {
-            println!("OK, but not text.");
+        match response.error_for_status_ref() {
+            Ok(_) => {
+                if let Ok(text) = response.text().await {
+                    println!("Response : {}", text);
+                } else {
+                    println!("OK, but not text.");
+                }
+            }
+            Err(error) => {
+                return Err(error.to_string());
+            }
         }
 
         Ok(())

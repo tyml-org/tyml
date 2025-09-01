@@ -209,7 +209,7 @@ mod test {
     use crate::server::rust_axum::function_gen::generate_trait;
 
     #[test]
-    fn trait_gen() {
+    fn rust_trait_gen() {
         let source = r#"
 /// the User!
 /// Yes!!

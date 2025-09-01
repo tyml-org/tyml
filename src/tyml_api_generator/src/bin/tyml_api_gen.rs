@@ -1,14 +1,15 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
 use clap::{Parser, Subcommand, ValueEnum};
+use tyml_api_generator::{
+    GeneratorSettings,
+    client::{rust::generate_rust_client, typescript::generate_functions_for_typescript},
+    server::rust_axum::generate_rust_axum_server,
+};
 use tyml_core::{
     Tyml,
     tyml_diagnostic::{DiagnosticBuilder, message::Lang},
     tyml_source::SourceCode,
-};
-use tyml_api_generator::{
-    GeneratorSettings, client::typescript::generate_functions_for_typescript,
-    server::rust_axum::generate_rust_axum_server,
 };
 
 /// Generate api for REST-API server and client with tyml
@@ -43,6 +44,7 @@ enum ServerKind {
 #[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
 enum ClientKind {
     Typescript,
+    Rust,
 }
 
 fn main() -> Result<(), String> {
@@ -127,6 +129,7 @@ fn main() -> Result<(), String> {
             name: _,
         } => match kind {
             ClientKind::Typescript => generate_functions_for_typescript(&setting, &tyml),
+            ClientKind::Rust => generate_rust_client(&setting, &tyml),
         },
     }
     .map_err(|error| format!("Failed to generate : {}", error))?;

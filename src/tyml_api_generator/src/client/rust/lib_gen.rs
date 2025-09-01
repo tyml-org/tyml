@@ -11,7 +11,7 @@ pub(crate) fn generate_lib(setting: &GeneratorSettings) -> Result<(), Box<dyn st
         fs::create_dir_all(parent)?;
     }
 
-    let source = "pub mod types;";
+    let source = "#![allow(unused)]\npub mod types;";
 
     fs::write(path, source)?;
 
