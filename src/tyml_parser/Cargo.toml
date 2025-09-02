@@ -8,7 +8,7 @@ description = "TYML: type checker for markup language"
 repository = "https://github.com/tyml-org/tyml/"
 
 [dependencies]
-tyml_formatter = { path = "../tyml_formatter/", version = "0.1.6" }
+tyml_formatter = { path = "../tyml_formatter/", version = "0.1.7" }
 regex = "1.11.1"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
