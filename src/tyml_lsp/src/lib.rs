@@ -241,9 +241,9 @@ impl LanguageServer for LSPBackend {
         let server = self.get_server(params.text_document_position.text_document.uri);
 
         match server {
-            Either::Left(server) => Ok(server
+            Either::Left(server) => {Ok(server
                 .provide_completion(params.text_document_position.position)
-                .map(|completions| CompletionResponse::Array(completions))),
+                .map(|completions| CompletionResponse::Array(completions)))},
             Either::Right(server) => Ok(server
                 .provide_completion(params.text_document_position.position)
                 .map(|completions| CompletionResponse::Array(completions))),

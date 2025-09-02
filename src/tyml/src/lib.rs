@@ -329,7 +329,7 @@ impl IValidated for Validated {
     }
 
     fn validator(&self) -> &ValueTypeChecker {
-        self.validator.validator().as_ref()
+        self.validator.validator()
     }
 
     fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>> {
@@ -364,8 +364,9 @@ impl ValidatorHolder {
 
     pub fn validator<'this>(
         &'this self,
-    ) -> &'this Arc<ValueTypeChecker<'this, 'this, 'this, 'this, 'this, 'this>> {
-        &self.validator
+    ) -> &'this ValueTypeChecker<'this, 'this, 'this, 'this, 'this, 'this> {
+        // Why dose it need transmute?????
+        unsafe { transmute(self.validator.as_ref()) }
     }
 }
 

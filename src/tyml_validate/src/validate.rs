@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, ops::Not};
+use std::{borrow::Cow, fmt::Debug, ops::Not, sync::RwLock};
 
 use allocator_api2::vec::Vec;
 use auto_enums::auto_enum;
@@ -63,100 +63,6 @@ pub enum ValidateValue<'value> {
     None,
 }
 
-pub trait AnyStringEvaluator {
-    fn validate_value_type(&self, ty: &Type, value: &Cow<'_, str>) -> bool;
-}
-
-pub struct StandardAnyStringEvaluator {}
-
-impl AnyStringEvaluator for StandardAnyStringEvaluator {
-    fn validate_value_type(&self, ty: &Type, value: &Cow<'_, str>) -> bool {
-        match ty {
-            Type::Int(attribute) => {
-                if value.starts_with("0x") {
-                    match i64::from_str_radix(&value[2..].replace("_", ""), 16) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else if value.starts_with("0o") {
-                    match i64::from_str_radix(&value[2..].replace("_", ""), 8) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else if value.starts_with("0b") {
-                    match i64::from_str_radix(&value[2..].replace("_", ""), 2) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else {
-                    match value.replace("_", "").parse::<i64>() {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                }
-            }
-            Type::UnsignedInt(attribute) => {
-                if value.starts_with("0x") {
-                    match u64::from_str_radix(&value[2..].replace("_", ""), 16) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else if value.starts_with("0o") {
-                    match u64::from_str_radix(&value[2..].replace("_", ""), 8) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else if value.starts_with("0b") {
-                    match u64::from_str_radix(&value[2..].replace("_", ""), 2) {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                } else {
-                    match value.replace("_", "").parse::<u64>() {
-                        Ok(int) => attribute.validate(int),
-                        Err(_) => false,
-                    }
-                }
-            }
-            Type::Float(attribute) => match value.parse::<f64>() {
-                Ok(float) => attribute.validate(float),
-                Err(_) => false,
-            },
-            Type::String(attribute) => attribute.validate(&value),
-            Type::MaybeInt => {
-                if value.starts_with("0x") {
-                    i64::from_str_radix(&value[2..].replace("_", ""), 16).is_ok()
-                } else if value.starts_with("0o") {
-                    i64::from_str_radix(&value[2..].replace("_", ""), 8).is_ok()
-                } else if value.starts_with("0b") {
-                    i64::from_str_radix(&value[2..].replace("_", ""), 2).is_ok()
-                } else {
-                    value.replace("_", "").parse::<i64>().is_ok()
-                }
-            }
-            Type::MaybeUnsignedInt => {
-                if value.starts_with("0x") {
-                    u64::from_str_radix(&value[2..].replace("_", ""), 16).is_ok()
-                } else if value.starts_with("0o") {
-                    u64::from_str_radix(&value[2..].replace("_", ""), 8).is_ok()
-                } else if value.starts_with("0b") {
-                    u64::from_str_radix(&value[2..].replace("_", ""), 2).is_ok()
-                } else {
-                    value.replace("_", "").parse::<u64>().is_ok()
-                }
-            }
-            Type::Optional(_) => {
-                if value == "null" {
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub type_tree: &'tree TypeTree<'input, 'ty>,
@@ -166,6 +72,84 @@ pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
     pub additional_section_array_spans:
         std::collections::HashMap<SourceCodeSpan, std::vec::Vec<SourceCodeSpan>>,
     pub merged_value_tree: Option<MergedValueTree<'section, 'value>>,
+    pub completion_cache: CompletionCache<'input>,
+}
+
+#[derive(Debug)]
+pub struct CompletionCache<'input> {
+    pub field_completion_cache: RwLock<Vec<CompletionCacheItem<'input>>>,
+    pub enum_completion_cache: RwLock<Vec<CompletionCacheItem<'input>>>,
+}
+
+#[derive(Debug)]
+pub struct CompletionCacheItem<'input> {
+    pub value_span: SourceCodeSpan,
+    pub completion_name_and_spans: Vec<Spanned<Cow<'input, str>>>,
+    pub kind: CompletionCacheItemKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionCacheItemKind {
+    Field,
+    Enum,
+}
+
+impl<'input, 'ty> CompletionCache<'input> {
+    pub fn new() -> Self {
+        Self {
+            field_completion_cache: RwLock::new(Vec::new()),
+            enum_completion_cache: RwLock::new(Vec::new()),
+        }
+    }
+
+    fn link_field_completion_items(
+        &self,
+        field_value_span: SourceCodeSpan,
+        type_tree: &TypeTree<'input, '_>,
+    ) {
+        if let TypeTree::Node {
+            node,
+            any_node: _,
+            node_key_span,
+            any_node_key_span: _,
+            documents: _,
+            span: _,
+        } = type_tree
+        {
+            let mut completions = Vec::with_capacity(node.keys().count());
+            for element_name in node.keys() {
+                completions.push(Spanned::new(
+                    element_name.clone(),
+                    node_key_span.get(element_name.as_ref()).cloned().unwrap(),
+                ));
+            }
+
+            let item = CompletionCacheItem {
+                value_span: field_value_span,
+                completion_name_and_spans: completions,
+                kind: CompletionCacheItemKind::Field,
+            };
+            self.field_completion_cache.write().unwrap().push(item);
+        }
+    }
+
+    fn link_enum_completion_items(
+        &self,
+        enum_value_span: SourceCodeSpan,
+        enum_items: impl Iterator<Item = Spanned<Cow<'input, str>>>,
+    ) {
+        let mut completions = Vec::new();
+        for item in enum_items {
+            completions.push(item);
+        }
+
+        let item = CompletionCacheItem {
+            value_span: enum_value_span,
+            completion_name_and_spans: completions,
+            kind: CompletionCacheItemKind::Enum,
+        };
+        self.enum_completion_cache.write().unwrap().push(item);
+    }
 }
 
 pub enum SetValue<'section, 'input> {
@@ -190,6 +174,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
             },
             additional_section_array_spans: std::collections::HashMap::new(),
             merged_value_tree: None,
+            completion_cache: CompletionCache::new(),
         }
     }
 
@@ -439,6 +424,11 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                     name_spans: _,
                     define_spans: value_tree_section_spans,
                 } => {
+                    for span in value_tree_section_spans.iter() {
+                        self.completion_cache
+                            .link_field_completion_items(span.clone(), type_tree);
+                    }
+
                     let mut has_error = false;
                     for (element_name, element_type) in node.iter() {
                         match elements.get(element_name.as_ref()) {
@@ -616,6 +606,18 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
                             elements,
                             documents: _,
                         } => {
+                            if let MergedValueTree::Value {
+                                value: _,
+                                key_span: _,
+                                span,
+                            } = value_tree
+                            {
+                                self.completion_cache.link_enum_completion_items(
+                                    span.clone(),
+                                    elements.iter().map(|(element, _)| element.clone()),
+                                );
+                            }
+
                             let found_error_spans = match value_tree {
                                 MergedValueTree::Section {
                                     elements: _,

@@ -35,7 +35,7 @@ use tyml_core::{
     tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree},
     tyml_validate::{
         error::TymlValueValidateError,
-        validate::{MergedValueTree, ValidateValue, ValueTypeChecker},
+        validate::{CompletionCacheItemKind, MergedValueTree, ValidateValue, ValueTypeChecker},
     },
 };
 
@@ -469,55 +469,64 @@ impl GeneratedLanguageServer {
 
         let byte_position = position.to_byte_position(&tyml.0.ml_source_code().code);
 
-        let non_whitespace_byte_position = tyml.0.ml_source_code().code[..byte_position]
-            .char_indices()
-            .rev()
-            .find_map(|(i, ch)| {
-                if ch.is_whitespace() || ch == '.' {
-                    None
-                } else {
-                    Some(i + ch.len_utf8())
+        let field_completion_cache = tyml
+            .0
+            .validator()
+            .completion_cache
+            .field_completion_cache
+            .read()
+            .unwrap();
+        let enum_completion_cache = tyml
+            .0
+            .validator()
+            .completion_cache
+            .enum_completion_cache
+            .read()
+            .unwrap();
+
+        let completion_items = field_completion_cache
+            .iter()
+            .chain(enum_completion_cache.iter())
+            .filter(|item| match &item.value_span {
+                SourceCodeSpan::UTF8Byte(range) => {
+                    range.to_inclusive().contains(&byte_position)
                 }
+                SourceCodeSpan::UnicodeCharacter(_) => false,
             })
-            .unwrap_or(0);
+            .filter(|item| !item.completion_name_and_spans.is_empty());
 
-        let mut completions = Vec::new();
+        let mut sorted_map = BTreeMap::new();
+        for item in completion_items {
+            if let SourceCodeSpan::UTF8Byte(span) = &item.value_span {
+                sorted_map.insert(span.len(), item);
+            }
+        }
 
-        tyml.0.validator().provide_completion(
-            &tyml.0.tyml_source.code,
-            non_whitespace_byte_position,
-            &mut completions,
-        );
-
-        Some(
-            completions
-                .into_iter()
-                .map(|completion| {
-                    let documents = match completion.documents.is_empty() {
-                        true => create_hover_code_block(
-                            &tyml.0.tyml_source.code[completion.span.clone()],
-                        ),
-                        false => format!(
-                            "{}{}",
-                            create_hover_code_block(
-                                &tyml.0.tyml_source.code[completion.span.clone()]
-                            ),
-                            completion.documents
-                        ),
-                    };
-
-                    CompletionItem {
-                        label: completion.name.clone(),
-                        kind: Some(completion.kind.to_completion_item_kind()),
+        match sorted_map.pop_first() {
+            Some((_, items)) => Some(
+                items
+                    .completion_name_and_spans
+                    .iter()
+                    .map(|item| CompletionItem {
+                        label: item.value.to_string(),
+                        kind: Some(match items.kind {
+                            CompletionCacheItemKind::Field => CompletionItemKind::FIELD,
+                            CompletionCacheItemKind::Enum => CompletionItemKind::ENUM,
+                        }),
                         documentation: Some(Documentation::MarkupContent(MarkupContent {
                             kind: MarkupKind::Markdown,
-                            value: documents,
+                            value: ml_completion::take_documents(
+                                item.span(),
+                                tyml.0.tyml().ast(),
+                                tyml.0.tyml_source.code.as_str(),
+                            ),
                         })),
                         ..Default::default()
-                    }
-                })
-                .collect(),
-        )
+                    })
+                    .collect(),
+            ),
+            None => None,
+        }
     }
 
     pub fn goto_define(&self, position: Position) -> (String, Vec<LSPRange>) {
@@ -1257,6 +1266,85 @@ mod on_type_tag {
     }
 }
 
+mod ml_completion {
+    use crate::language_server::create_hover_code_block;
+    use std::ops::Range;
+    use tyml_core::tyml_parser::ast::{AST, Define, Defines, TypeDefine};
+
+    pub fn take_documents<'input>(
+        define_span: Range<usize>,
+        ast: &Defines<'input, '_>,
+        code: &str,
+    ) -> String {
+        let mut result = None;
+        take_documents_span_for_defines(&define_span, ast, &mut result);
+
+        match result {
+            Some((span, documents)) => {
+                format!(
+                    "{}\n{}",
+                    create_hover_code_block(&code[span]),
+                    documents
+                        .into_iter()
+                        .map(|line| line.to_string())
+                        .collect::<Vec<_>>()
+                        .join(""),
+                )
+            }
+            None => create_hover_code_block(&code[define_span]),
+        }
+    }
+
+    fn take_documents_span_for_defines<'input>(
+        define_span: &Range<usize>,
+        ast: &Defines<'input, '_>,
+        result: &mut Option<(Range<usize>, Vec<&'input str>)>,
+    ) {
+        for define in ast.defines.iter() {
+            match define {
+                Define::Element(element_define) => {
+                    if &element_define.node.span() == define_span {
+                        *result = Some((
+                            element_define.span.clone(),
+                            element_define.documents.lines.iter().cloned().collect(),
+                        ));
+                        return;
+                    }
+
+                    if let Some(inline_type) = &element_define.inline_type {
+                        take_documents_span_for_defines(define_span, inline_type.defines, result);
+                    }
+                }
+                Define::Type(type_define) => match type_define {
+                    TypeDefine::Struct(struct_define) => {
+                        take_documents_span_for_defines(define_span, struct_define.defines, result);
+                    }
+                    TypeDefine::Enum(enum_define) => {
+                        if &enum_define.span == define_span {
+                            *result = Some((
+                                enum_define.span.clone(),
+                                enum_define.documents.lines.iter().cloned().collect(),
+                            ));
+                            return;
+                        }
+
+                        for element in enum_define.elements.iter() {
+                            if &element.literal.span == define_span {
+                                *result = Some((
+                                    element.span.clone(),
+                                    element.documents.lines.iter().cloned().collect(),
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                },
+                Define::Interface(_) => {}
+            }
+        }
+    }
+}
+
 mod tyml_json {
     use std::ops::Range;
 
@@ -1302,12 +1390,12 @@ mod tyml_json {
             Some((span, documents)) => {
                 format!(
                     "{}\n{}",
+                    create_hover_code_block(&code[span]),
                     documents
                         .into_iter()
                         .map(|line| line.to_string())
                         .collect::<Vec<_>>()
                         .join(""),
-                    create_hover_code_block(&code[span])
                 )
             }
             None => String::new(),
@@ -1823,317 +1911,9 @@ impl CompletionKind {
     }
 }
 
-#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
-pub fn provide_completion(
-    &self,
-    code: &str,
-    byte_position: usize,
-    completions: &mut Vec<Completion>,
-) {
-    if let Some(MergedValueTree::Section {
-        elements,
-        name_spans: _,
-        define_spans: _,
-    }) = &self.merged_value_tree
-    {
-        match elements.get("root") {
-            Some(element) => self.provide_completion_recursive_for_type_tree(
-                &self.type_tree,
-                element,
-                code,
-                byte_position,
-                completions,
-            ),
-            None => self.provide_completion_recursive_for_type_tree(
-                &self.type_tree,
-                self.merged_value_tree.as_ref().unwrap(),
-                code,
-                byte_position,
-                completions,
-            ),
-        }
-    }
-}
-
-#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
-fn provide_completion_recursive_for_type(
-    &self,
-    ty: &Type,
-    merged_value_tree: &MergedValueTree,
-    code: &str,
-    byte_position: usize,
-    completions: &mut Vec<Completion>,
-) {
-    match ty {
-        Type::Named(name_id) => match self.named_type_map.get_type(*name_id).unwrap() {
-            NamedTypeTree::Struct { tree } => {
-                return self.provide_completion_recursive_for_type_tree(
-                    tree,
-                    merged_value_tree,
-                    code,
-                    byte_position,
-                    completions,
-                );
-            }
-            NamedTypeTree::Enum {
-                elements,
-                documents: _,
-            } => {
-                completions.extend(elements.iter().map(|(element, documents)| {
-                    Completion {
-                        kind: CompletionKind::EnumValue,
-                        documents: documents
-                            .iter()
-                            .map(|line| line.to_string())
-                            .collect::<Vec<_>>()
-                            .join(""),
-                        span: element.span.clone(),
-                        name: element.value.to_string(),
-                    }
-                }));
-            }
-        },
-        Type::Or(types) => {
-            for ty in types.iter() {
-                self.provide_completion_recursive_for_type(
-                    ty,
-                    merged_value_tree,
-                    code,
-                    byte_position,
-                    completions,
-                );
-            }
-        }
-        Type::Optional(ty) => {
-            self.provide_completion_recursive_for_type(
-                ty,
-                merged_value_tree,
-                code,
-                byte_position,
-                completions,
-            );
-        }
-        Type::Array(ty) => {
-            self.provide_completion_recursive_for_type(
-                ty,
-                merged_value_tree,
-                code,
-                byte_position,
-                completions,
-            );
-        }
-        _ => {}
-    }
-}
-
 #[extension_fn(Range<usize>)]
 fn to_inclusive(&self) -> RangeInclusive<usize> {
     self.start..=self.end
-}
-
-#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
-fn provide_completion_recursive_for_type_tree(
-    &self,
-    type_tree: &TypeTree,
-    merged_value_tree: &MergedValueTree,
-    code: &str,
-    byte_position: usize,
-    completions: &mut Vec<Completion>,
-) {
-    match type_tree {
-        TypeTree::Node {
-            node,
-            any_node,
-            node_key_span: _,
-            any_node_key_span: _,
-            documents: _,
-            span: _,
-        } => {
-            if let MergedValueTree::Array {
-                elements,
-                key_span: _,
-                span: _,
-            } = merged_value_tree
-            {
-                for element in elements.iter() {
-                    self.provide_completion_recursive_for_type_tree(
-                        type_tree,
-                        element,
-                        code,
-                        byte_position,
-                        completions,
-                    );
-                }
-            }
-
-            let MergedValueTree::Section {
-                elements,
-                name_spans: _,
-                define_spans,
-            } = merged_value_tree
-            else {
-                return;
-            };
-
-            if !define_spans.iter().any(|span| {
-                span.to_byte_span(code)
-                    .to_inclusive()
-                    .contains(&byte_position)
-            }) {
-                return;
-            }
-
-            for (element_name, element) in elements.iter() {
-                let Some((type_tree, is_any_node)) = node
-                    .get(element_name.as_ref())
-                    .map(|element| (element, false))
-                    .or(any_node.as_ref().map(|boxed| (boxed.as_ref(), true)))
-                else {
-                    continue;
-                };
-
-                match element {
-                    MergedValueTree::Section {
-                        elements: _,
-                        name_spans: _,
-                        define_spans,
-                    } => {
-                        let cursor_in_spans = define_spans.iter().any(|span| {
-                            span.to_byte_span(code)
-                                .to_inclusive()
-                                .contains(&byte_position)
-                        });
-
-                        if cursor_in_spans {
-                            self.provide_completion_recursive_for_type_tree(
-                                type_tree,
-                                element,
-                                code,
-                                byte_position,
-                                completions,
-                            );
-
-                            if !is_any_node {
-                                return;
-                            }
-                        }
-                    }
-                    MergedValueTree::Array {
-                        elements,
-                        key_span: _,
-                        span: _,
-                    } => {
-                        let mut contains = false;
-                        for element in elements.iter() {
-                            if !element.spans().any(|span| {
-                                span.to_byte_span(code)
-                                    .to_inclusive()
-                                    .contains(&byte_position)
-                            }) {
-                                continue;
-                            }
-
-                            self.provide_completion_recursive_for_type_tree(
-                                type_tree,
-                                element,
-                                code,
-                                byte_position,
-                                completions,
-                            );
-
-                            contains = true;
-                        }
-
-                        if contains {
-                            return;
-                        }
-                    }
-                    MergedValueTree::Value {
-                        value: _,
-                        key_span,
-                        span,
-                    } => {
-                        if let TypeTree::Node {
-                            node,
-                            any_node: _,
-                            node_key_span: _,
-                            any_node_key_span: _,
-                            documents: _,
-                            span: _,
-                        } = type_tree
-                        {
-                            if key_span
-                                .to_byte_span(code)
-                                .to_inclusive()
-                                .contains(&byte_position)
-                            {
-                                // pattern of 'test.'
-                                for (element_name, element) in node.iter() {
-                                    completions.push(Completion {
-                                        kind: CompletionKind::SectionName,
-                                        documents: element
-                                            .documents()
-                                            .iter()
-                                            .map(|line| line.to_string())
-                                            .collect::<Vec<_>>()
-                                            .join(""),
-                                        span: element.span(),
-                                        name: element_name.to_string(),
-                                    });
-                                }
-                                return;
-                            }
-                        }
-
-                        if span
-                            .to_byte_span(code)
-                            .to_inclusive()
-                            .contains(&byte_position)
-                        {
-                            self.provide_completion_recursive_for_type_tree(
-                                type_tree,
-                                element,
-                                code,
-                                byte_position,
-                                completions,
-                            );
-
-                            if !is_any_node {
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            for (element_name, element) in node.iter() {
-                completions.push(Completion {
-                    kind: CompletionKind::SectionName,
-                    documents: element
-                        .documents()
-                        .iter()
-                        .map(|line| line.to_string())
-                        .collect::<Vec<_>>()
-                        .join(""),
-                    span: element.span(),
-                    name: element_name.to_string(),
-                });
-            }
-        }
-        TypeTree::Leaf {
-            ty,
-            documents: _,
-            span: _,
-        } => {
-            self.provide_completion_recursive_for_type(
-                ty,
-                merged_value_tree,
-                code,
-                byte_position,
-                completions,
-            );
-        }
-    }
 }
 
 #[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
