@@ -28,7 +28,7 @@ fn generate_struct(tyml: &Tyml) -> String {
     let mut type_def = String::new();
     let mut name_context = NameContext::new();
 
-    source += "use serde::{Deserialize, Serialize};\n";
+    type_def += "use serde::{Deserialize, Serialize};\n";
 
     type_def += "
 pub enum ThrowsOrOtherError<T> {

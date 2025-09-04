@@ -283,7 +283,7 @@ mod test {
     use crate::{general::rust::generate_type_tree_for_rust, name::NameContext};
 
     #[test]
-    fn type_gen() {
+    fn type_gen_rust() {
         let source = r#"
 /// User docs
 /// yay

@@ -3,7 +3,10 @@ use std::{fs::File, io::Read, path::PathBuf};
 use clap::{Parser, Subcommand, ValueEnum};
 use tyml_api_generator::{
     GeneratorSettings,
-    client::{rust::generate_rust_client, typescript::generate_functions_for_typescript},
+    client::{
+        kotlin::generate_kotlin_client, rust::generate_rust_client,
+        typescript::generate_functions_for_typescript,
+    },
     server::rust_axum::generate_rust_axum_server,
 };
 use tyml_core::{
@@ -45,6 +48,7 @@ enum ServerKind {
 enum ClientKind {
     Typescript,
     Rust,
+    Kotlin,
 }
 
 fn main() -> Result<(), String> {
@@ -130,6 +134,7 @@ fn main() -> Result<(), String> {
         } => match kind {
             ClientKind::Typescript => generate_functions_for_typescript(&setting, &tyml),
             ClientKind::Rust => generate_rust_client(&setting, &tyml),
+            ClientKind::Kotlin => generate_kotlin_client(&setting, &tyml),
         },
     }
     .map_err(|error| format!("Failed to generate : {}", error))?;

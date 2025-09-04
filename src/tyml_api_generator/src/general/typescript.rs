@@ -185,7 +185,7 @@ mod test {
     use crate::general::typescript::generate_type_tree_for_typescript;
 
     #[test]
-    fn ts_gen() {
+    fn type_gen_ts() {
         let source = r#"
 /// User docs
 /// yay
