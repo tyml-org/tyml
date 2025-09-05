@@ -11,10 +11,10 @@ repository = "https://github.com/tyml-org/tyml/"
 regex = "1.11.1"
 extension-fn = "1.2.0"
 either = "1.13.0"
-tyml_formatter = { path = "../tyml_formatter/", version = "0.1.7" }
-tyml_type = { path = "../tyml_type/", version = "0.1.7" }
-tyml_validate = { path = "../tyml_validate/", version = "0.1.7" }
-tyml_source = { path = "../tyml_source/", version = "0.1.7" }
+tyml_formatter = { path = "../tyml_formatter/", version = "0.1.8" }
+tyml_type = { path = "../tyml_type/", version = "0.1.8" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.8" }
+tyml_source = { path = "../tyml_source/", version = "0.1.8" }
 allocator-api2 = "0.2.21"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 auto_enums = "0.8.7"

@@ -8,9 +8,9 @@ description = "TYML: type checker for markup language"
 repository = "https://github.com/tyml-org/tyml/"
 
 [dependencies]
-tyml_parser = { path = "../tyml_parser/", version = "0.1.7" }
-tyml_source = { path = "../tyml_source/", version = "0.1.7" }
-tyml_type = { path = "../tyml_type/", version = "0.1.7" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.8" }
+tyml_source = { path = "../tyml_source/", version = "0.1.8" }
+tyml_type = { path = "../tyml_type/", version = "0.1.8" }
 hashbrown = "0.15.2"
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
