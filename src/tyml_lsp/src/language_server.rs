@@ -85,7 +85,9 @@ impl GeneratedLanguageServer {
     }
 
     pub async fn on_change(&self, source_code_url: Url, source_code: Arc<String>) {
-        let source_code_path = source_code_url.to_file_path().unwrap();
+        let Ok(source_code_path) = source_code_url.to_file_path() else {
+            return;
+        };
         let source_code_name = Arc::new(source_code_path.to_string_lossy().to_string());
 
         let header = TymlHeader::parse(&source_code).await;
@@ -277,7 +279,9 @@ impl GeneratedLanguageServer {
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
-        let (tyml, header) = self.tyml.lock().unwrap().clone().unwrap();
+        let Some((tyml, header)) = self.tyml.lock().unwrap().clone() else {
+            return;
+        };
 
         if self.has_tyml_file_error.load(Ordering::Acquire)
             || self.style_not_found.load(Ordering::Acquire)
@@ -488,9 +492,7 @@ impl GeneratedLanguageServer {
             .iter()
             .chain(enum_completion_cache.iter())
             .filter(|item| match &item.value_span {
-                SourceCodeSpan::UTF8Byte(range) => {
-                    range.to_inclusive().contains(&byte_position)
-                }
+                SourceCodeSpan::UTF8Byte(range) => range.to_inclusive().contains(&byte_position),
                 SourceCodeSpan::UnicodeCharacter(_) => false,
             })
             .filter(|item| !item.completion_name_and_spans.is_empty());
