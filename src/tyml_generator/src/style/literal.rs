@@ -574,7 +574,7 @@ impl<'input> AST<'input> for LiteralSetAST<'input> {
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input>,
     ) {
         unreachable!()
     }

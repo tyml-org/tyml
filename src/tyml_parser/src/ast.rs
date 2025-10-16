@@ -1,7 +1,5 @@
 use std::{borrow::Cow, fmt::Debug, ops::Range};
 
-use allocator_api2::vec::Vec;
-use bumpalo::Bump;
 use either::Either;
 use extension_fn::extension_fn;
 
@@ -97,7 +95,7 @@ pub fn into_literal(self) -> Literal<'input> {
 
 #[derive(Debug)]
 pub struct Defines<'input, 'allocator> {
-    pub defines: Vec<Define<'input, 'allocator>, &'allocator Bump>,
+    pub defines: &'allocator [Define<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
@@ -120,7 +118,7 @@ pub struct ElementDefine<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct Documents<'input, 'allocator> {
-    pub lines: Vec<&'input str, &'allocator Bump>,
+    pub lines: &'allocator [&'input str],
     pub span: Range<usize>,
 }
 
@@ -140,7 +138,7 @@ pub struct ElementType<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct OrType<'input, 'allocator> {
-    pub or_types: Vec<BaseType<'input, 'allocator>, &'allocator Bump>,
+    pub or_types: &'allocator [BaseType<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
@@ -154,15 +152,15 @@ pub struct BaseType<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct AttributeOr<'input, 'allocator> {
-    pub attributes: Vec<AttributeAnd<'input, 'allocator>, &'allocator Bump>,
-    pub or_spans: Vec<Range<usize>, &'allocator Bump>,
+    pub attributes: &'allocator [AttributeAnd<'input, 'allocator>],
+    pub or_spans: &'allocator [Range<usize>],
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub struct AttributeAnd<'input, 'allocator> {
-    pub attributes: Vec<TypeAttribute<'input, 'allocator>, &'allocator Bump>,
-    pub and_spans: Vec<Range<usize>, &'allocator Bump>,
+    pub attributes: &'allocator [TypeAttribute<'input, 'allocator>],
+    pub and_spans: &'allocator [Range<usize>],
     pub span: Range<usize>,
 }
 
@@ -281,7 +279,7 @@ pub struct EnumDefine<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
-    pub elements: Vec<EnumElement<'input, 'allocator>, &'allocator Bump>,
+    pub elements: &'allocator [EnumElement<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
@@ -295,14 +293,14 @@ pub struct EnumElement<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct Properties<'input, 'allocator> {
-    pub elements: Vec<Property<'input, 'allocator>, &'allocator Bump>,
+    pub elements: &'allocator [Property<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub struct Property<'input, 'allocator> {
     pub name: EscapedLiteral<'input>,
-    pub values: Vec<ValueLiteral<'input>, &'allocator Bump>,
+    pub values: &'allocator [ValueLiteral<'input>],
     pub span: Range<usize>,
 }
 
@@ -312,7 +310,7 @@ pub struct Interface<'input, 'allocator> {
     pub properties: Properties<'input, 'allocator>,
     pub name: Literal<'input>,
     pub keyword_span: Range<usize>,
-    pub functions: Vec<Function<'input, 'allocator>, &'allocator Bump>,
+    pub functions: &'allocator [Function<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
@@ -323,7 +321,7 @@ pub struct Function<'input, 'allocator> {
     pub authed: Option<Range<usize>>,
     pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
-    pub arguments: Vec<FunctionArgument<'input, 'allocator>, &'allocator Bump>,
+    pub arguments: &'allocator [FunctionArgument<'input, 'allocator>],
     pub return_type: Option<ReturnType<'input, 'allocator>>,
     pub throws: Option<Throws<'input, 'allocator>>,
     pub return_block: Option<ReturnBlock<'input, 'allocator>>,
@@ -381,13 +379,13 @@ pub enum JsonValue<'input, 'allocator> {
 
 #[derive(Debug)]
 pub struct JsonArray<'input, 'allocator> {
-    pub elements: Vec<JsonValue<'input, 'allocator>, &'allocator Bump>,
+    pub elements: &'allocator [JsonValue<'input, 'allocator>],
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub struct JsonObject<'input, 'allocator> {
-    pub elements: Vec<JsonObjectElement<'input, 'allocator>, &'allocator Bump>,
+    pub elements: &'allocator [JsonObjectElement<'input, 'allocator>],
     pub span: Range<usize>,
 }
 

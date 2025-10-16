@@ -305,7 +305,7 @@ impl<'input> AST<'input> for LanguageAST<'input> {
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        validator: &mut ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     ) {
         if let ValueTree::Section {
             elements: _,

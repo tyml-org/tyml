@@ -84,6 +84,8 @@ pub fn parse_defines<'input, 'allocator>(
         }
     }
 
+    let defines = allocator.alloc(defines);
+
     allocator.alloc(Defines {
         defines,
         span: anchor.elapsed(lexer),
@@ -127,6 +129,8 @@ fn parse_documents<'input, 'allocator>(
 
         lexer.next();
     }
+
+    let lines = allocator.alloc(lines);
 
     Documents {
         lines,
@@ -434,6 +438,8 @@ fn parse_or_type<'input, 'allocator>(
         or_types.push(ty);
     }
 
+    let or_types = allocator.alloc(or_types);
+
     Some(OrType {
         or_types,
         span: anchor.elapsed(lexer),
@@ -509,6 +515,9 @@ fn parse_attribute_or<'input, 'allocator>(
         attributes.push(next);
     }
 
+    let attributes = allocator.alloc(attributes);
+    let or_spans = allocator.alloc(or_spans);
+
     Some(AttributeOr {
         attributes,
         or_spans,
@@ -554,6 +563,9 @@ fn parse_attribute_and<'input, 'allocator>(
         };
         attributes.push(next);
     }
+
+    let attributes = allocator.alloc(attributes);
+    let and_spans = allocator.alloc(and_spans);
 
     Some(AttributeAnd {
         attributes,
@@ -684,7 +696,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                     kind: ParseErrorKind::InvalidFromToFormat,
                     scope: Scope::TypeAttribute,
                     expected: Expected::NumericLiteral,
-                    error_tokens: Vec::new_in(allocator),
+                    error_tokens: &[],
                     span: from_to_span,
                 };
                 errors.push(error);
@@ -704,7 +716,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                     kind: ParseErrorKind::NonNumeric,
                     scope: Scope::TypeAttribute,
                     expected: Expected::NumericLiteral,
-                    error_tokens: Vec::new_in(allocator),
+                    error_tokens: &[],
                     span: from.span,
                 };
                 errors.push(error);
@@ -718,7 +730,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                     kind: ParseErrorKind::InvalidFromToFormat,
                     scope: Scope::TypeAttribute,
                     expected: Expected::Unnecessary,
-                    error_tokens: Vec::new_in(allocator),
+                    error_tokens: &[],
                     span: from_to_span,
                 };
                 errors.push(error);
@@ -733,7 +745,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                     kind: ParseErrorKind::InvalidFromToFormat,
                     scope: Scope::TypeAttribute,
                     expected: Expected::NumericLiteral,
-                    error_tokens: Vec::new_in(allocator),
+                    error_tokens: &[],
                     span: from_to_span,
                 };
                 errors.push(error);
@@ -753,7 +765,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                     kind: ParseErrorKind::NonNumeric,
                     scope: Scope::TypeAttribute,
                     expected: Expected::NumericLiteral,
-                    error_tokens: Vec::new_in(allocator),
+                    error_tokens: &[],
                     span: to.span,
                 };
                 errors.push(error);
@@ -776,7 +788,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                             kind: ParseErrorKind::NonNumeric,
                             scope: Scope::TypeAttribute,
                             expected: Expected::NumericLiteral,
-                            error_tokens: Vec::new_in(allocator),
+                            error_tokens: &[],
                             span: from_to_span,
                         };
                         errors.push(error);
@@ -795,7 +807,7 @@ fn parse_numeric_attribute<'input, 'allocator>(
                             kind: ParseErrorKind::BiggerFrom,
                             scope: Scope::TypeAttribute,
                             expected: Expected::SmallerNumericLiteral,
-                            error_tokens: Vec::new_in(allocator),
+                            error_tokens: &[],
                             span: from_to_span,
                         };
                         errors.push(error);
@@ -1261,6 +1273,8 @@ fn parse_enum_define<'input, 'allocator>(
     }
     lexer.next();
 
+    let elements = allocator.alloc(elements);
+
     Some(EnumDefine {
         documents,
         keyword_span: keyword.span,
@@ -1360,6 +1374,8 @@ fn parse_interface<'input, 'allocator>(
         lexer.next();
     }
 
+    let functions = allocator.alloc(functions);
+
     Some(Interface {
         documents,
         properties,
@@ -1424,7 +1440,7 @@ fn parse_function<'input, 'allocator>(
             authed,
             keyword_span,
             name,
-            arguments: Vec::new_in(allocator),
+            arguments: &[],
             return_type: None,
             throws: None,
             return_block: None,
@@ -1467,6 +1483,7 @@ fn parse_function<'input, 'allocator>(
     if lexer.current().get_kind() == TokenKind::ParenthesisRight {
         lexer.next();
     } else {
+        let arguments = allocator.alloc(arguments);
         // failed to recover
         return Some(Function {
             documents,
@@ -1487,6 +1504,8 @@ fn parse_function<'input, 'allocator>(
     let throws = parse_throws(lexer, errors, allocator);
 
     let return_block = parse_return_block(lexer, errors, allocator);
+
+    let arguments = allocator.alloc(arguments);
 
     Some(Function {
         documents,
@@ -1750,6 +1769,8 @@ fn parse_json_array<'input, 'allocator>(
         lexer.next();
     }
 
+    let elements = allocator.alloc(elements);
+
     Some(JsonArray {
         elements,
         span: anchor.elapsed(lexer),
@@ -1802,6 +1823,8 @@ fn parse_json_object<'input, 'allocator>(
     if lexer.current().get_kind() == TokenKind::BraceRight {
         lexer.next();
     }
+
+    let elements = allocator.alloc(elements);
 
     Some(JsonObject {
         elements,
@@ -1872,6 +1895,8 @@ fn parse_properties<'input, 'allocator>(
         lexer.skip_line_feed();
     }
 
+    let elements = allocator.alloc(elements);
+
     Properties {
         elements,
         span: anchor.elapsed(lexer),
@@ -1929,7 +1954,7 @@ fn parse_property<'input, 'allocator>(
         errors.push(error);
         return Some(Property {
             name,
-            values: Vec::new_in(allocator),
+            values: &[],
             span: anchor.elapsed(lexer),
         });
     }
@@ -1958,6 +1983,8 @@ fn parse_property<'input, 'allocator>(
     if lexer.current().get_kind() == TokenKind::BracketRight {
         lexer.next();
     }
+
+    let values = allocator.alloc(values);
 
     Some(Property {
         name,

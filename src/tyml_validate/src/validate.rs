@@ -64,9 +64,9 @@ pub enum ValidateValue<'value> {
 }
 
 #[derive(Debug)]
-pub struct ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value> {
-    pub type_tree: &'tree TypeTree<'input, 'ty>,
-    pub named_type_map: &'map NamedTypeMap<'input, 'ty>,
+pub struct ValueTypeChecker<'input, 'tree, 'map, 'section, 'value> {
+    pub type_tree: &'tree TypeTree<'input>,
+    pub named_type_map: &'map NamedTypeMap<'input>,
     pub value_tree: ValueTree<'section, 'value>,
     // for [[section.array]]
     pub additional_section_array_spans:
@@ -105,7 +105,7 @@ impl<'input, 'ty> CompletionCache<'input> {
     fn link_field_completion_items(
         &self,
         field_value_span: SourceCodeSpan,
-        type_tree: &TypeTree<'input, '_>,
+        type_tree: &TypeTree<'input>,
     ) {
         if let TypeTree::Node {
             node,
@@ -157,13 +157,10 @@ pub enum SetValue<'section, 'input> {
     CreateSection,
 }
 
-impl<'input, 'ty, 'tree, 'map, 'section, 'value>
-    ValueTypeChecker<'input, 'ty, 'tree, 'map, 'section, 'value>
+impl<'input, 'tree, 'map, 'section, 'value>
+    ValueTypeChecker<'input, 'tree, 'map, 'section, 'value>
 {
-    pub fn new(
-        tree: &'tree TypeTree<'input, 'ty>,
-        named_type_map: &'map NamedTypeMap<'input, 'ty>,
-    ) -> Self {
+    pub fn new(tree: &'tree TypeTree<'input>, named_type_map: &'map NamedTypeMap<'input>) -> Self {
         Self {
             type_tree: tree,
             named_type_map,
@@ -405,10 +402,10 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
     fn validate_tree<'temp>(
         &self,
         errors: &mut Option<&mut Vec<TymlValueValidateError>>,
-        type_tree: &'tree TypeTree<'input, 'ty>,
+        type_tree: &'tree TypeTree<'input>,
         value_tree: &MergedValueTree<'section, 'value>,
         section_name_stack: &mut Vec<Cow<'input, str>, &'temp Bump>,
-        non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
+        non_matched_name_stack: &mut Vec<(String, Type)>,
     ) -> bool {
         match type_tree {
             TypeTree::Node {
@@ -812,7 +809,7 @@ impl<'input, 'ty, 'tree, 'map, 'section, 'value>
         ty: &Type,
         value_tree: &MergedValueTree<'section, 'value>,
         section_name_stack: &mut Vec<Cow<'input, str>, &'temp Bump>,
-        non_matched_name_stack: &mut Vec<(String, Type<'ty>)>,
+        non_matched_name_stack: &mut Vec<(String, Type)>,
     ) -> bool {
         match ty {
             Type::Int(attribute) => match value_tree {

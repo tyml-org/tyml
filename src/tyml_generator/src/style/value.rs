@@ -423,7 +423,7 @@ impl<'input> AST<'input> for ValueAST<'input> {
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        validator: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     ) {
         let value_tree = self.create_value(section_name_stack);
 
@@ -718,7 +718,7 @@ impl<'input> AST<'input> for ArrayValueAST<'input> {
     fn take_value(
         &self,
         _: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &bumpalo::Bump>,
-        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     ) {
         unreachable!()
     }
@@ -1027,10 +1027,10 @@ impl<'input> InlineSectionAST<'input> {
 
         let dummy_tree = TypeTree::Leaf {
             ty: Type::Unknown,
-            documents: Vec::new_in(*section_name_stack.allocator()),
+            documents: std::vec::Vec::new(),
             span: 0..0,
         };
-        let dummy_named_map = NamedTypeMap::new(section_name_stack.allocator());
+        let dummy_named_map = NamedTypeMap::new();
 
         // dummy validator for create value tree
         let mut validator = ValueTypeChecker::new(&dummy_tree, &dummy_named_map);
@@ -1077,7 +1077,7 @@ impl<'input> AST<'input> for InlineSectionAST<'input> {
     fn take_value(
         &self,
         _: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &bumpalo::Bump>,
-        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut tyml_validate::validate::ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     ) {
         unreachable!()
     }

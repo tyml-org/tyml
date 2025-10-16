@@ -1,9 +1,9 @@
 use std::{borrow::Cow, fmt::Display, ops::Range, sync::Arc};
 
-use allocator_api2::{boxed::Box, vec::Vec};
+use allocator_api2::vec::Vec;
 use bumpalo::Bump;
 use either::Either;
-use hashbrown::{DefaultHashBuilder, HashMap};
+use hashbrown::HashMap;
 use regex::Regex;
 use serde_json::Value;
 use tyml_parser::ast::{
@@ -28,15 +28,15 @@ pub fn resolve_type<'input, 'ast_allocator>(
     ast: &'ast_allocator Defines<'input, 'ast_allocator>,
     type_allocator: &'ast_allocator Bump,
 ) -> (
-    TypeTree<'input, 'ast_allocator>,
-    NamedTypeMap<'input, 'ast_allocator>,
-    Vec<InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>, &'ast_allocator Bump>,
-    Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    TypeTree<'input>,
+    NamedTypeMap<'input>,
+    Vec<InterfaceInfo<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    Vec<TypeError<'input>, &'ast_allocator Bump>,
 ) {
     let env_allocator = Bump::new();
     let name_env = NameEnvironment::new(None, &env_allocator);
 
-    let mut named_type_map = NamedTypeMap::new(type_allocator);
+    let mut named_type_map = NamedTypeMap::new();
     let mut interfaces = Vec::new_in(type_allocator);
     let mut errors = Vec::new_in(type_allocator);
 
@@ -49,7 +49,6 @@ pub fn resolve_type<'input, 'ast_allocator>(
         &mut interfaces,
         &mut errors,
         &env_allocator,
-        type_allocator,
     );
 
     (root_tree, named_type_map, interfaces, errors)
@@ -60,15 +59,11 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
     documents: Option<&Documents<'input, 'ast_allocator>>,
     tree_span: Option<Range<usize>>,
     name_env: &'env NameEnvironment<'env, 'input>,
-    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
-    interfaces: &mut Vec<
-        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
-        &'ast_allocator Bump,
-    >,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    named_type_map: &mut NamedTypeMap<'input>,
+    interfaces: &mut Vec<InterfaceInfo<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty: &'ast_allocator Bump,
-) -> TypeTree<'input, 'ast_allocator> {
+) -> TypeTree<'input> {
     // collect type names first
     for define in ast.defines.iter() {
         if let Define::Type(type_define) = define {
@@ -76,9 +71,9 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
         }
     }
 
-    let mut node = HashMap::new_in(ty);
+    let mut node = HashMap::new();
     let mut any_node = None;
-    let mut node_key_span = HashMap::new_in(ty);
+    let mut node_key_span = HashMap::new();
     let mut any_node_key_span = None;
 
     for define in ast.defines.iter() {
@@ -91,7 +86,6 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     interfaces,
                     errors,
                     env,
-                    ty,
                 );
 
                 match &element_define.node {
@@ -100,7 +94,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                         node_key_span.insert(name.value.clone(), name.span());
                     }
                     NodeLiteral::Asterisk(literal) => {
-                        any_node = Some(Box::new_in(element_type, ty));
+                        any_node = Some(Box::new(element_type));
                         any_node_key_span = Some(literal.span.clone());
                     }
                 }
@@ -119,7 +113,6 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                             interfaces,
                             errors,
                             env,
-                            ty,
                         );
                         (
                             struct_define.name.value,
@@ -128,10 +121,10 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                         )
                     }
                     TypeDefine::Enum(enum_define) => {
-                        let mut elements = Vec::with_capacity_in(enum_define.elements.len(), ty);
+                        let mut elements = std::vec::Vec::with_capacity(enum_define.elements.len());
                         for element in enum_define.elements.iter() {
                             let mut documents =
-                                Vec::with_capacity_in(element.documents.lines.len(), ty);
+                                std::vec::Vec::with_capacity(element.documents.lines.len());
                             for line in element.documents.lines.iter() {
                                 documents.push(*line);
                             }
@@ -146,7 +139,7 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                         }
 
                         let mut documents =
-                            Vec::with_capacity_in(enum_define.documents.lines.len(), ty);
+                            std::vec::Vec::with_capacity(enum_define.documents.lines.len());
                         for line in enum_define.documents.lines.iter() {
                             documents.push(*line);
                         }
@@ -172,17 +165,15 @@ fn resolve_defines_type<'input, 'env, 'ast_allocator>(
                     interfaces,
                     errors,
                     env,
-                    ty,
                 );
             }
         }
     }
 
-    let mut tree_documents = Vec::with_capacity_in(
+    let mut tree_documents = std::vec::Vec::with_capacity(
         documents
             .map(|documents| documents.lines.len())
             .unwrap_or(0),
-        ty,
     );
     if let Some(documents) = documents {
         for line in documents.lines.iter() {
@@ -234,14 +225,10 @@ pub fn camel_to_snake(s: &str) -> String {
 fn collect_interface_info<'input, 'env, 'ast_allocator>(
     ast: &'ast_allocator Interface<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
-    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
-    interfaces: &mut Vec<
-        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
-        &'ast_allocator Bump,
-    >,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    named_type_map: &mut NamedTypeMap<'input>,
+    interfaces: &mut Vec<InterfaceInfo<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty_allocator: &'ast_allocator Bump,
 ) {
     let final_name = ast
         .properties
@@ -273,8 +260,8 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         errors.push(error);
     }
 
-    let mut functions: Vec<FunctionInfo, &'ast_allocator Bump> = Vec::new_in(ty_allocator);
-    let mut json_tree_type_cache = JsonTreeTypeCache::new(ty_allocator);
+    let mut functions: std::vec::Vec<FunctionInfo> = std::vec::Vec::new();
+    let mut json_tree_type_cache = JsonTreeTypeCache::new();
     for function in ast.functions.iter() {
         let final_name = function
             .properties
@@ -332,11 +319,11 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             errors.push(error);
         }
 
-        let authed = function.authed.clone();
+        let authed = function.authed.as_ref().cloned();
 
-        let mut body_argument_info: Option<FunctionBodyArgumentInfo<'_, '_, '_>> = None;
-        let mut claim_argument_info: Option<AuthClaimArgumentInfo<'_, '_, '_>> = None;
-        let mut arguments = Vec::new_in(ty_allocator);
+        let mut body_argument_info: Option<FunctionBodyArgumentInfo<'_, '_>> = None;
+        let mut claim_argument_info: Option<AuthClaimArgumentInfo<'_, '_>> = None;
+        let mut arguments = std::vec::Vec::new();
         for argument in function.arguments.iter() {
             let ty = resolve_or_type(
                 &argument.ty.type_info,
@@ -344,7 +331,6 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                 named_type_map,
                 errors,
                 env,
-                ty_allocator,
             );
             if let Some(default_value) = &argument.default_value {
                 validate_json_type(
@@ -354,7 +340,6 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                     named_type_map,
                     &mut json_tree_type_cache,
                     errors,
-                    ty_allocator,
                 );
             }
 
@@ -430,7 +415,6 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                     named_type_map,
                     errors,
                     env,
-                    ty_allocator,
                 );
                 if let Some(return_block) = &function.return_block {
                     validate_json_type(
@@ -440,7 +424,6 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
                         named_type_map,
                         &mut json_tree_type_cache,
                         errors,
-                        ty_allocator,
                     );
                 }
                 Some(FunctionReturnInfo {
@@ -454,19 +437,13 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             None => None,
         };
 
-        let throws_type = function.throws.as_ref().map(|throws| {
-            resolve_or_type(
-                &throws.ty,
-                name_env,
-                named_type_map,
-                errors,
-                env,
-                ty_allocator,
-            )
-        });
+        let throws_type = function
+            .throws
+            .as_ref()
+            .map(|throws| resolve_or_type(&throws.ty, name_env, named_type_map, errors, env));
 
         functions.push(FunctionInfo {
-            documents: function.documents.lines.clone(),
+            documents: function.documents.lines,
             keyword_span: function.keyword_span.clone(),
             authed,
             name: final_name,
@@ -480,7 +457,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
     }
 
     interfaces.push(InterfaceInfo {
-        documents: ast.documents.lines.clone(),
+        documents: ast.documents.lines,
         keyword_span: ast.keyword_span.clone(),
         name: final_name,
         original_name: ast.name.value,
@@ -490,26 +467,16 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
 }
 
 #[derive(Debug)]
-pub struct JsonTreeTypeCache<'input, 'ast_allocator> {
-    pub field_user_map: HashMap<
-        Range<usize>,
-        Vec<Range<usize>, &'ast_allocator Bump>,
-        DefaultHashBuilder,
-        &'ast_allocator Bump,
-    >,
-    pub field_completion_map: HashMap<
-        Range<usize>,
-        Vec<Spanned<Cow<'input, str>>, &'ast_allocator Bump>,
-        DefaultHashBuilder,
-        &'ast_allocator Bump,
-    >,
+pub struct JsonTreeTypeCache<'input> {
+    pub field_user_map: HashMap<Range<usize>, Vec<Range<usize>>>,
+    pub field_completion_map: HashMap<Range<usize>, Vec<Spanned<Cow<'input, str>>>>,
 }
 
-impl<'input, 'ast_allocator> JsonTreeTypeCache<'input, 'ast_allocator> {
-    pub fn new(allocator: &'ast_allocator Bump) -> Self {
+impl<'input> JsonTreeTypeCache<'input> {
+    pub fn new() -> Self {
         Self {
-            field_user_map: HashMap::new_in(allocator),
-            field_completion_map: HashMap::new_in(allocator),
+            field_user_map: HashMap::new(),
+            field_completion_map: HashMap::new(),
         }
     }
 
@@ -525,7 +492,7 @@ impl<'input, 'ast_allocator> JsonTreeTypeCache<'input, 'ast_allocator> {
     fn link_field_completions(
         &mut self,
         field_value_span: Range<usize>,
-        type_tree: &TypeTree<'input, 'ast_allocator>,
+        type_tree: &TypeTree<'input>,
     ) {
         let allocator = *self.field_completion_map.allocator();
 
@@ -553,20 +520,13 @@ impl<'input, 'ast_allocator> JsonTreeTypeCache<'input, 'ast_allocator> {
 
 fn validate_json_type<'input, 'ast_allocator>(
     json_value: &JsonValue<'input, 'ast_allocator>,
-    ty: &Type<'ast_allocator>,
+    ty: &Type,
     type_span: Range<usize>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
-    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
-    type_allocator: &'ast_allocator Bump,
+    named_type_map: &NamedTypeMap<'input>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
 ) {
-    if !check_json_type(
-        json_value,
-        ty,
-        named_type_map,
-        json_tree_type_cache,
-        type_allocator,
-    ) {
+    if !check_json_type(json_value, ty, named_type_map, json_tree_type_cache) {
         let error = TypeError {
             kind: TypeErrorKind::IncompatibleJsonValueType {
                 json: json_value.span(),
@@ -580,10 +540,9 @@ fn validate_json_type<'input, 'ast_allocator>(
 
 fn check_json_type<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
-    ty: &Type<'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
-    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
-    type_allocator: &'ast_allocator Bump,
+    ty: &Type,
+    named_type_map: &NamedTypeMap<'input>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input>,
 ) -> bool {
     match ty {
         Type::Named(name_id) => check_json_named_type_tree(
@@ -591,27 +550,14 @@ fn check_json_type<'input, 'ast_allocator>(
             named_type_map.get_type(*name_id).unwrap(),
             named_type_map,
             json_tree_type_cache,
-            type_allocator,
         ),
-        Type::Or(items) => items.iter().any(|ty| {
-            check_json_type(
-                value,
-                ty,
-                named_type_map,
-                json_tree_type_cache,
-                type_allocator,
-            )
-        }),
+        Type::Or(items) => items
+            .iter()
+            .any(|ty| check_json_type(value, ty, named_type_map, json_tree_type_cache)),
         Type::Array(base_type) => match value {
             JsonValue::Array(value) => {
                 for element in value.elements.iter() {
-                    if !check_json_type(
-                        element,
-                        &base_type,
-                        named_type_map,
-                        json_tree_type_cache,
-                        type_allocator,
-                    ) {
+                    if !check_json_type(element, &base_type, named_type_map, json_tree_type_cache) {
                         return false;
                     }
                 }
@@ -621,13 +567,7 @@ fn check_json_type<'input, 'ast_allocator>(
         },
         Type::Optional(base_type) => match value {
             JsonValue::Value(ValueLiteral::Null(_)) => true,
-            _ => check_json_type(
-                value,
-                &base_type,
-                named_type_map,
-                json_tree_type_cache,
-                type_allocator,
-            ),
+            _ => check_json_type(value, &base_type, named_type_map, json_tree_type_cache),
         },
         Type::Any => true,
         Type::Unknown => true,
@@ -636,12 +576,9 @@ fn check_json_type<'input, 'ast_allocator>(
                 return false;
             };
 
-            let value_infer_type = get_value_type(value_literal, type_allocator);
+            let value_infer_type = get_value_type(value_literal);
 
-            if value_infer_type
-                .try_override_with(ty, type_allocator)
-                .is_err()
-            {
+            if value_infer_type.try_override_with(ty).is_err() {
                 return false;
             } else if !ty
                 .validate_value_with_attribute(get_value_literal(value_literal).value.as_ref())
@@ -656,19 +593,14 @@ fn check_json_type<'input, 'ast_allocator>(
 
 fn check_json_named_type_tree<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
-    type_tree: &NamedTypeTree<'input, 'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
-    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
-    type_allocator: &'ast_allocator Bump,
+    type_tree: &NamedTypeTree<'input>,
+    named_type_map: &NamedTypeMap<'input>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input>,
 ) -> bool {
     match type_tree {
-        NamedTypeTree::Struct { tree } => check_json_type_tree(
-            value,
-            tree,
-            named_type_map,
-            json_tree_type_cache,
-            type_allocator,
-        ),
+        NamedTypeTree::Struct { tree } => {
+            check_json_type_tree(value, tree, named_type_map, json_tree_type_cache)
+        }
         NamedTypeTree::Enum {
             elements,
             documents: _,
@@ -684,10 +616,9 @@ fn check_json_named_type_tree<'input, 'ast_allocator>(
 
 fn check_json_type_tree<'input, 'ast_allocator>(
     value: &JsonValue<'input, 'ast_allocator>,
-    type_tree: &TypeTree<'input, 'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
-    json_tree_type_cache: &mut JsonTreeTypeCache<'input, 'ast_allocator>,
-    type_allocator: &'ast_allocator Bump,
+    type_tree: &TypeTree<'input>,
+    named_type_map: &NamedTypeMap<'input>,
+    json_tree_type_cache: &mut JsonTreeTypeCache<'input>,
 ) -> bool {
     json_tree_type_cache.link_field_completions(value.span(), type_tree);
 
@@ -717,7 +648,6 @@ fn check_json_type_tree<'input, 'ast_allocator>(
                                 element_type_tree,
                                 named_type_map,
                                 json_tree_type_cache,
-                                type_allocator,
                             ) {
                                 return false;
                             }
@@ -741,7 +671,6 @@ fn check_json_type_tree<'input, 'ast_allocator>(
                                 &any_node_tree,
                                 named_type_map,
                                 json_tree_type_cache,
-                                type_allocator,
                             ) {
                                 return false;
                             }
@@ -766,20 +695,14 @@ fn check_json_type_tree<'input, 'ast_allocator>(
             ty,
             documents: _,
             span: _,
-        } => check_json_type(
-            value,
-            ty,
-            named_type_map,
-            json_tree_type_cache,
-            type_allocator,
-        ),
+        } => check_json_type(value, ty, named_type_map, json_tree_type_cache),
     }
 }
 
 pub fn check_serde_json_type<'input, 'ast_allocator>(
     value: &Value,
-    ty: &Type<'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    ty: &Type,
+    named_type_map: &NamedTypeMap<'input>,
 ) -> bool {
     match ty {
         Type::Named(name_id) => check_serde_json_named_type_tree(
@@ -826,8 +749,8 @@ pub fn check_serde_json_type<'input, 'ast_allocator>(
 
 fn check_serde_json_named_type_tree<'input, 'ast_allocator>(
     value: &Value,
-    type_tree: &NamedTypeTree<'input, 'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    type_tree: &NamedTypeTree<'input>,
+    named_type_map: &NamedTypeMap<'input>,
 ) -> bool {
     match type_tree {
         NamedTypeTree::Struct { tree } => check_serde_json_type_tree(value, tree, named_type_map),
@@ -846,8 +769,8 @@ fn check_serde_json_named_type_tree<'input, 'ast_allocator>(
 
 fn check_serde_json_type_tree<'input, 'ast_allocator>(
     value: &Value,
-    type_tree: &TypeTree<'input, 'ast_allocator>,
-    named_type_map: &NamedTypeMap<'input, 'ast_allocator>,
+    type_tree: &TypeTree<'input>,
+    named_type_map: &NamedTypeMap<'input>,
 ) -> bool {
     match type_tree {
         TypeTree::Node {
@@ -911,23 +834,19 @@ fn check_serde_json_type_tree<'input, 'ast_allocator>(
 fn get_element_type<'input, 'env, 'ast_allocator>(
     ast: &ElementDefine<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
-    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
-    interfaces: &mut Vec<
-        InterfaceInfo<'input, 'ast_allocator, 'ast_allocator>,
-        &'ast_allocator Bump,
-    >,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    named_type_map: &mut NamedTypeMap<'input>,
+    interfaces: &mut Vec<InterfaceInfo<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty: &'ast_allocator Bump,
-) -> TypeTree<'input, 'ast_allocator> {
-    let mut documents = Vec::with_capacity_in(ast.documents.lines.len(), ty);
+) -> TypeTree<'input> {
+    let mut documents = std::vec::Vec::with_capacity(ast.documents.lines.len());
     for line in ast.documents.lines.iter() {
         documents.push(*line);
     }
 
     match (&ast.ty, &ast.inline_type, &ast.default) {
         (None, None, Some(default)) => TypeTree::Leaf {
-            ty: get_value_type(&default.value, ty),
+            ty: get_value_type(&default.value),
             documents,
             span: ast.span.clone(),
         },
@@ -940,7 +859,6 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             interfaces,
             errors,
             env,
-            ty,
         ),
         (None, Some(inline), Some(_)) => resolve_defines_type(
             inline.defines,
@@ -951,7 +869,6 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
             interfaces,
             errors,
             env,
-            ty,
         ),
         (Some(element_type), None, None) => {
             let ty = resolve_or_type(
@@ -960,7 +877,6 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 named_type_map,
                 errors,
                 env,
-                ty,
             );
             TypeTree::Leaf {
                 ty,
@@ -977,13 +893,12 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
                 named_type_map,
                 errors,
                 env,
-                ty,
             );
-            let value_type = get_value_type(&default.value, ty);
+            let value_type = get_value_type(&default.value);
 
             let value = get_value_literal(&default.value);
 
-            if value_type.try_override_with(&element_type, ty).is_err() {
+            if value_type.try_override_with(&element_type).is_err() {
                 let span = value.span.clone();
 
                 errors.push(TypeError {
@@ -1020,10 +935,7 @@ fn get_element_type<'input, 'env, 'ast_allocator>(
     }
 }
 
-fn get_value_type<'input, 'env, 'ast_allocator>(
-    ast: &ValueLiteral<'input>,
-    ty: &'ast_allocator Bump,
-) -> Type<'ast_allocator> {
+fn get_value_type<'input, 'env>(ast: &ValueLiteral<'input>) -> Type {
     match &ast {
         ValueLiteral::String(_) => Type::String(StringAttribute::default()),
         ValueLiteral::Float(float_literal) => match float_literal {
@@ -1071,7 +983,7 @@ fn get_value_type<'input, 'env, 'ast_allocator>(
             }
         }
         ValueLiteral::Bool(_) => Type::Bool,
-        ValueLiteral::Null(_) => Type::Optional(Box::new_in(Type::Unknown, ty)),
+        ValueLiteral::Null(_) => Type::Optional(Box::new(Type::Unknown)),
     }
 }
 
@@ -1098,16 +1010,15 @@ fn get_value_literal<'ast>(ast: &ValueLiteral<'ast>) -> EscapedLiteral<'ast> {
 fn resolve_or_type<'input, 'env, 'ast_allocator>(
     ast: &OrType<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
-    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    named_type_map: &mut NamedTypeMap<'input>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty: &'ast_allocator Bump,
-) -> Type<'ast_allocator> {
+) -> Type {
     match ast.or_types.len() {
         0 => Type::Unknown,
-        1 => resolve_type_base(&ast.or_types[0], name_env, named_type_map, errors, env, ty),
+        1 => resolve_type_base(&ast.or_types[0], name_env, named_type_map, errors, env),
         _ => {
-            let mut or_types = Vec::new_in(ty);
+            let mut or_types = std::vec::Vec::new();
 
             for or_type in ast.or_types.iter() {
                 or_types.push(resolve_type_base(
@@ -1116,7 +1027,6 @@ fn resolve_or_type<'input, 'env, 'ast_allocator>(
                     named_type_map,
                     errors,
                     env,
-                    ty,
                 ));
             }
 
@@ -1126,7 +1036,7 @@ fn resolve_or_type<'input, 'env, 'ast_allocator>(
 }
 
 fn add_attribute_incompatible<'input, 'ast_allocator>(
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     span: Range<usize>,
     ty: &'static str,
 ) {
@@ -1224,18 +1134,17 @@ fn to_float_range<T: TryFrom<f64> + Display>(
 fn resolve_type_base<'input, 'env, 'ast_allocator>(
     ast: &BaseType<'input, 'ast_allocator>,
     name_env: &'env NameEnvironment<'env, 'input>,
-    named_type_map: &mut NamedTypeMap<'input, 'ast_allocator>,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    named_type_map: &mut NamedTypeMap<'input>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
     env: &'env Bump,
-    ty_allocator: &'ast_allocator Bump,
-) -> Type<'ast_allocator> {
+) -> Type {
     let ty = match &ast.ty {
         Either::Left(base_type) => {
             match base_type.name.value {
                 "int" => {
                     fn int_attribute_processor<'input, 'ast_allocator>(
                         attribute: &TypeAttribute<'input, 'ast_allocator>,
-                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                        errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
                     ) -> AttributeTree {
                         match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
@@ -1288,7 +1197,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 "uint" => {
                     fn uint_attribute_processor<'input, 'ast_allocator>(
                         attribute: &TypeAttribute<'input, 'ast_allocator>,
-                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                        errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
                     ) -> AttributeTree {
                         match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
@@ -1341,7 +1250,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 "float" => {
                     fn float_attribute_processor<'input, 'ast_allocator>(
                         attribute: &TypeAttribute<'input, 'ast_allocator>,
-                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                        errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
                     ) -> AttributeTree {
                         match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
@@ -1398,7 +1307,7 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
                 "string" => {
                     fn string_attribute_processor<'input, 'ast_allocator>(
                         attribute: &TypeAttribute<'input, 'ast_allocator>,
-                        errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+                        errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
                     ) -> AttributeTree {
                         match attribute {
                             TypeAttribute::NumericAttribute(attribute) => {
@@ -1497,20 +1406,13 @@ fn resolve_type_base<'input, 'env, 'ast_allocator>(
             }
         }
         Either::Right(array_type) => {
-            let base = resolve_or_type(
-                &array_type.base,
-                name_env,
-                named_type_map,
-                errors,
-                env,
-                ty_allocator,
-            );
-            Type::Array(Box::new_in(base, ty_allocator))
+            let base = resolve_or_type(&array_type.base, name_env, named_type_map, errors, env);
+            Type::Array(Box::new(base))
         }
     };
 
     match ast.optional.is_some() {
-        true => Type::Optional(Box::new_in(ty, ty_allocator)),
+        true => Type::Optional(Box::new(ty)),
         false => ty,
     }
 }
@@ -1519,10 +1421,10 @@ fn resolve_attribute_or<'input, 'ast_allocator>(
     ast: &AttributeOr<'input, 'ast_allocator>,
     processor: impl Fn(
             &TypeAttribute<'input, 'ast_allocator>,
-            &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+            &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
         ) -> AttributeTree
         + Clone,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
 ) -> AttributeTree {
     AttributeTree::Or {
         attributes: ast
@@ -1537,10 +1439,10 @@ fn resolve_attribute_and<'input, 'ast_allocator>(
     ast: &AttributeAnd<'input, 'ast_allocator>,
     processor: impl Fn(
             &TypeAttribute<'input, 'ast_allocator>,
-            &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+            &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
         ) -> AttributeTree
         + Clone,
-    errors: &mut Vec<TypeError<'input, 'ast_allocator>, &'ast_allocator Bump>,
+    errors: &mut Vec<TypeError<'input>, &'ast_allocator Bump>,
 ) -> AttributeTree {
     AttributeTree::And {
         attributes: ast

@@ -10,7 +10,7 @@ pub struct ParseError<'input, 'allocator> {
     pub kind: ParseErrorKind,
     pub scope: Scope,
     pub expected: Expected,
-    pub error_tokens: Vec<Token<'input>, &'allocator Bump>,
+    pub error_tokens: &'allocator [Token<'input>],
     pub span: Range<usize>,
 }
 
@@ -122,6 +122,8 @@ pub(crate) fn recover_until<'input, 'allocator>(
 
         lexer.next();
     }
+
+    let error_tokens = allocator.alloc(error_tokens);
 
     ParseError {
         kind,

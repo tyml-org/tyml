@@ -5,16 +5,14 @@ use std::{
     sync::Arc,
 };
 
-use allocator_api2::{boxed::Box, vec::Vec};
-use bumpalo::Bump;
-use hashbrown::{DefaultHashBuilder, HashMap};
+use hashbrown::HashMap;
 use regex::Regex;
 use tyml_parser::ast::{EscapedLiteral, JsonValue, Spanned};
 
 use crate::{name::NameID, resolver::JsonTreeTypeCache};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type<'ty> {
+pub enum Type {
     Int(IntAttribute),
     UnsignedInt(UnsignedIntAttribute),
     Float(FloatAttribute),
@@ -23,9 +21,9 @@ pub enum Type<'ty> {
     MaybeInt,
     MaybeUnsignedInt,
     Named(NameID),
-    Or(Vec<Type<'ty>, &'ty Bump>),
-    Array(Box<Type<'ty>, &'ty Bump>),
-    Optional(Box<Type<'ty>, &'ty Bump>),
+    Or(Vec<Type>),
+    Array(Box<Type>),
+    Optional(Box<Type>),
     /// This is devil
     Any,
     Unknown,
@@ -184,13 +182,9 @@ impl ToTypeName for AttributeSet {
     }
 }
 
-impl<'ty> Type<'ty> {
+impl Type {
     /// accept if `self ⊃ other`, but exceptions for optional
-    pub(crate) fn try_override_with(
-        &self,
-        other: &Type<'ty>,
-        allocator: &'ty Bump,
-    ) -> Result<Type<'ty>, ()> {
+    pub(crate) fn try_override_with(&self, other: &Type) -> Result<Type, ()> {
         // exceptions for optional
         if let Type::Optional(other_type) = other {
             if let Type::Optional(_) = self {
@@ -198,9 +192,8 @@ impl<'ty> Type<'ty> {
                 // If other is optional and self is NOT optional,
                 // validate self as optional.
                 // We must accept, pattern of "node: int? = 100"
-                return Ok(Type::Optional(Box::new_in(
-                    self.try_override_with(&other_type, allocator)?,
-                    allocator,
+                return Ok(Type::Optional(Box::new(
+                    self.try_override_with(&other_type)?,
                 )));
             }
         }
@@ -220,8 +213,7 @@ impl<'ty> Type<'ty> {
 
                     'root: for other_type in other_types.iter() {
                         for self_type in self_types.iter_mut() {
-                            if let Ok(new_type) = self_type.try_override_with(other_type, allocator)
-                            {
+                            if let Ok(new_type) = self_type.try_override_with(other_type) {
                                 *self_type = new_type;
                                 continue 'root;
                             }
@@ -235,7 +227,7 @@ impl<'ty> Type<'ty> {
                     let mut self_types = self_types.clone();
 
                     for self_type in self_types.iter_mut() {
-                        if let Ok(new_type) = self_type.try_override_with(other, allocator) {
+                        if let Ok(new_type) = self_type.try_override_with(other) {
                             *self_type = new_type;
                             return Ok(Type::Or(self_types));
                         }
@@ -245,16 +237,14 @@ impl<'ty> Type<'ty> {
                 }
             },
             Type::Array(self_type) => match other {
-                Type::Array(other_type) => Ok(Type::Array(Box::new_in(
-                    self_type.try_override_with(&other_type, allocator)?,
-                    allocator,
+                Type::Array(other_type) => Ok(Type::Array(Box::new(
+                    self_type.try_override_with(&other_type)?,
                 ))),
                 _ => Err(()),
             },
             Type::Optional(self_type) => match other {
-                Type::Optional(other_type) => Ok(Type::Optional(Box::new_in(
-                    self_type.try_override_with(other_type, allocator)?,
-                    allocator,
+                Type::Optional(other_type) => Ok(Type::Optional(Box::new(
+                    self_type.try_override_with(other_type)?,
                 ))),
                 _ => Err(()),
             },
@@ -310,7 +300,7 @@ pub trait ToTypeName {
     fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String;
 }
 
-impl<'ty> ToTypeName for Type<'ty> {
+impl ToTypeName for Type {
     fn to_type_name(&self, named_type_map: &NamedTypeMap) -> String {
         match self {
             Type::Int(attribute) => format!("int{}", attribute.to_type_name(named_type_map)),
@@ -451,27 +441,27 @@ impl ToTypeName for StringAttribute {
 }
 
 #[derive(Debug)]
-pub struct InterfaceInfo<'input, 'ty, 'ast_allocator> {
-    pub documents: Vec<&'input str, &'ast_allocator Bump>,
+pub struct InterfaceInfo<'input, 'ast_allocator> {
+    pub documents: &'ast_allocator [&'input str],
     pub keyword_span: Range<usize>,
     pub name: Spanned<String>,
     pub original_name: &'input str,
-    pub functions: Vec<FunctionInfo<'input, 'ty, 'ast_allocator>, &'ast_allocator Bump>,
-    pub json_tree_type_cache: JsonTreeTypeCache<'input, 'ast_allocator>,
+    pub functions: Vec<FunctionInfo<'input, 'ast_allocator>>,
+    pub json_tree_type_cache: JsonTreeTypeCache<'input>,
 }
 
 #[derive(Debug)]
-pub struct FunctionInfo<'input, 'ty, 'ast_allocator> {
-    pub documents: Vec<&'input str, &'ast_allocator Bump>,
+pub struct FunctionInfo<'input, 'ast_allocator> {
+    pub documents: &'ast_allocator [&'input str],
     pub keyword_span: Range<usize>,
     pub authed: Option<Range<usize>>,
     pub name: Spanned<String>,
     pub kind: FunctionKind,
-    pub arguments: Vec<FunctionArgumentInfo<'input, 'ty, 'ast_allocator>, &'ty Bump>,
-    pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator>>,
-    pub claim_argument_info: Option<AuthClaimArgumentInfo<'input, 'ty, 'ast_allocator>>,
-    pub return_info: Option<FunctionReturnInfo<'input, 'ty, 'ast_allocator>>,
-    pub throws_type: Option<Type<'ty>>,
+    pub arguments: Vec<FunctionArgumentInfo<'input, 'ast_allocator>>,
+    pub body_argument_info: Option<FunctionBodyArgumentInfo<'input, 'ast_allocator>>,
+    pub claim_argument_info: Option<AuthClaimArgumentInfo<'input, 'ast_allocator>>,
+    pub return_info: Option<FunctionReturnInfo<'input, 'ast_allocator>>,
+    pub throws_type: Option<Type>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -485,50 +475,50 @@ pub enum FunctionKind {
 }
 
 #[derive(Debug)]
-pub struct FunctionArgumentInfo<'input, 'ty, 'ast_allocator> {
+pub struct FunctionArgumentInfo<'input, 'ast_allocator> {
     pub name: EscapedLiteral<'input>,
-    pub ty: Type<'ty>,
+    pub ty: Type,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }
 
 #[derive(Debug)]
-pub struct FunctionBodyArgumentInfo<'input, 'ty, 'ast_allocator> {
+pub struct FunctionBodyArgumentInfo<'input, 'ast_allocator> {
     pub name: Range<usize>,
-    pub ty: Type<'ty>,
+    pub ty: Type,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }
 
 #[derive(Debug)]
-pub struct AuthClaimArgumentInfo<'input, 'ty, 'ast_allocator> {
+pub struct AuthClaimArgumentInfo<'input, 'ast_allocator> {
     pub name: Range<usize>,
-    pub ty: Type<'ty>,
+    pub ty: Type,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }
 
 #[derive(Debug)]
-pub struct FunctionReturnInfo<'input, 'ty, 'ast_allocator> {
-    pub ty: Type<'ty>,
+pub struct FunctionReturnInfo<'input, 'ast_allocator> {
+    pub ty: Type,
     pub default_value: Option<&'ast_allocator JsonValue<'input, 'ast_allocator>>,
 }
 
 #[derive(Debug)]
-pub enum TypeTree<'input, 'ty> {
+pub enum TypeTree<'input> {
     Node {
-        node: HashMap<Cow<'input, str>, TypeTree<'input, 'ty>, DefaultHashBuilder, &'ty Bump>,
-        any_node: Option<Box<TypeTree<'input, 'ty>, &'ty Bump>>,
-        node_key_span: HashMap<Cow<'input, str>, Range<usize>, DefaultHashBuilder, &'ty Bump>,
+        node: HashMap<Cow<'input, str>, TypeTree<'input>>,
+        any_node: Option<Box<TypeTree<'input>>>,
+        node_key_span: HashMap<Cow<'input, str>, Range<usize>>,
         any_node_key_span: Option<Range<usize>>,
-        documents: Vec<&'input str, &'ty Bump>,
+        documents: Vec<&'input str>,
         span: Range<usize>,
     },
     Leaf {
-        ty: Type<'ty>,
-        documents: Vec<&'input str, &'ty Bump>,
+        ty: Type,
+        documents: Vec<&'input str>,
         span: Range<usize>,
     },
 }
 
-impl TypeTree<'_, '_> {
+impl TypeTree<'_> {
     pub fn is_allowed_optional(&self) -> bool {
         match self {
             TypeTree::Node {
@@ -565,7 +555,7 @@ impl TypeTree<'_, '_> {
         }
     }
 
-    pub fn documents(&self) -> &Vec<&str, &Bump> {
+    pub fn documents(&self) -> &Vec<&str> {
         match self {
             TypeTree::Node {
                 node: _,
@@ -585,35 +575,28 @@ impl TypeTree<'_, '_> {
 }
 
 #[derive(Debug)]
-pub enum NamedTypeTree<'input, 'ty> {
+pub enum NamedTypeTree<'input> {
     Struct {
-        tree: TypeTree<'input, 'ty>,
+        tree: TypeTree<'input>,
     },
     Enum {
-        elements: Vec<(EscapedLiteral<'input>, Vec<&'input str, &'ty Bump>), &'ty Bump>,
-        documents: Vec<&'input str, &'ty Bump>,
+        elements: Vec<(EscapedLiteral<'input>, Vec<&'input str>)>,
+        documents: Vec<&'input str>,
     },
 }
 
 #[derive(Debug)]
-pub struct NamedTypeMap<'input, 'ty> {
-    ty: &'ty Bump,
-    pub map: HashMap<
-        NameID,
-        (&'input str, Range<usize>, NamedTypeTree<'input, 'ty>),
-        DefaultHashBuilder,
-        &'ty Bump,
-    >,
+pub struct NamedTypeMap<'input> {
+    pub map: HashMap<NameID, (&'input str, Range<usize>, NamedTypeTree<'input>)>,
     // for lsp
-    pub use_link_map: HashMap<NameID, Vec<Range<usize>, &'ty Bump>, DefaultHashBuilder, &'ty Bump>,
+    pub use_link_map: HashMap<NameID, Vec<Range<usize>>>,
 }
 
-impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
-    pub fn new(ty: &'ty Bump) -> Self {
+impl<'input> NamedTypeMap<'input> {
+    pub fn new() -> Self {
         Self {
-            ty,
-            map: HashMap::new_in(ty),
-            use_link_map: HashMap::new_in(ty),
+            map: HashMap::new(),
+            use_link_map: HashMap::new(),
         }
     }
 
@@ -622,13 +605,13 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
         name_id: NameID,
         name: &'input str,
         name_span: Range<usize>,
-        type_tree: NamedTypeTree<'input, 'ty>,
+        type_tree: NamedTypeTree<'input>,
     ) {
         self.map
             .insert(name_id, (name, name_span.clone(), type_tree));
         self.use_link_map
             .entry(name_id)
-            .or_insert_with(|| Vec::new_in(self.ty))
+            .or_insert_with(|| Vec::new())
             .push(name_span);
     }
 
@@ -640,7 +623,7 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
         self.map.get(&name_id).map(|(_, span, _)| span.clone())
     }
 
-    pub fn get_type(&self, name_id: NameID) -> Option<&NamedTypeTree<'input, 'ty>> {
+    pub fn get_type(&self, name_id: NameID) -> Option<&NamedTypeTree<'input>> {
         self.map.get(&name_id).map(|(_, _, ty)| ty)
     }
 
@@ -648,7 +631,7 @@ impl<'input, 'ty> NamedTypeMap<'input, 'ty> {
         let users = self
             .use_link_map
             .entry(name_id)
-            .or_insert_with(|| Vec::new_in(self.ty));
+            .or_insert_with(|| Vec::new());
 
         users.push(user_range);
     }

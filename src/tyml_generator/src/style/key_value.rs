@@ -220,7 +220,7 @@ impl<'input> AST<'input> for KeyValueAST<'input> {
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        validator: &mut ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     ) {
         let stack = self
             .key

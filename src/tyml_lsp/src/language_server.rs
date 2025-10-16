@@ -279,7 +279,7 @@ impl GeneratedLanguageServer {
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
-        let Some((tyml, header)) = self.tyml.lock().unwrap().clone() else {
+        let Some((tyml, header)) = self.tyml.lock().unwrap().as_ref().cloned() else {
             return;
         };
 
@@ -388,7 +388,7 @@ impl GeneratedLanguageServer {
         } else {
             let mut diagnostics = Vec::new();
             for error in tyml.ml_parse_error().iter() {
-                let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+                let diagnostic = error.build(&mut NamedTypeMap::new());
 
                 diagnostics.push(Diagnostic {
                     range: diagnostic.labels[0]
@@ -408,7 +408,7 @@ impl GeneratedLanguageServer {
 
             if diagnostics.is_empty() {
                 for error in tyml.ml_validate_error().iter() {
-                    let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+                    let diagnostic = error.build(&mut NamedTypeMap::new());
 
                     if let TymlValueValidateError::InvalidValue {
                         found,
@@ -662,13 +662,13 @@ impl TymlLanguageServer {
     }
 
     pub async fn publish_diagnostics(&self, client: &Client) {
-        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+        let Some(tyml) = self.tyml.lock().unwrap().as_ref().cloned() else {
             return;
         };
 
         let mut diagnostics = Vec::new();
         for error in tyml.tyml().parse_errors() {
-            let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+            let diagnostic = error.build(&mut NamedTypeMap::new());
 
             diagnostics.push(Diagnostic {
                 range: diagnostic.labels[0]
@@ -687,7 +687,7 @@ impl TymlLanguageServer {
 
         if diagnostics.is_empty() {
             for error in tyml.tyml().type_errors() {
-                let diagnostic = error.build(&mut NamedTypeMap::new(&Default::default()));
+                let diagnostic = error.build(&mut NamedTypeMap::new());
 
                 diagnostics.push(Diagnostic {
                     range: diagnostic.labels[0]
@@ -711,7 +711,7 @@ impl TymlLanguageServer {
     }
 
     pub fn provide_completion(&self, position: Position) -> Option<Vec<CompletionItem>> {
-        let Some(tyml) = self.tyml.lock().unwrap().clone() else {
+        let Some(tyml) = self.tyml.lock().unwrap().as_ref().cloned() else {
             return None;
         };
 
@@ -1918,7 +1918,7 @@ fn to_inclusive(&self) -> RangeInclusive<usize> {
     self.start..=self.end
 }
 
-#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a, 'a>)]
+#[extension_fn(<'a> ValueTypeChecker<'a, 'a, 'a, 'a, 'a>)]
 fn goto_define_and_documents(
     &self,
     position: usize,
@@ -1951,8 +1951,8 @@ fn goto_define_and_documents(
 }
 
 fn goto_define_and_documents_recursive<'a>(
-    type_tree: &'a TypeTree<'a, 'a>,
-    named_type_map: &'a NamedTypeMap<'a, 'a>,
+    type_tree: &'a TypeTree<'a>,
+    named_type_map: &'a NamedTypeMap<'a>,
     merged_value_tree: &MergedValueTree,
     position: usize,
     code: &str,
@@ -2190,9 +2190,9 @@ fn goto_define_and_documents_recursive<'a>(
 }
 
 fn collect_type_tree<'a>(
-    ty: &Type<'a>,
-    named_type_map: &'a NamedTypeMap<'a, 'a>,
-    trees: &mut Vec<&'a TypeTree<'a, 'a>>,
+    ty: &Type,
+    named_type_map: &'a NamedTypeMap<'a>,
+    trees: &mut Vec<&'a TypeTree<'a>>,
 ) {
     match ty {
         Type::Named(name_id) => {
@@ -2213,7 +2213,7 @@ fn collect_type_tree<'a>(
 
 fn find_enum_define_and_documents<'a>(
     ty: &Type,
-    named_type_map: &'a NamedTypeMap<'a, 'a>,
+    named_type_map: &'a NamedTypeMap<'a>,
     value: &str,
     result: &mut Vec<(Range<usize>, &'a [&'a str])>,
 ) {

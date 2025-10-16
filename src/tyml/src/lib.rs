@@ -214,7 +214,7 @@ impl<State> TymlContext<State> {
         self.state.ml_source_code()
     }
 
-    pub fn validator(&self) -> &ValueTypeChecker
+    pub fn validator(&self) -> &ValueTypeChecker<'_, '_, '_, '_, '_>
     where
         State: IValidated,
     {
@@ -316,7 +316,7 @@ impl IParsed for Validated {
 pub trait IValidated: IParsed {
     fn ml_source_code(&self) -> &SourceCode;
 
-    fn validator(&self) -> &ValueTypeChecker;
+    fn validator(&self) -> &ValueTypeChecker<'_, '_, '_, '_, '_>;
 
     fn ml_parse_error(&self) -> &Arc<Vec<GeneratedParseError>>;
 
@@ -328,7 +328,7 @@ impl IValidated for Validated {
         &self.ml_source_code
     }
 
-    fn validator(&self) -> &ValueTypeChecker {
+    fn validator(&self) -> &ValueTypeChecker<'_, '_, '_, '_, '_> {
         self.validator.validator()
     }
 
@@ -347,11 +347,8 @@ impl IValidated for Validated {
 pub struct ValidatorHolder {
     tyml: Tyml,
     ml_source_code: SourceCode,
-    validator: Arc<ValueTypeChecker<'static, 'static, 'static, 'static, 'static, 'static>>,
+    validator: Arc<ValueTypeChecker<'static, 'static, 'static, 'static, 'static>>,
 }
-
-unsafe impl Send for ValidatorHolder {}
-unsafe impl Sync for ValidatorHolder {}
 
 impl ValidatorHolder {
     pub fn new(tyml: Tyml, ml_source_code: SourceCode, validator: ValueTypeChecker) -> Self {
@@ -364,7 +361,7 @@ impl ValidatorHolder {
 
     pub fn validator<'this>(
         &'this self,
-    ) -> &'this ValueTypeChecker<'this, 'this, 'this, 'this, 'this, 'this> {
+    ) -> &'this ValueTypeChecker<'this, 'this, 'this, 'this, 'this> {
         // Why dose it need transmute?????
         unsafe { transmute(self.validator.as_ref()) }
     }
@@ -388,26 +385,24 @@ impl Tyml {
         self.inner.ast
     }
 
-    pub fn type_tree<'this>(&'this self) -> &'this TypeTree<'this, 'this> {
+    pub fn type_tree<'this>(&'this self) -> &'this TypeTree<'this> {
         &self.inner.type_tree
     }
 
-    pub fn named_type_map<'this>(&'this self) -> &'this NamedTypeMap<'this, 'this> {
+    pub fn named_type_map<'this>(&'this self) -> &'this NamedTypeMap<'this> {
         &self.inner.named_type_map
     }
 
-    pub fn parse_errors<'this>(&'this self) -> &'this Vec<ParseError<'this, 'this>, &'this Bump> {
-        &self.inner.parse_errors
+    pub fn parse_errors<'this>(&'this self) -> &'this [ParseError<'this, 'this>] {
+        self.inner.parse_errors
     }
 
-    pub fn interfaces<'this>(
-        &'this self,
-    ) -> &'this Vec<InterfaceInfo<'this, 'this, 'this>, &'this Bump> {
-        &self.inner.interfaces
+    pub fn interfaces<'this>(&'this self) -> &'this [InterfaceInfo<'this, 'this>] {
+        self.inner.interfaces
     }
 
-    pub fn type_errors<'this>(&'this self) -> &'this Vec<TypeError<'this, 'this>, &'this Bump> {
-        &self.inner.type_errors
+    pub fn type_errors<'this>(&'this self) -> &'this [TypeError<'this>] {
+        self.inner.type_errors
     }
 
     pub fn has_error(&self) -> bool {
@@ -416,7 +411,7 @@ impl Tyml {
 
     pub fn value_type_checker<'this, 'section, 'value>(
         &'this self,
-    ) -> ValueTypeChecker<'this, 'this, 'this, 'this, 'section, 'value> {
+    ) -> ValueTypeChecker<'this, 'this, 'this, 'section, 'value> {
         ValueTypeChecker::new(self.type_tree(), self.named_type_map())
     }
 }
@@ -436,12 +431,20 @@ impl Tyml {
         let (type_tree, named_type_map, interfaces, type_errors) =
             resolve_type(ast, allocator.deref());
 
+        let parse_errors = allocator.alloc(parse_errors).as_slice();
+        let interfaces = allocator.alloc(interfaces).as_slice();
+        let type_errors = allocator.alloc(type_errors).as_slice();
+
         let fake_static_ast = unsafe { transmute(ast) };
         let fake_static_type_tree = unsafe { transmute(type_tree) };
         let fake_static_named_type_map = unsafe { transmute(named_type_map) };
         let fake_static_parse_errors = unsafe { transmute(parse_errors) };
         let fake_static_interfaces = unsafe { transmute(interfaces) };
         let fake_static_type_errors = unsafe { transmute(type_errors) };
+
+        let _holder = FreezedAllocatorHolder {
+            _allocator: allocator,
+        };
 
         let tyml_inner = TymlInner {
             source_code,
@@ -452,7 +455,7 @@ impl Tyml {
             parse_errors: fake_static_parse_errors,
             interfaces: fake_static_interfaces,
             type_errors: fake_static_type_errors,
-            _allocator: allocator,
+            _holder,
         };
 
         Self {
@@ -468,17 +471,22 @@ struct TymlInner {
     comments: Vec<Range<usize>>,
     /// fake static
     ast: &'static Defines<'static, 'static>,
-    type_tree: TypeTree<'static, 'static>,
-    named_type_map: NamedTypeMap<'static, 'static>,
-    parse_errors: Vec<ParseError<'static, 'static>, &'static Bump>,
-    interfaces: Vec<InterfaceInfo<'static, 'static, 'static>, &'static Bump>,
-    type_errors: Vec<TypeError<'static, 'static>, &'static Bump>,
+    type_tree: TypeTree<'static>,
+    named_type_map: NamedTypeMap<'static>,
+    parse_errors: &'static [ParseError<'static, 'static>],
+    interfaces: &'static [InterfaceInfo<'static, 'static>],
+    type_errors: &'static [TypeError<'static>],
     /// freezed
+    _holder: FreezedAllocatorHolder,
+}
+
+#[derive(Debug)]
+struct FreezedAllocatorHolder {
     _allocator: Box<Bump>,
 }
 
-unsafe impl Send for TymlInner {}
-unsafe impl Sync for TymlInner {}
+unsafe impl Send for FreezedAllocatorHolder {}
+unsafe impl Sync for FreezedAllocatorHolder {}
 
 #[cfg(test)]
 mod tests {

@@ -10,7 +10,7 @@ use crate::{
     TymlDiagnosticMessage,
 };
 
-impl<'input, 'ty> DiagnosticBuilder for TypeError<'input, 'ty> {
+impl<'input, 'ty> DiagnosticBuilder for TypeError<'input> {
     fn build(&self, named_type_map: &NamedTypeMap) -> crate::Diagnostic {
         match &self.kind {
             TypeErrorKind::UnknownNamedType { name } => Diagnostic {

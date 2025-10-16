@@ -43,7 +43,7 @@ pub trait AST<'input> {
     fn take_value(
         &self,
         section_name_stack: &mut Vec<(Cow<'input, str>, Range<usize>, Range<usize>, bool), &Bump>,
-        validator: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        validator: &mut ValueTypeChecker<'_, '_, '_, 'input, 'input>,
     );
 
     fn take_token(&self, tokens: &mut BTreeMap<usize, (ASTTokenKind, Range<usize>)>);

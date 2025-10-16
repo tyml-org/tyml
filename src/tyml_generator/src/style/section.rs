@@ -324,7 +324,7 @@ impl<'input> AST<'input> for SectionAST<'input> {
             (Cow<'input, str>, Range<usize>, Range<usize>, bool),
             &bumpalo::Bump,
         >,
-        _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input, 'input>,
+        _: &mut ValueTypeChecker<'_, '_, '_, '_, 'input>,
     ) {
         unreachable!()
     }
