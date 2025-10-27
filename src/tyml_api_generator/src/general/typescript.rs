@@ -16,81 +16,88 @@ pub(crate) fn generate_type_for_typescript(
         Type::String(_) => "string".to_string(),
         Type::MaybeInt => "number".to_string(),
         Type::MaybeUnsignedInt => "number".to_string(),
-        Type::Named(name_id) => match named_type_map.get_type(*name_id).unwrap() {
-            NamedTypeTree::Struct { tree } => {
-                let type_name = named_type_map.get_name(*name_id).unwrap();
+        Type::Named(name_id) => {
+            let type_name = named_type_map.get_name(*name_id).unwrap();
 
-                let mut new_type_def = String::new();
+            match name_context.is_defined(type_name) {
+                true => type_name.to_string(),
+                false => {
+                    match named_type_map.get_type(*name_id).unwrap() {
+                        NamedTypeTree::Struct { tree } => {
+                            let mut new_type_def = String::new();
 
-                let documents = match tree {
-                    TypeTree::Node {
-                        node: _,
-                        any_node: _,
-                        node_key_span: _,
-                        any_node_key_span: _,
-                        documents,
-                        span: _,
-                    } => documents,
-                    TypeTree::Leaf {
-                        ty: _,
-                        documents,
-                        span: _,
-                    } => documents,
-                };
+                            let documents = match tree {
+                                TypeTree::Node {
+                                    node: _,
+                                    any_node: _,
+                                    node_key_span: _,
+                                    any_node_key_span: _,
+                                    documents,
+                                    span: _,
+                                } => documents,
+                                TypeTree::Leaf {
+                                    ty: _,
+                                    documents,
+                                    span: _,
+                                } => documents,
+                            };
 
-                *type_def += "/**\n";
-                *type_def += documents
-                    .iter()
-                    .map(|line| format!(" *{}", line))
-                    .collect::<Vec<_>>()
-                    .join("")
-                    .as_str();
-                *type_def += " */\n";
+                            *type_def += "/**\n";
+                            *type_def += documents
+                                .iter()
+                                .map(|line| format!(" *{}", line))
+                                .collect::<Vec<_>>()
+                                .join("")
+                                .as_str();
+                            *type_def += " */\n";
 
-                *type_def += format!("export interface {} ", type_name).as_str();
-                *type_def += generate_type_tree_for_typescript(
-                    tree,
-                    &mut new_type_def,
-                    1,
-                    name_context,
-                    named_type_map,
-                )
-                .as_str();
-                *type_def += "\n\n";
+                            *type_def += format!("export interface {} ", type_name).as_str();
+                            *type_def += generate_type_tree_for_typescript(
+                                tree,
+                                &mut new_type_def,
+                                1,
+                                name_context,
+                                named_type_map,
+                            )
+                            .as_str();
+                            *type_def += "\n\n";
 
-                *type_def += new_type_def.as_str();
+                            *type_def += new_type_def.as_str();
+                        }
+                        NamedTypeTree::Enum {
+                            elements,
+                            documents,
+                        } => {
+                            let type_name = named_type_map.get_name(*name_id).unwrap();
 
-                type_name.to_string()
+                            *type_def += "/**\n";
+                            *type_def += documents
+                                .iter()
+                                .map(|line| format!(" *{}", line))
+                                .collect::<Vec<_>>()
+                                .join("")
+                                .as_str();
+                            *type_def += " */\n";
+
+                            *type_def += format!(
+                                "export type {} = {};\n\n",
+                                type_name,
+                                elements
+                                    .iter()
+                                    .map(|(element, _)| format!(r#""{}""#, &element.value))
+                                    .collect::<Vec<_>>()
+                                    .join(" | ")
+                            )
+                            .as_str();
+                        }
+                    }
+
+                    name_context.mark_as_defined(type_name.to_string());
+
+                    type_name.to_string()
+                }
             }
-            NamedTypeTree::Enum {
-                elements,
-                documents,
-            } => {
-                let type_name = named_type_map.get_name(*name_id).unwrap();
-
-                *type_def += "/**\n";
-                *type_def += documents
-                    .iter()
-                    .map(|line| format!(" *{}", line))
-                    .collect::<Vec<_>>()
-                    .join("")
-                    .as_str();
-                *type_def += " */\n";
-
-                *type_def += format!(
-                    "export type {} = {};\n\n",
-                    type_name,
-                    elements
-                        .iter()
-                        .map(|(element, _)| format!(r#""{}""#, &element.value))
-                        .collect::<Vec<_>>()
-                        .join(" | ")
-                )
-                .as_str();
-
-                type_name.to_string()
-            }
-        },
+        }
         Type::Or(elements) => elements
             .iter()
             .map(|ty| generate_type_for_typescript(ty, type_def, name_context, named_type_map))
