@@ -1,8 +1,11 @@
 use tyml_core::tyml_type::types::{NamedTypeMap, NamedTypeTree, Type, TypeTree};
 
+use crate::name::NameContext;
+
 pub(crate) fn generate_type_for_typescript(
     ty: &Type,
     type_def: &mut String,
+    name_context: &mut NameContext,
     named_type_map: &NamedTypeMap,
 ) -> String {
     match ty {
@@ -45,9 +48,14 @@ pub(crate) fn generate_type_for_typescript(
                 *type_def += " */\n";
 
                 *type_def += format!("export interface {} ", type_name).as_str();
-                *type_def +=
-                    generate_type_tree_for_typescript(tree, &mut new_type_def, 1, named_type_map)
-                        .as_str();
+                *type_def += generate_type_tree_for_typescript(
+                    tree,
+                    &mut new_type_def,
+                    1,
+                    name_context,
+                    named_type_map,
+                )
+                .as_str();
                 *type_def += "\n\n";
 
                 *type_def += new_type_def.as_str();
@@ -85,19 +93,19 @@ pub(crate) fn generate_type_for_typescript(
         },
         Type::Or(elements) => elements
             .iter()
-            .map(|ty| generate_type_for_typescript(ty, type_def, named_type_map))
+            .map(|ty| generate_type_for_typescript(ty, type_def, name_context, named_type_map))
             .collect::<Vec<_>>()
             .join(" | "),
         Type::Array(base_type) => {
             format!(
                 "{}[]",
-                generate_type_for_typescript(&base_type, type_def, named_type_map)
+                generate_type_for_typescript(&base_type, type_def, name_context, named_type_map)
             )
         }
         Type::Optional(base_type) => {
             format!(
                 "{} | null",
-                generate_type_for_typescript(&base_type, type_def, named_type_map)
+                generate_type_for_typescript(&base_type, type_def, name_context, named_type_map)
             )
         }
         Type::Any => "string".to_string(),
@@ -109,6 +117,7 @@ fn generate_type_tree_for_typescript(
     ty: &TypeTree,
     type_def: &mut String,
     indent: usize,
+    name_context: &mut NameContext,
     named_type_map: &NamedTypeMap,
 ) -> String {
     match ty {
@@ -159,6 +168,7 @@ fn generate_type_tree_for_typescript(
                         element_type,
                         type_def,
                         indent + 1,
+                        name_context,
                         named_type_map
                     )
                 )
@@ -174,7 +184,7 @@ fn generate_type_tree_for_typescript(
             ty,
             documents: _,
             span: _,
-        } => generate_type_for_typescript(ty, type_def, named_type_map),
+        } => generate_type_for_typescript(ty, type_def, name_context, named_type_map),
     }
 }
 
@@ -182,7 +192,7 @@ fn generate_type_tree_for_typescript(
 mod test {
     use tyml_core::{Tyml, tyml_type::types::TypeTree};
 
-    use crate::general::typescript::generate_type_tree_for_typescript;
+    use crate::{general::typescript::generate_type_tree_for_typescript, name::NameContext};
 
     #[test]
     fn type_gen_ts() {
@@ -212,6 +222,8 @@ user: User
 
         let mut type_def = String::new();
 
+        let mut name_context = NameContext::new();
+
         if let TypeTree::Node {
             node,
             any_node: _,
@@ -226,6 +238,7 @@ user: User
                     tree,
                     &mut type_def,
                     0,
+                    &mut name_context,
                     tyml.named_type_map(),
                 );
                 println!("{}: {}", name, type_name);

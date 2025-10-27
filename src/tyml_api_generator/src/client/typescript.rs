@@ -2,7 +2,9 @@ use std::fs;
 
 use tyml_core::{Tyml, tyml_type::types::FunctionKind};
 
-use crate::{GeneratorSettings, general::typescript::generate_type_for_typescript};
+use crate::{
+    GeneratorSettings, general::typescript::generate_type_for_typescript, name::NameContext,
+};
 
 pub fn generate_functions_for_typescript(
     setting: &GeneratorSettings,
@@ -37,6 +39,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
 ";
 
     let mut type_def = String::new();
+    let mut name_context = NameContext::new();
 
     for interface in tyml.interfaces().iter() {
         source += "/**\n";
@@ -75,7 +78,12 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
             if let Some(body) = &function.body_argument_info {
                 arguments.push(format!(
                     "__body: {}",
-                    generate_type_for_typescript(&body.ty, &mut type_def, tyml.named_type_map())
+                    generate_type_for_typescript(
+                        &body.ty,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
                 ));
             }
 
@@ -86,6 +94,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                     generate_type_for_typescript(
                         &argument.ty,
                         &mut type_def,
+                        &mut name_context,
                         tyml.named_type_map()
                     )
                 ));
@@ -104,6 +113,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                         generate_type_for_typescript(
                             throws_type,
                             &mut type_def,
+                            &mut name_context,
                             tyml.named_type_map()
                         )
                     )
@@ -115,6 +125,7 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                         generate_type_for_typescript(
                             &return_info.ty,
                             &mut type_def,
+                            &mut name_context,
                             tyml.named_type_map()
                         )
                     )
@@ -126,11 +137,13 @@ const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
                         generate_type_for_typescript(
                             &return_info.ty,
                             &mut type_def,
+                            &mut name_context,
                             tyml.named_type_map()
                         ),
                         generate_type_for_typescript(
                             throws_type,
                             &mut type_def,
+                            &mut name_context,
                             tyml.named_type_map()
                         )
                     )
