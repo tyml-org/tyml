@@ -12,14 +12,14 @@ name = "tyml"
 path = "src/bin/tyml.rs"
 
 [dependencies]
-tyml_diagnostic = { path = "../tyml_diagnostic/", version = "0.1.8" }
+tyml_diagnostic = { path = "../tyml_diagnostic/", version = "0.1.9" }
 tyml_formatter = { path = "../tyml_formatter/", version = "0.1.8" }
-tyml_generator = { path = "../tyml_generator/", version = "0.1.8" }
+tyml_generator = { path = "../tyml_generator/", version = "0.1.9" }
 tyml_grammar = { path = "../tyml_grammar/", version = "0.1.8" }
-tyml_parser = { path = "../tyml_parser/", version = "0.1.8" }
+tyml_parser = { path = "../tyml_parser/", version = "0.1.9" }
 tyml_source = { path = "../tyml_source/", version = "0.1.8" }
 tyml_type = { path = "../tyml_type/", version = "0.1.5" }
-tyml_validate = { path = "../tyml_validate/", version = "0.1.8" }
+tyml_validate = { path = "../tyml_validate/", version = "0.1.9" }
 bumpalo = { version = "3.17.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.21"
 either = "1.13.0"
