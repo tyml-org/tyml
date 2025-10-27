@@ -74,7 +74,7 @@ pub(crate) fn generate_type_for_typescript(
                     type_name,
                     elements
                         .iter()
-                        .map(|(element, _)| element.value.to_string())
+                        .map(|(element, _)| format!(r#""{}""#, &element.value))
                         .collect::<Vec<_>>()
                         .join(" | ")
                 )
