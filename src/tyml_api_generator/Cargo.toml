@@ -1,6 +1,7 @@
+# !tyml @cargo/Cargo
 [package]
 name = "tyml_api_generator"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2024"
 license = "MIT"
 description = "TYML: type checker for markup language"
@@ -10,7 +11,11 @@ repository = "https://github.com/tyml-org/tyml/"
 name = "tyml-api-gen"
 path = "src/bin/tyml_api_gen.rs"
 
+[[bin]]
+name = "tyml-serde-gen"
+path = "src/bin/tyml_serde_gen.rs"
+
 [dependencies]
-clap = { version = "4.5.45", features = ["derive"] }
+clap = { version = "4.5.45", features = [ "derive" ] }
 shellexpand = "3.1.1"
 tyml_core = { path = "../tyml/", version = "0.1.9" }

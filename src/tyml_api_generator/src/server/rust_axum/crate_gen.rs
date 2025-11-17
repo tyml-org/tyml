@@ -6,7 +6,7 @@ pub(crate) fn generate_cargo_toml(
     setting: &GeneratorSettings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = format!(
-        r#"
+        r#" # !tyml @cargo/Cargo
 [package]
 name = "{}"
 version = "0.1.0"

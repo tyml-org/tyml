@@ -78,6 +78,7 @@ pub(crate) fn generate_type_for_rust(
                                         &mut new_type_def,
                                         name_context,
                                         named_type_map,
+                                        None,
                                     );
 
                                     *type_def += format!(
@@ -117,7 +118,7 @@ pub(crate) fn generate_type_for_rust(
                                     .join("");
 
                                 *type_def +=
-                                    format!("    {}\n{},\n", documents, element.value).as_str();
+                                    format!("    {}\n    {},\n", documents, element.value).as_str();
                             }
 
                             *type_def += "}\n\n";
@@ -194,11 +195,12 @@ pub(crate) fn generate_type_for_rust(
     }
 }
 
-fn generate_type_tree_for_rust(
+pub fn generate_type_tree_for_rust(
     ty: &TypeTree,
     type_def: &mut String,
     name_context: &mut NameContext,
     named_type_map: &NamedTypeMap,
+    inner_tree_name_request: Option<String>,
 ) -> String {
     match ty {
         TypeTree::Node {
@@ -209,7 +211,11 @@ fn generate_type_tree_for_rust(
             documents,
             span: _,
         } => {
-            let type_name = name_context.create_name("InnerTree".to_string());
+            let type_name = name_context.create_name(
+                inner_tree_name_request
+                    .clone()
+                    .unwrap_or_else(|| "InnerTree".to_string()),
+            );
 
             let documents = documents
                 .iter()
@@ -257,6 +263,7 @@ fn generate_type_tree_for_rust(
                     &mut new_type_def,
                     name_context,
                     named_type_map,
+                    None,
                 );
 
                 *type_def += format!("    pub {}: {},\n", element_name, element_type_name).as_str();
@@ -321,6 +328,7 @@ user: User
                     &mut type_def,
                     &mut name_context,
                     tyml.named_type_map(),
+                    None,
                 );
                 println!("{}: {}", name, type_name);
             }
