@@ -1,7 +1,7 @@
 # !tyml @cargo/Cargo
 [package]
 name = "tyml_api_generator"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 license = "MIT"
 description = "TYML: type checker for markup language"
