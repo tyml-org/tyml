@@ -2,14 +2,13 @@ use std::{ops::Deref, sync::LazyLock};
 
 use ariadne::{Color, Fmt};
 use regex::Regex;
-use resource::resource_str;
 use sys_locale::get_locale;
 use toml::{Table, Value};
 
 static JA_JP: LazyLock<Table> =
-    LazyLock::new(|| resource_str!("message/ja_JP.toml").parse().unwrap());
+    LazyLock::new(|| include_str!("message/ja_JP.toml").parse().unwrap());
 static EN_US: LazyLock<Table> =
-    LazyLock::new(|| resource_str!("message/en_US.toml").parse().unwrap());
+    LazyLock::new(|| include_str!("message/en_US.toml").parse().unwrap());
 
 pub struct Lang {}
 

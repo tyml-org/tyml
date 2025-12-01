@@ -12,7 +12,7 @@ name = "tyml"
 path = "src/bin/tyml.rs"
 
 [dependencies]
-tyml_diagnostic = { path = "../tyml_diagnostic/", version = "0.1.9" }
+tyml_diagnostic = { path = "../tyml_diagnostic/", version = "0.1.10" }
 tyml_formatter = { path = "../tyml_formatter/", version = "0.1.8" }
 tyml_generator = { path = "../tyml_generator/", version = "0.1.9" }
 tyml_grammar = { path = "../tyml_grammar/", version = "0.1.8" }
