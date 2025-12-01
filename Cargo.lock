@@ -2320,7 +2320,7 @@ dependencies = [
 
 [[package]]
 name = "tyml_lsp"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "either",
  "extension-fn",
