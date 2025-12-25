@@ -18,4 +18,4 @@ path = "src/bin/tyml_serde_gen.rs"
 [dependencies]
 clap = { version = "4.5.45", features = [ "derive" ] }
 shellexpand = "3.1.1"
-tyml_core = { path = "../tyml/", version = "0.1.9" }
+tyml_core = { path = "../tyml/", version = "0.1.11" }

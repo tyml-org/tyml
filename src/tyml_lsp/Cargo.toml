@@ -12,7 +12,7 @@ name = "tyml-lsp-server"
 path = "src/bin/server.rs"
 
 [dependencies]
-tyml_core = { path = "../tyml/", version = "0.1.10" }
+tyml_core = { path = "../tyml/", version = "0.1.11" }
 tower-lsp = "0.20.0"
 tokio = { version = "1.44.2", features = ["full"] }
 regex = "1.11.1"
