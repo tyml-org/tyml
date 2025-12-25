@@ -2248,7 +2248,7 @@ dependencies = [
 
 [[package]]
 name = "tyml_core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "allocator-api2",
  "bumpalo",
