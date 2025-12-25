@@ -13,7 +13,7 @@ members = [
     "src/tyml_parser",
     "src/tyml_source",
     "src/tyml_type",
-    "src/tyml_validate",
+    "src/tyml_validate"
 ]
 
 [profile.release]

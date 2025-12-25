@@ -8,7 +8,7 @@ description = "TYML: type checker for markup language"
 repository = "https://github.com/tyml-org/tyml/"
 
 [dependencies]
-tyml_generator = { path = "../tyml_generator/", version = "0.1.9" }
+tyml_generator = { path = "../tyml_generator/", version = "0.1.10" }
 tyml_parser = { path = "../tyml_parser/", version = "0.1.9" }
 tyml_source = { path = "../tyml_source/", version = "0.1.8" }
 tyml_type = { path = "../tyml_type/", version = "0.1.9" }
