@@ -92,8 +92,8 @@ pub fn toml() -> LanguageStyle {
                 inline_section: Some(InlineSection {
                     kind: InlineSectionKind::Brace,
                     separator: InlineSectionSeparator::Comma {
-                        allow_line_feed: false,
-                        allow_extra_comma: false,
+                        allow_line_feed: true,
+                        allow_extra_comma: true,
                     },
                 }),
                 ..Default::default()
