@@ -845,6 +845,7 @@ impl TymlLanguageServer {
                     "kind",
                     "rename",
                     "authed",
+                    "cookie",
                     "return",
                 ]
                 .into_iter()
@@ -1515,6 +1516,10 @@ mod tyml_semantic_tokens {
             collect_tokens_for_properties(&function.properties, tokens);
 
             if let Some(span) = &function.authed {
+                tokens.insert(span.start, (SemanticTokenType::MACRO, span.clone()));
+            }
+
+            if let Some(span) = &function.cookie {
                 tokens.insert(span.start, (SemanticTokenType::MACRO, span.clone()));
             }
 

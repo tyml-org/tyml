@@ -59,6 +59,10 @@ fn generate_trait(tyml: &Tyml) -> String {
             let mut arguments = Vec::new();
             arguments.push("&self".to_string());
 
+            if function.cookie.is_some() {
+                arguments.push("cookies: axum_extra::extract::CookieJar".to_string());
+            }
+
             if let Some(claim) = &function.claim_argument_info {
                 arguments.push(format!(
                     "claim: {}",
@@ -100,54 +104,52 @@ fn generate_trait(tyml: &Tyml) -> String {
 
             source += ")";
 
-            match &function.return_info {
-                Some(return_type) => match &function.throws_type {
-                    Some(throws_type) => {
-                        source += format!(
-                            " -> Result<{}, {}>",
-                            generate_type_for_rust(
-                                &return_type.ty,
-                                &mut type_def,
-                                &mut name_context,
-                                tyml.named_type_map()
-                            ),
-                            generate_type_for_rust(
-                                throws_type,
-                                &mut type_def,
-                                &mut name_context,
-                                tyml.named_type_map()
-                            )
-                        )
-                        .as_str();
+            let inner_return = match (&function.return_info, &function.throws_type) {
+                (Some(return_type), Some(throws_type)) => Some(format!(
+                    "Result<{}, {}>",
+                    generate_type_for_rust(
+                        &return_type.ty,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    ),
+                    generate_type_for_rust(
+                        throws_type,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
+                )),
+                (Some(return_type), None) => Some(generate_type_for_rust(
+                    &return_type.ty,
+                    &mut type_def,
+                    &mut name_context,
+                    tyml.named_type_map(),
+                )),
+                (None, Some(throws_type)) => Some(format!(
+                    "Result<(), {}>",
+                    generate_type_for_rust(
+                        throws_type,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
+                )),
+                (None, None) => None,
+            };
+
+            if function.cookie.is_some() {
+                match inner_return {
+                    Some(ret) => {
+                        source +=
+                            format!(" -> (axum_extra::extract::CookieJar, {})", ret).as_str();
                     }
                     None => {
-                        source += format!(
-                            " -> {}",
-                            generate_type_for_rust(
-                                &return_type.ty,
-                                &mut type_def,
-                                &mut name_context,
-                                tyml.named_type_map()
-                            )
-                        )
-                        .as_str();
+                        source += " -> axum_extra::extract::CookieJar";
                     }
-                },
-                None => match &function.throws_type {
-                    Some(throws_type) => {
-                        source += format!(
-                            " -> Result<(), {}>",
-                            generate_type_for_rust(
-                                throws_type,
-                                &mut type_def,
-                                &mut name_context,
-                                tyml.named_type_map()
-                            )
-                        )
-                        .as_str();
-                    }
-                    None => {}
-                },
+                }
+            } else if let Some(ret) = inner_return {
+                source += format!(" -> {}", ret).as_str();
             }
 
             source += ";\n"
@@ -241,5 +243,48 @@ interface API {
         let tyml = Tyml::parse(source.to_string());
 
         println!("{}", generate_trait(&tyml));
+    }
+
+    #[test]
+    fn rust_axum_cookie_trait_gen() {
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    cookie function logout()
+    function login() -> Token
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_trait(&tyml);
+        println!("{}", generated);
+
+        // cookie function with return -> tuple of (CookieJar, T)
+        assert!(
+            generated.contains(
+                "async fn refresh(&self, cookies: axum_extra::extract::CookieJar) -> (axum_extra::extract::CookieJar, Token)"
+            ),
+            "actual: {}",
+            generated
+        );
+        // cookie function without return -> just CookieJar
+        assert!(
+            generated.contains(
+                "async fn logout(&self, cookies: axum_extra::extract::CookieJar) -> axum_extra::extract::CookieJar"
+            ),
+            "actual: {}",
+            generated
+        );
+        // non-cookie function -> unchanged
+        assert!(
+            generated.contains("async fn login(&self) -> Token"),
+            "actual: {}",
+            generated
+        );
     }
 }

@@ -1402,6 +1402,11 @@ fn parse_function<'input, 'allocator>(
         _ => None,
     };
 
+    let cookie = match lexer.current().get_kind() {
+        TokenKind::Cookie => Some(lexer.next().unwrap().span),
+        _ => None,
+    };
+
     if lexer.current().get_kind() != TokenKind::Function {
         lexer.back_to_anchor(anchor);
         return None;
@@ -1438,6 +1443,7 @@ fn parse_function<'input, 'allocator>(
             documents,
             properties,
             authed,
+            cookie,
             keyword_span,
             name,
             arguments: &[],
@@ -1489,6 +1495,7 @@ fn parse_function<'input, 'allocator>(
             documents,
             properties,
             authed,
+            cookie,
             keyword_span,
             name,
             arguments,
@@ -1511,6 +1518,7 @@ fn parse_function<'input, 'allocator>(
         documents,
         properties,
         authed,
+        cookie,
         keyword_span,
         name,
         arguments,

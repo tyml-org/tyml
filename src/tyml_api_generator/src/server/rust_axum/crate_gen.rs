@@ -14,6 +14,7 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8"
+axum-extra = {{ version = "0.10", features = ["cookie"] }}
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
 extension-fn = "1.2"

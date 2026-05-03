@@ -4,8 +4,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use tyml_api_generator::{
     GeneratorSettings,
     client::{
-        kotlin::generate_kotlin_client, rust::generate_rust_client,
-        typescript::generate_functions_for_typescript,
+        kotlin::generate_kotlin_client,
+        rust::generate_rust_client,
+        typescript::{
+            generate_functions_for_typescript, generate_functions_for_typescript_browser,
+        },
     },
     server::rust_axum::generate_rust_axum_server,
 };
@@ -46,7 +49,11 @@ enum ServerKind {
 
 #[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
 enum ClientKind {
+    /// Isomorphic TypeScript client (Node/Deno/Bun/Workers/browser).
+    /// Cookie handling requires injecting a `CookieJar` implementation at construction.
     Typescript,
+    /// Browser-only TypeScript client. Cookies are handled by the browser via `credentials: "include"`.
+    TypescriptBrowser,
     Rust,
     Kotlin,
 }
@@ -133,6 +140,9 @@ fn main() -> Result<(), String> {
             name: _,
         } => match kind {
             ClientKind::Typescript => generate_functions_for_typescript(&setting, &tyml),
+            ClientKind::TypescriptBrowser => {
+                generate_functions_for_typescript_browser(&setting, &tyml)
+            }
             ClientKind::Rust => generate_rust_client(&setting, &tyml),
             ClientKind::Kotlin => generate_kotlin_client(&setting, &tyml),
         },

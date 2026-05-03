@@ -455,6 +455,7 @@ pub struct FunctionInfo<'input, 'ast_allocator> {
     pub documents: &'ast_allocator [&'input str],
     pub keyword_span: Range<usize>,
     pub authed: Option<Range<usize>>,
+    pub cookie: Option<Range<usize>>,
     pub name: Spanned<String>,
     pub kind: FunctionKind,
     pub arguments: Vec<FunctionArgumentInfo<'input, 'ast_allocator>>,

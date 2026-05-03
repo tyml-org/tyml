@@ -320,6 +320,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
         }
 
         let authed = function.authed.as_ref().cloned();
+        let cookie = function.cookie.as_ref().cloned();
 
         let mut body_argument_info: Option<FunctionBodyArgumentInfo<'_, '_>> = None;
         let mut claim_argument_info: Option<AuthClaimArgumentInfo<'_, '_>> = None;
@@ -446,6 +447,7 @@ fn collect_interface_info<'input, 'env, 'ast_allocator>(
             documents: function.documents.lines,
             keyword_span: function.keyword_span.clone(),
             authed,
+            cookie,
             name: final_name,
             kind,
             arguments,

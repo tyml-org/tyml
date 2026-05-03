@@ -90,6 +90,10 @@ pub mod types;
             )
             .as_str();
 
+            if function.cookie.is_some() {
+                source += "\n       __cookies: axum_extra::extract::CookieJar, ";
+            }
+
             if let Some(_) = &function.body_argument_info {
                 source += "\n       Json(__body): Json<_>, ";
             }
@@ -131,10 +135,14 @@ pub mod types;
             }
 
             source += format!(
-                "        let result = <T as crate::types::{}>::{}(&api, ",
+                "        let __raw = <T as crate::types::{}>::{}(&api, ",
                 interface.original_name, &function.name.value
             )
             .as_str();
+
+            if function.cookie.is_some() {
+                source += "__cookies, ";
+            }
 
             if let Some(_) = &function.claim_argument_info {
                 source += "__claim, ";
@@ -151,28 +159,70 @@ pub mod types;
 
             source += ").await;\n";
 
+            // Unwrap (CookieJar, T) tuple if cookie function. Else, pass through.
+            let has_inner_value =
+                function.return_info.is_some() || function.throws_type.is_some();
+            if function.cookie.is_some() {
+                if has_inner_value {
+                    source += "        let (__cookies, result) = __raw;\n";
+                } else {
+                    source += "        let __cookies = __raw;\n";
+                }
+            } else {
+                source += "        let result = __raw;\n";
+            }
+
+            // Tuple-with-cookies wrapper helper (rendered as `(jar, response)` if cookie, else just `response`).
+            let wrap_open = if function.cookie.is_some() {
+                "(__cookies, "
+            } else {
+                ""
+            };
+            let wrap_close = if function.cookie.is_some() { ")" } else { "" };
+
             match &function.throws_type {
                 Some(_) => {
                     source += "        match result {\n";
 
                     match &function.return_info {
                         Some(_) => {
-                            source += "            Ok(value) => (StatusCode::OK, Json(value)).into_response(),\n";
+                            source += format!(
+                                "            Ok(value) => {}(StatusCode::OK, Json(value)){}.into_response(),\n",
+                                wrap_open, wrap_close
+                            )
+                            .as_str();
                         }
                         None => {
-                            source += "            Ok(_) => Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap(),\n";
+                            source += format!(
+                                "            Ok(_) => {}(StatusCode::OK, ()){}.into_response(),\n",
+                                wrap_open, wrap_close
+                            )
+                            .as_str();
                         }
                     }
 
-                    source += "            Err(error) => (StatusCode::BAD_REQUEST, Json(error)).into_response(),\n";
+                    source += format!(
+                        "            Err(error) => {}(StatusCode::BAD_REQUEST, Json(error)){}.into_response(),\n",
+                        wrap_open, wrap_close
+                    )
+                    .as_str();
                     source += "        }\n";
                 }
                 None => match &function.return_info {
                     Some(_) => {
-                        source += "        (StatusCode::OK, Json(result)).into_response()\n";
+                        source += format!(
+                            "        {}(StatusCode::OK, Json(result)){}.into_response()\n",
+                            wrap_open, wrap_close
+                        )
+                        .as_str();
                     }
                     None => {
-                        source += "        Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap()\n";
+                        if function.cookie.is_some() {
+                            source +=
+                                "        (__cookies, (StatusCode::OK, ())).into_response()\n";
+                        } else {
+                            source += "        Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap()\n";
+                        }
                     }
                 },
             }
@@ -196,6 +246,35 @@ mod test {
     use tyml_core::Tyml;
 
     use crate::server::rust_axum::lib_gen::generate_server;
+
+    #[test]
+    fn rust_axum_cookie_gen() {
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    cookie function logout()
+    function login() -> Token
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_server(&tyml);
+        println!("{}", generated);
+
+        // CookieJar extracted from request for cookie functions
+        assert!(generated.contains("__cookies: axum_extra::extract::CookieJar"));
+        // tuple unwrap for cookie + return value
+        assert!(generated.contains("let (__cookies, result) = __raw;"));
+        // jar-only unwrap for cookie + no return
+        assert!(generated.contains("let __cookies = __raw;"));
+        // cookies attached to response
+        assert!(generated.contains("(__cookies, (StatusCode::OK, Json(result)))"));
+    }
 
     #[test]
     fn rust_axum_gen() {

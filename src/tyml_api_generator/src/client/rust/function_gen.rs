@@ -39,6 +39,11 @@ pub enum ThrowsOrOtherError<T> {
 ";
 
     for interface in tyml.interfaces().iter() {
+        let interface_uses_cookie = interface
+            .functions
+            .iter()
+            .any(|function| function.cookie.is_some());
+
         source += interface
             .documents
             .iter()
@@ -49,9 +54,24 @@ pub enum ThrowsOrOtherError<T> {
 
         source += format!("pub struct {} {{\n", interface.original_name).as_str();
         source += "    pub url: String,\n";
+        source += "    pub client: reqwest::Client,\n";
         source += "}\n\n";
 
         source += format!("impl {} {{\n", interface.original_name).as_str();
+
+        // constructor that wires up the shared reqwest::Client (with cookie_store enabled
+        // if any function uses cookie)
+        source += "    pub fn new(url: impl Into<String>) -> Self {\n";
+        if interface_uses_cookie {
+            source += "        let client = reqwest::Client::builder()\n";
+            source += "            .cookie_store(true)\n";
+            source += "            .build()\n";
+            source += "            .expect(\"failed to build reqwest client\");\n";
+        } else {
+            source += "        let client = reqwest::Client::new();\n";
+        }
+        source += "        Self { url: url.into(), client }\n";
+        source += "    }\n\n";
 
         for function in interface.functions.iter() {
             source += function
@@ -148,8 +168,6 @@ pub enum ThrowsOrOtherError<T> {
                 }
             }
 
-            source += "        let client = reqwest::Client::new();\n";
-
             let method = match function.kind {
                 FunctionKind::GET => "get",
                 FunctionKind::PUT => "put",
@@ -159,7 +177,7 @@ pub enum ThrowsOrOtherError<T> {
             };
 
             source += format!(
-                r#"        let mut request = client.{}(format!("{{}}/{}/{}", &self.url));"#,
+                r#"        let mut request = self.client.{}(format!("{{}}/{}/{}", &self.url));"#,
                 method, &interface.name.value, &function.name.value
             )
             .as_str();
@@ -267,6 +285,53 @@ mod test {
     use tyml_core::Tyml;
 
     use crate::client::rust::function_gen::generate_struct;
+
+    #[test]
+    fn rust_cookie_struct_gen() {
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    function login() -> Token
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_struct(&tyml);
+        println!("{}", generated);
+
+        // shared client with cookie_store(true) when interface contains a cookie function
+        assert!(generated.contains("cookie_store(true)"));
+        // constructor exists
+        assert!(generated.contains("pub fn new(url: impl Into<String>) -> Self"));
+        // request uses self.client
+        assert!(generated.contains("self.client."));
+    }
+
+    #[test]
+    fn rust_no_cookie_struct_gen() {
+        let source = r#"
+type User { id: int }
+
+interface API {
+    function get_user(id: int) -> User
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_struct(&tyml);
+
+        // no cookie_store for cookie-free interfaces
+        assert!(!generated.contains("cookie_store"));
+        // still uses shared client.
+        assert!(generated.contains("Client::new()"));
+        assert!(generated.contains("self.client."));
+    }
 
     #[test]
     fn rust_struct_gen() {

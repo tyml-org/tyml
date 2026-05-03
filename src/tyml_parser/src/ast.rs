@@ -319,6 +319,7 @@ pub struct Function<'input, 'allocator> {
     pub documents: Documents<'input, 'allocator>,
     pub properties: Properties<'input, 'allocator>,
     pub authed: Option<Range<usize>>,
+    pub cookie: Option<Range<usize>>,
     pub keyword_span: Range<usize>,
     pub name: Literal<'input>,
     pub arguments: &'allocator [FunctionArgument<'input, 'allocator>],

@@ -558,6 +558,58 @@ interface API {
     }
 
     #[test]
+    fn cookie_resolver_propagation_test() {
+        use crate::Tyml;
+
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    authed cookie function rotate(@claim: Token) -> Token
+    function login() -> Token
+}
+"#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        assert!(tyml.parse_errors().is_empty(), "{:?}", tyml.parse_errors());
+        assert!(tyml.type_errors().is_empty(), "{:?}", tyml.type_errors());
+
+        let interface = tyml
+            .interfaces()
+            .iter()
+            .find(|i| i.original_name == "Auth")
+            .expect("Auth interface not found");
+
+        let refresh = interface
+            .functions
+            .iter()
+            .find(|f| f.name.value == "refresh")
+            .unwrap();
+        assert!(refresh.cookie.is_some(), "refresh must carry cookie span");
+        assert!(refresh.authed.is_none());
+
+        let rotate = interface
+            .functions
+            .iter()
+            .find(|f| f.name.value == "rotate")
+            .unwrap();
+        assert!(rotate.cookie.is_some());
+        assert!(rotate.authed.is_some());
+
+        let login = interface
+            .functions
+            .iter()
+            .find(|f| f.name.value == "login")
+            .unwrap();
+        assert!(login.cookie.is_none());
+        assert!(login.authed.is_none());
+    }
+
+    #[test]
     fn cache_test() {
         let file_path = tokio::runtime::Runtime::new().unwrap().block_on(async {
             get_cached_file(

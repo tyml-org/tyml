@@ -1,0 +1,273 @@
+use tyml_core::{Tyml, tyml_type::types::FunctionKind};
+
+use crate::{general::typescript::generate_type_for_typescript, name::NameContext};
+
+pub(crate) fn generate_functions(tyml: &Tyml) -> String {
+    let mut source = String::new();
+
+    source += "
+type Ok<T> = { readonly ok: true; readonly value: T };
+type Err<E> = { readonly ok: false; readonly error: E };
+export type Result<T, E> = Ok<T> | Err<E>;
+
+const __ok = <T>(value: T): Ok<T> => ({ ok: true, value } as const);
+const __err = <E>(error: E): Err<E> => ({ ok: false, error } as const);
+
+
+";
+
+    let mut type_def = String::new();
+    let mut name_context = NameContext::new();
+
+    for interface in tyml.interfaces().iter() {
+        source += "/**\n";
+        source += interface
+            .documents
+            .iter()
+            .map(|line| format!(" *{}", line))
+            .collect::<Vec<_>>()
+            .join("")
+            .as_str();
+        source += " */\n";
+
+        source += format!("export class {} {{\n", interface.original_name).as_str();
+        source += "    private url: string;\n";
+        source += "    public constructor(url: string) { this.url = url; }\n\n";
+
+        for function in interface.functions.iter() {
+            source += "    /**\n";
+            source += function
+                .documents
+                .iter()
+                .map(|line| format!("     *{}", line))
+                .collect::<Vec<_>>()
+                .join("")
+                .as_str();
+            source += "     */\n";
+
+            source += format!("    public async {}(", function.name.value.as_str()).as_str();
+
+            let mut arguments = Vec::new();
+
+            if let Some(_) = &function.claim_argument_info {
+                arguments.push("__token: string".to_string());
+            }
+
+            if let Some(body) = &function.body_argument_info {
+                arguments.push(format!(
+                    "__body: {}",
+                    generate_type_for_typescript(
+                        &body.ty,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
+                ));
+            }
+
+            for argument in function.arguments.iter() {
+                arguments.push(format!(
+                    "{}: {}",
+                    &argument.name.value,
+                    generate_type_for_typescript(
+                        &argument.ty,
+                        &mut type_def,
+                        &mut name_context,
+                        tyml.named_type_map()
+                    )
+                ));
+            }
+
+            source += arguments.join(", ").as_str();
+            source += ")";
+
+            match (&function.return_info, &function.throws_type) {
+                (None, None) => {
+                    source += ": Promise<void> {\n";
+                }
+                (None, Some(throws_type)) => {
+                    source += format!(
+                        ": Promise<Result<void, {}>> {{\n",
+                        generate_type_for_typescript(
+                            throws_type,
+                            &mut type_def,
+                            &mut name_context,
+                            tyml.named_type_map()
+                        )
+                    )
+                    .as_str();
+                }
+                (Some(return_info), None) => {
+                    source += format!(
+                        ": Promise<{}> {{\n",
+                        generate_type_for_typescript(
+                            &return_info.ty,
+                            &mut type_def,
+                            &mut name_context,
+                            tyml.named_type_map()
+                        )
+                    )
+                    .as_str();
+                }
+                (Some(return_info), Some(throws_type)) => {
+                    source += format!(
+                        ": Promise<Result<{}, {}>> {{\n",
+                        generate_type_for_typescript(
+                            &return_info.ty,
+                            &mut type_def,
+                            &mut name_context,
+                            tyml.named_type_map()
+                        ),
+                        generate_type_for_typescript(
+                            throws_type,
+                            &mut type_def,
+                            &mut name_context,
+                            tyml.named_type_map()
+                        )
+                    )
+                    .as_str();
+                }
+            }
+
+            source += "        let __url = this.url;\n";
+            source += format!(
+                "        __url += '/{}/{}';\n",
+                &interface.name.value, &function.name.value
+            )
+            .as_str();
+
+            if !function.arguments.is_empty() {
+                source += "        __url += '?';\n";
+            }
+
+            let mut queries = Vec::new();
+            for argument in function.arguments.iter() {
+                let mut query = String::new();
+                query += format!("        __url += '{}=';\n", &argument.name.value).as_str();
+                query += format!(
+                    "        __url += encodeURIComponent(JSON.stringify({}));\n",
+                    &argument.name.value
+                )
+                .as_str();
+
+                queries.push(query);
+            }
+
+            source += queries.join("        __url += '&';\n").as_str();
+
+            let method = match function.kind {
+                FunctionKind::GET => "GET",
+                FunctionKind::PUT => "PUT",
+                FunctionKind::POST => "POST",
+                FunctionKind::PATCH => "PATCH",
+                FunctionKind::DELETE => "DELETE",
+            };
+
+            let body = match &function.body_argument_info {
+                Some(_) => ", body: JSON.stringify(__body)",
+                None => "",
+            };
+
+            let mut header = String::new();
+            header += ", headers: { Accept: 'application/json'";
+            if let Some(_) = &function.claim_argument_info {
+                header += ", Authorization: `Bearer ${__token}`";
+            }
+            header += " }";
+
+            // cookie functions: tell the browser to send/receive cookies
+            let credentials = if function.cookie.is_some() {
+                ", credentials: 'include'"
+            } else {
+                ""
+            };
+
+            source += format!(
+                "        const result = await fetch(__url, {{ method: '{}'{}{}{} }});\n",
+                method, body, header, credentials
+            )
+            .as_str();
+
+            source += "        if (result.ok) {\n";
+            match (&function.return_info, &function.throws_type) {
+                (None, None) => {
+                    source += "            return;\n";
+                }
+                (None, Some(_)) => {
+                    source += "            return __ok(undefined);\n";
+                }
+                (Some(_), None) => {
+                    source += format!("            return result.json();\n").as_str();
+                }
+                (Some(_), Some(_)) => {
+                    source += format!("            return __ok(result.json());\n").as_str();
+                }
+            }
+
+            source += "        } else {\n";
+            match (&function.return_info, &function.throws_type) {
+                (None, None) => {
+                    source += format!(
+                        "            throw new Error(`{} ${{__url}} failed: ${{result.status}} ${{result.statusText}}`);\n",
+                        method
+                    ).as_str();
+                }
+                (_, Some(_)) => {
+                    source += "            const json = result.json();\n";
+                    source += "            if (json !== undefined) {\n";
+                    source += "                return __err(json);\n";
+                    source += "            } else {\n";
+                    source += format!(
+                        "                throw new Error(`{} ${{__url}} failed: ${{result.status}} ${{result.statusText}}`);\n",
+                        method
+                    ).as_str();
+                    source += "            }\n";
+                }
+                (Some(_), None) => {
+                    source += format!(
+                        "            throw new Error(`{} ${{__url}} failed: ${{result.status}} ${{result.statusText}}`);\n",
+                        method
+                    ).as_str();
+                }
+            }
+
+            source += "        }\n";
+
+            source += "    }\n";
+        }
+
+        source += "}\n\n";
+    }
+
+    source += type_def.as_str();
+
+    source
+}
+
+#[cfg(test)]
+mod test {
+    use tyml_core::Tyml;
+
+    use crate::client::typescript::browser::generate_functions;
+
+    #[test]
+    fn ts_browser_client_gen() {
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    function login() -> Token
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_functions(&tyml);
+        println!("{}", generated);
+
+        assert!(generated.contains("credentials: 'include'"));
+    }
+}

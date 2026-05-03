@@ -42,10 +42,13 @@ import kotlinx.serialization.descriptors.*
 import kotlinx.serialization.encoding.*
 import kotlinx.serialization.json.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.JavaNetCookieJar
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.CookieManager
+import java.net.CookiePolicy
 
 sealed class Result<out V, out E>
 class Ok<out V>(val value: V) : Result<V, Nothing>()
@@ -53,6 +56,11 @@ class Err<out E>(val error: E) : Result<Nothing, E>()
 ";
 
     for interface in tyml.interfaces().iter() {
+        let interface_uses_cookie = interface
+            .functions
+            .iter()
+            .any(|function| function.cookie.is_some());
+
         source += "/**\n";
         source += interface
             .documents
@@ -68,6 +76,17 @@ class Err<out E>(val error: E) : Result<Nothing, E>()
             interface.original_name
         )
         .as_str();
+
+        // shared OkHttpClient (with cookie jar if any function uses cookie)
+        if interface_uses_cookie {
+            source += "    private val client: OkHttpClient = OkHttpClient.Builder()\n";
+            source += "        .cookieJar(JavaNetCookieJar(CookieManager().apply {\n";
+            source += "            setCookiePolicy(CookiePolicy.ACCEPT_ALL)\n";
+            source += "        }))\n";
+            source += "        .build()\n\n";
+        } else {
+            source += "    private val client: OkHttpClient = OkHttpClient()\n\n";
+        }
 
         for function in interface.functions.iter() {
             source += "    /**\n";
@@ -164,8 +183,6 @@ class Err<out E>(val error: E) : Result<Nothing, E>()
                     .as_str();
                 }
             }
-
-            source += "        val client = OkHttpClient()\n";
 
             source += format!(
                 r#"        val url = "${{this.url}}/{}/{}".toHttpUrl().newBuilder()"#,
@@ -272,6 +289,32 @@ mod test {
     use tyml_core::Tyml;
 
     use crate::client::kotlin::function_gen::generate_class;
+
+    #[test]
+    fn kotlin_cookie_class_gen() {
+        let source = r#"
+type Token {
+    access_token: string
+}
+
+interface Auth {
+    cookie function refresh() -> Token
+    function login() -> Token
+}
+        "#;
+
+        let tyml = Tyml::parse(source.to_string());
+
+        let generated = generate_class(&tyml);
+        println!("{}", generated);
+
+        // shared OkHttpClient with cookie jar when interface has cookie function
+        assert!(generated.contains("JavaNetCookieJar"));
+        assert!(generated.contains("CookieManager"));
+        assert!(generated.contains("CookiePolicy.ACCEPT_ALL"));
+        // class field client (not local)
+        assert!(generated.contains("private val client: OkHttpClient"));
+    }
 
     #[test]
     fn kotlin_class_gen() {
